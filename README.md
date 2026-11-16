@@ -10,7 +10,8 @@
   <a href="https://claude.ai/artifact/EToXiUFZwfQ38Lc1KVqVNZ">📋 스프린트 보드</a> ·
   <a href="docs/00_프로젝트_정리.md">📁 프로젝트 정리</a> ·
   <a href="docs/requirements.md">📝 요구사항 정의서</a> ·
-  <a href="docs/setup_로컬세팅.md">🛠 로컬 세팅</a>
+  <a href="docs/setup_로컬세팅.md">🛠 로컬 세팅</a> ·
+  <a href="docs/README.md">📚 전체 문서 목록</a>
 </p>
 
 # AI Healthcare Project Template
