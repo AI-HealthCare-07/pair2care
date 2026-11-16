@@ -51,6 +51,12 @@ jobs:
           MYSQL_DATABASE: ai_health
         ports:
           - 3306:3306
+        # MySQL이 접속 가능해질 때까지 기다린 뒤 테스트 시작 (없으면 Can't connect to MySQL server로 실패)
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -ppw1234"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
