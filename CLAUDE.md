@@ -65,7 +65,7 @@ docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 - `wireframe.md` 와이어프레임 링크(Figma)·화면 목록
 - `erd.md` ERD·테이블 명세서
 - `api-spec.md` API 명세서 — 각 API에 관련 `REQ-xxx` 표기
-- `scrum/YYYY-MM-DD.md` Daily Scrum 기록
+- Daily Scrum 기록은 레포가 아니라 노션 팀 페이지에 남김 (평일 10:10)
 - 기능 구현 전 해당 `REQ-xxx`와 API 명세를 먼저 읽음
 
 ## 7. Git 규칙
