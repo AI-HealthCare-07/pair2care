@@ -1,3 +1,18 @@
+![Pair 2 Care — 만성질환 생활습관 챌린지 AI](docs/images/banner_pair2care.png)
+
+<p align="center">
+  <b>[오즈코딩스쿨 AI 헬스케어 7기]</b> · 2026.11.16 ~ 12.30 
+    <br>
+   <b> 2조 -</b> 김지연 · 여현지 · 이지희 · 장성은 · 김민준 · 최현영
+</p>
+
+<p align="center">
+  <a href="https://claude.ai/artifact/EToXiUFZwfQ38Lc1KVqVNZ">📋 스프린트 보드</a> ·
+  <a href="docs/00_프로젝트_정리.md">📁 프로젝트 정리</a> ·
+  <a href="docs/requirements.md">📝 요구사항 정의서</a> ·
+  <a href="docs/setup_로컬세팅.md">🛠 로컬 세팅</a>
+</p>
+
 # AI Healthcare Project Template
 
 이 프로젝트는 AI 모델 추론(Inference) 워커와 FastAPI API 서버를 통합한 서비스 템플릿입니다. 
