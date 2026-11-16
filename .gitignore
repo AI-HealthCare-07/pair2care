@@ -12,3 +12,14 @@ wheels/
 .coverage
 *.coverage
 .coverage.*
+
+# 학습 데이터·모델 가중치
+data/
+*.csv
+*.parquet
+*.pkl
+*.pt
+*.pth
+*.onnx
+*.joblib
+mlruns/
