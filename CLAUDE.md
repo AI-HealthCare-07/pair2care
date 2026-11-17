@@ -13,7 +13,7 @@
 ## 2. 기술 스택
 - 백엔드: Python 3.13, FastAPI, Tortoise ORM + aerich(마이그레이션), JWT 인증 — 공식 템플릿(`OZ-Coding-School/AI_HealthCare_Final_Project_Template`) 기반
 - 패키지: uv (`uv sync --all-groups --frozen`), 의존성 그룹 `app` / `ai` / `dev`로 나눔. 패키지 추가 시 해당 그룹에 넣고 `uv.lock` 같이 커밋
-- 프론트엔드: TODO
+- 프론트엔드: React + Vite (11/17 확정, 바이브 코딩으로 구현)
 - DB: MySQL 8.0 (utf8mb4), Redis
 - AI: 위험 예측 모델 TODO (XGBoost / LightGBM), Claude API(예방행동 추천), OpenAI `text-embedding-3-small`(RAG 사용 시), TODO (식단 이미지 분류)
 - 배포: AWS EC2 + Docker Compose (nginx / fastapi / redis / ai-worker / DB 컨테이너 분리, 멀티스테이지 빌드), 모델·이미지 파일은 S3
@@ -35,7 +35,7 @@ ai_worker/          # Redis Stream 소비자 (tasks/, schemas/)
 infra/              # nginx 설정, 배포용 compose
 envs/               # example.*.env만 커밋. .local.env / .prod.env 는 커밋 금지
 scripts/            # ci(ruff·mypy·테스트), 배포, certbot
-frontend/           # TODO
+frontend/           # React + Vite
 docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 ```
 - 폴더마다 규칙이 늘어나면 해당 폴더에 `CLAUDE.md`를 따로 둠.
