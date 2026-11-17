@@ -1,0 +1,201 @@
+// Pair 2 Care ERD (DBML) — dbdiagram.io에 통째로 붙여넣으면 그림으로 보임
+// 뼈대: PK·FK·created_at만 넣어 둠. 나머지 컬럼은 담당자가 채움 (목록·후보 컬럼은 docs/erd.md)
+// 타입 표기: bigint, varchar(n), int, decimal(5,1), date, datetime, bool, json, enum
+// 담당: 김지연 = 회원·프로필·예측·LLM·알림 / 이지희 = 챌린지·짝꿍·건강 기록·식단
+
+Project pair2care {
+  database_type: 'MySQL'
+  Note: 'OZ 2조 Pair 2 Care. REQ 번호는 docs/requirements.md 기준'
+}
+
+// ───────── 김지연 ─────────
+
+Table users {
+  id bigint [pk, increment]
+  // TODO 김지연: 템플릿 컬럼 정리 (phone_number 유지 여부)
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  Note: 'REQ-USER-001~003'
+}
+
+Table health_profiles {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연: 설문 항목 (데이터팀 입력 변수 확정 후)
+  created_at datetime [not null]
+  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행'
+}
+
+Table checkup_records {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  Note: 'REQ-PROF-002~003 · 검진 수치, 집 혈압과 분리'
+}
+
+Table risk_predictions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  health_profile_id bigint [not null, ref: > health_profiles.id]
+  checkup_record_id bigint [null, ref: > checkup_records.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  Note: 'REQ-PRED-001~004, DASH-003'
+}
+
+Table recommendations {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연 (김민준 확인)
+  created_at datetime [not null]
+  Note: 'REQ-LLM-001~005 · 하루 1번 생성 후 저장'
+}
+
+Table llm_usage_logs {
+  id bigint [pk, increment]
+  user_id bigint [null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  Note: 'REQ-NFR-012'
+}
+
+Table notification_settings {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  Note: 'REQ-NOTI-001'
+}
+
+Table push_subscriptions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  Note: 'REQ-NOTI-003 · 기기마다 1행'
+}
+
+Table custom_reminders {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  Note: 'REQ-NOTI-009 · 약 정보 저장 안 함, title 짝꿍 비공개'
+}
+
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 김지연
+  created_at datetime [not null]
+  Note: 'REQ-NOTI-002, 004~007'
+}
+
+// ───────── 이지희 ─────────
+
+Table challenge_templates {
+  id bigint [pk, increment]
+  // TODO 이지희
+  created_at datetime [not null]
+  Note: 'REQ-CHAL-001 · 기본 제공 목록'
+}
+
+Table pairs {
+  id bigint [pk, increment]
+  requester_id bigint [not null, ref: > users.id]
+  partner_id bigint [null, ref: > users.id]
+  // TODO 이지희
+  created_at datetime [not null]
+  Note: 'REQ-PAIR-001'
+}
+
+Table challenges {
+  id bigint [pk, increment]
+  created_by bigint [not null, ref: > users.id]
+  challenge_template_id bigint [null, ref: > challenge_templates.id]
+  pair_id bigint [null, ref: > pairs.id]
+  // TODO 이지희
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  Note: 'REQ-CHAL-001, PAIR-002'
+}
+
+Table challenge_participants {
+  id bigint [pk, increment]
+  challenge_id bigint [not null, ref: > challenges.id]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 이지희
+  created_at datetime [not null]
+  Note: 'REQ-PAIR-002'
+}
+
+Table challenge_checks {
+  id bigint [pk, increment]
+  challenge_id bigint [not null, ref: > challenges.id]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 이지희 (challenge_id + user_id + 날짜 유니크)
+  created_at datetime [not null]
+  Note: 'REQ-CHAL-002~003, PAIR-003 · 짝꿍에게 보이는 유일한 정보'
+}
+
+Table cheers {
+  id bigint [pk, increment]
+  from_user_id bigint [not null, ref: > users.id]
+  to_user_id bigint [not null, ref: > users.id]
+  challenge_id bigint [null, ref: > challenges.id]
+  // TODO 이지희
+  created_at datetime [not null]
+  Note: 'REQ-PAIR-004'
+}
+
+Table health_logs {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  // TODO 이지희
+  created_at datetime [not null]
+  Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량'
+}
+
+Table foods {
+  id bigint [pk, increment]
+  // TODO 이지희 (여현지 확인)
+  created_at datetime [not null]
+  Note: 'REQ-FOOD-002 · 식약처 영양 DB'
+}
+
+Table meals {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  food_id bigint [null, ref: > foods.id]
+  // TODO 이지희 (여현지 확인)
+  created_at datetime [not null]
+  Note: 'REQ-FOOD-001~003 · 분류는 워커가 비동기로 채움'
+}
+
+TableGroup kim_jiyeon {
+  users
+  health_profiles
+  checkup_records
+  risk_predictions
+  recommendations
+  llm_usage_logs
+  notification_settings
+  push_subscriptions
+  custom_reminders
+  notifications
+}
+
+TableGroup lee_jihee {
+  challenge_templates
+  pairs
+  challenges
+  challenge_participants
+  challenge_checks
+  cheers
+  health_logs
+  foods
+  meals
+}
