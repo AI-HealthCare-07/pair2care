@@ -356,28 +356,43 @@ Table meals {
   Note: 'REQ-FOOD-001~003 · 분류는 워커가 비동기로 채움'
 }
 
-TableGroup kim_jiyeon {
+TableGroup user_profile {  // 회원·동의·설문·검진
   users
   user_consents
   health_profiles
   checkup_records
+}
+
+TableGroup prediction {  // 위험도 예측
   risk_predictions
+}
+
+TableGroup challenge_pair {  // 챌린지·짝꿍
+  challenge_templates
+  challenges
+  challenge_participants
+  challenge_checks
+  pairs
+  cheers
+}
+
+TableGroup health_record {  // 집에서 잰 기록
+  health_logs
+}
+
+TableGroup meal {  // 식단
+  foods
+  meals
+}
+
+TableGroup llm {  // LLM 추천·사용량
   recommendations
   llm_usage_logs
+}
+
+TableGroup notification {  // 알림
   notification_settings
   push_subscriptions
   custom_reminders
   notifications
-}
-
-TableGroup lee_jihee {
-  challenge_templates
-  pairs
-  challenges
-  challenge_participants
-  challenge_checks
-  cheers
-  health_logs
-  foods
-  meals
 }
