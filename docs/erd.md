@@ -12,14 +12,14 @@
 - 고정된 선택지는 CharEnum (예: `status`, `log_type`), 값 목록은 이 문서에 적음
 - 형태가 자주 바뀌는 결과(예측 요인, 음식 후보 상위 5개, 영양소, 근거 출처)는 JSON 컬럼
 - 개인 건강정보는 로그에 남기지 않음. 짝꿍에게 보이는 건 `challenge_checks`의 완료 여부뿐임 (`REQ-PAIR-003`)
-- 템플릿 `users`는 그대로 쓰되 `phone_number`가 필요한지 확인 (알림톡을 안 쓰면 안 받는 쪽이 개인정보상 나음)
+- 템플릿 `users`에서 `phone_number`는 뺌 (11/17 결정, 비밀번호 찾기는 이메일 재설정 링크 `REQ-USER-004`)
 
 ## 2. 테이블 목록
 
 ### 회원·건강 프로필 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `users` | 회원 (템플릿 있음) | email, hashed_password, name, gender, birthday | USER-001~003 |
+| `users` | 회원 (템플릿 있음, `phone_number` 제거) | email, hashed_password, name, gender, birthday | USER-001~004 |
 | `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, 설문 항목들(**11/18 데이터팀 입력 변수 확정 후**), answered_at | PROF-001, PRED-004 |
 | `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, checked_on, source(manual/ocr) | PROF-002, PROF-003 |
 
@@ -112,7 +112,7 @@ erDiagram
 - 11/20(금): 기획 4종 교차 확인
 
 ## 5. 정할 것
-- [ ] `users.phone_number` 유지 여부
+- [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
 - [ ] 예측 대상에 따라 `risk_predictions.disease` 값 (고혈압·당뇨 각각 vs 대사증후군)
 - [ ] 짝꿍은 한 사람당 1명만인지, 여러 명 가능한지 (`pairs` 유니크 조건)
 - [ ] `health_logs`를 한 테이블로 둘지, 항목별로 나눌지

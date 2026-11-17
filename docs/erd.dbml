@@ -12,10 +12,10 @@ Project pair2care {
 
 Table users {
   id bigint [pk, increment]
-  // TODO 김지연: 템플릿 컬럼 정리 (phone_number 유지 여부)
+  // TODO 김지연: 템플릿 컬럼 정리 (phone_number는 뺌, 11/17)
   created_at datetime [not null]
   updated_at datetime [not null]
-  Note: 'REQ-USER-001~003'
+  Note: 'REQ-USER-001~004'
 }
 
 Table health_profiles {
