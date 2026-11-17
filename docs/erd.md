@@ -59,9 +59,10 @@
 |---|---|---|---|
 | `notification_settings` | 알림 종류별 켜기·요일·시간, 방해 금지 시간 | user_id, noti_type, is_enabled, days(JSON), notify_at, quiet_start, quiet_end | NOTI-001 |
 | `push_subscriptions` | 웹 푸시 구독 정보 (기기마다 1행) | user_id, endpoint, p256dh, auth, user_agent | NOTI-003 |
+| `custom_reminders` | 사용자가 직접 만든 리마인더 (영양제·혈압 재기 등). 약 정보는 저장 안 함, `title`은 짝꿍에게 비공개 | user_id, title, days(JSON), remind_at, is_enabled | NOTI-009 |
 | `notifications` | 보낸 알림 기록 (앱 안 알림 목록·읽음 표시) | user_id, noti_type, title, body, link(바로 이동할 화면), is_read, sent_at | NOTI-002, NOTI-004~007 |
 
-> 총 18개 (김지연 9 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
+> 총 19개 (김지연 10 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
 
 ## 3. 관계 한눈에 보기
 
@@ -87,6 +88,7 @@ erDiagram
   users |o--o{ llm_usage_logs : "사용량"
   users ||--o{ notification_settings : "설정"
   users ||--o{ push_subscriptions : "구독"
+  users ||--o{ custom_reminders : "직접 리마인더"
   users ||--o{ notifications : "알림"
 ```
 
