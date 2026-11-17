@@ -61,7 +61,7 @@ docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 - 프롬프트는 코드에 흩어두지 않고 `prompts/` 한 곳에서 관리함
 
 ## 6. 문서 (`docs/`)
-- `requirements.md` 요구사항 정의서 — 기능 ID `REQ-001` 형식
+- `requirements.md` 요구사항 정의서 — 기능 ID `REQ-카테고리-001` 형식 (예: `REQ-USER-001`, 공식 템플릿 기준)
 - `wireframe.md` 와이어프레임 링크(Figma)·화면 목록
 - `erd.md` ERD·테이블 명세서
 - `api-spec.md` API 명세서 — 각 API에 관련 `REQ-xxx` 표기
