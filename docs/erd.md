@@ -20,6 +20,7 @@
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
 | `users` | 회원 (템플릿 있음, `phone_number` 제거) | email, hashed_password, name, gender, birthday | USER-001~004 |
+| `user_consents` | 약관·개인정보·민감정보 동의 기록. 버전별로 쌓고 철회 시각을 남김 | user_id, consent_type(terms/privacy/sensitive_health), version, agreed_at, withdrawn_at | USER-005 |
 | `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, 설문 항목들(**11/18 데이터팀 입력 변수 확정 후**), answered_at | PROF-001, PRED-004 |
 | `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, checked_on, source(manual/ocr) | PROF-002, PROF-003 |
 
@@ -63,12 +64,13 @@
 | `custom_reminders` | 사용자가 직접 만든 리마인더 (영양제·혈압 재기 등). 약 정보는 저장 안 함, `title`은 짝꿍에게 비공개 | user_id, title, days(JSON), remind_at, is_enabled | NOTI-009 |
 | `notifications` | 보낸 알림 기록 (앱 안 알림 목록·읽음 표시) | user_id, noti_type, title, body, link(바로 이동할 화면), is_read, sent_at | NOTI-002, NOTI-004~007 |
 
-> 총 19개 (김지연 10 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
+> 총 20개 (김지연 11 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
 
 ## 3. 관계 한눈에 보기
 
 ```mermaid
 erDiagram
+  users ||--o{ user_consents : "동의"
   users ||--o{ health_profiles : "설문"
   users ||--o{ checkup_records : "검진"
   users ||--o{ risk_predictions : "예측"
