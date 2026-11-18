@@ -9,89 +9,270 @@ Project pair2care {
 }
 
 // ───────── 김지연 ─────────
+Enum gender_type {
+  MALE
+  FEMALE
+}
+
+Enum agreement_type {
+  TERMS
+  PRIVACY
+  SENSITIVE_HEALTH
+}
 
 Table users {
   id bigint [pk, increment]
-  // TODO 김지연: 템플릿 컬럼 정리 (phone_number는 뺌, 11/17)
+  email varchar(255) [not null, unique]
+  hashed_password varchar(128) [not null]
+  nickname varchar(50) [not null]
+  gender gender_type [not null]
+  birthday date [not null]
+  quiet_start time [null]        // 방해 금지 시작 (null이면 사용 안 함)
+  quiet_end time [null]          // 방해 금지 끝 (시작보다 이르면 다음 날까지)
+  is_active bool [not null, default: true]
+  is_admin bool [not null, default: false]
+  last_login datetime [null]
   created_at datetime [not null]
   updated_at datetime [not null]
-  Note: 'REQ-USER-001~004'
+}
+
+Table user_consents {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  agreement agreement_type [not null]
+  version varchar(20) [not null]        // 약관 버전 ('v1.0', 'v1.1')
+  is_agreed bool [not null]             // 동의 여부 (true: 동의, false: 철회/미동의)
+  created_at datetime [not null]        // 동의 또는 철회한 정확한 시각
+}
+
+Enum survey_kind {
+  ONBOARDING    // 가입 때 첫 설문
+  WEEKLY        // 주 1회 재설문
 }
 
 Table health_profiles {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연: 설문 항목 (데이터팀 입력 변수 확정 후)
-  created_at datetime [not null]
-  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행'
+  kind survey_kind [not null]
+  survey_version varchar(20) [not null]   // 예: 'v1.0' (질문이 바뀌면 올림)
+  // TODO 데이터팀 입력 변수 (11/18) — 핵심 변수는 컬럼으로 추가
+  answers json [null]                     // 핵심 컬럼 외 나머지 응답 (질문 키: 값)
+  created_at datetime [not null]          // 설문 응답 시각 (예측 나이 기준)
+
+  indexes {
+    (user_id, created_at)                 // 내 최신 설문 조회용
+  }
+
+  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행(기록용) · 성별·나이는 users에서 (created_at 기준 나이 계산) · 입력 변수는 데이터팀 결정 후 확정'
 }
 
+Enum checkup_source {
+  MANUAL      // 사용자 직접 입력
+  OCR         // 검진 결과지 사진/PDF 인식
+}
+
+// "건강검진 결과지 한 장 = 한 행"
 Table checkup_records {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연
+  checked_on date [not null]                                        // 검진 받은 날
+  systolic_bp smallint [null, note: 'mmHg, 입력 범위는 API에서 검사']    // 수축기 혈압 mmHg
+  diastolic_bp smallint [null]                                      // 이완기 혈압 mmHg
+  fasting_glucose smallint [null]                                   // 공복혈당 mg/dL
+  waist_cm decimal(4,1) [null]                                      // 허리둘레 (cm, 소수점 첫째 자리까지)
+  // 후보: height_cm, weight_kg, total_cholesterol ... (데이터팀 결정 후)
+  source checkup_source [not null, default: 'MANUAL']
   created_at datetime [not null]
-  Note: 'REQ-PROF-002~003 · 검진 수치, 집 혈압과 분리'
+  updated_at datetime [not null]             // 오타 수정 및 빈 항목 추가 입력 추적용
+  Note: 'REQ-PROF-002~003 · 검진 수치. 대시보드 혈압 그래프에는 안 씀(집 혈압은 health_logs) · 수치는 최소 1개 이상 입력(API에서 검사)'
 }
 
+Enum disease_type {
+  HYPERTENSION
+  DIABETES
+}
+
+Enum risk_level {
+  LOW             // 저위험 / 정상
+  MODERATE        // 중위험 / 주의
+  HIGH            // 고위험 / 위험
+}
+
+// "예측 한 번 = 결과 한 줄" 로 쌓는 기록용 테이블
 Table risk_predictions {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
   health_profile_id bigint [not null, ref: > health_profiles.id]
   checkup_record_id bigint [null, ref: > checkup_records.id]
-  // TODO 김지연
-  created_at datetime [not null]
-  Note: 'REQ-PRED-001~004, DASH-003'
+  disease disease_type [not null]          // 데이터팀 결정에 따라 METABOLIC_SYNDROME 추가 가능
+  score decimal(5,2) [not null]            // 확률(0.00~100.00%)과 점수(0~100점) 모두 수용 가능
+  level risk_level [not null]
+  factors json [null]                      // 주요 위험 요인 및 기여도 배열/객체
+  model_version varchar(50) [not null]     // 예: 'xgb_htn_v1.2.0'
+  input_snapshot json [not null]           // 예측 시점의 실제 모델 입력값 박제
+  created_at datetime [not null]           // 예측 시각
+
+  indexes {
+    (user_id, disease, created_at)
+  }
+
+  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 습관 시뮬레이션(PRED-003)은 저장하지 않음'
 }
 
+Enum recommendation_type {
+  DAILY_ACTION        // LLM-001 오늘의 한 가지
+  MEAL_ALTERNATIVE    // LLM-002 대체 메뉴
+  WEATHER_TIP         // LLM-003 날씨 기반 가이드
+  RISK_EXPLANATION    // LLM-004 예측 요인 설명
+  WEEKLY_REPORT       // LLM-005 주간 리포트
+}
+
+Enum generation_status {
+  PENDING             // 생성 대기 (큐 등록 직후)
+  PROCESSING          // LLM API 호출 및 생성 중
+  COMPLETED           // 생성 완료 (화면 노출 가능)
+  FAILED              // 생성 실패 (재시도 대상)
+}
+
+// LLM이 만든 결과를 저장해두고, 화면은 저장본을 보여주는 테이블
 Table recommendations {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연 (김민준 확인)
+  rec_type recommendation_type [not null]
+  target_on date [not null]                        // 추천 기준 날짜
+  status generation_status [not null, default: 'PENDING']
+  content text [null]                              // LLM 답변 본문 (생성 완료 전엔 null)
+  sources json [null]                              // RAG 근거 출처 배열 (문서명, URL 등)
+  risk_prediction_id bigint [null, ref: > risk_predictions.id]  // LLM-004 기준 예측
+  meal_id bigint [null, ref: > meals.id]           // LLM-002 기준 식단
+  model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
+  prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
+  retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)
   created_at datetime [not null]
-  Note: 'REQ-LLM-001~005 · 하루 1번 생성 후 저장'
+  updated_at datetime [not null]                   // 상태 변경 추적
+
+  indexes {
+    meal_id [unique]                               // 식단 하나당 대체 메뉴 하나
+    risk_prediction_id [unique]                    // 예측 하나당 설명 하나
+    (user_id, rec_type, target_on)                 // 조회용, 유니크 아님
+  }
+
+  Note: 'REQ-LLM-001~005, NFR-002 · 대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개(유니크) · 나머지는 하루 1번(API에서 검사) · 화면은 저장본 표시 · 에러 메시지는 저장하지 않음'
 }
 
+Enum llm_feature {
+  DAILY_ACTION        // LLM-001 오늘의 한 가지
+  MEAL_ALTERNATIVE    // LLM-002 대체 메뉴
+  WEATHER_TIP         // LLM-003 날씨 기반 가이드
+  RISK_EXPLANATION    // LLM-004 예측 요인 설명
+  WEEKLY_REPORT       // LLM-005 주간 리포트
+  MEAL_VISION         // 식단 사진 분석(비전 보조)
+  RAG_EMBEDDING       // 벡터 검색용 임베딩 생성
+}
+
+// LLM 토큰 사용량 및 비용 모니터링(llm_usage_logs) 테이블
+// 프롬프트 캐싱 토큰 분리와 호출 시점 단가 기준의 비용 기록(estimated_cost_usd)이 핵심
 Table llm_usage_logs {
   id bigint [pk, increment]
   user_id bigint [null, ref: > users.id]
-  // TODO 김지연
+  recommendation_id bigint [null, ref: > recommendations.id]
+  meal_id bigint [null, ref: > meals.id]                // MEAL_VISION일 때 기준 식단
+  feature llm_feature [not null]
+  model varchar(50) [not null]
+  input_tokens int [not null, default: 0]
+  output_tokens int [not null, default: 0]
+  cache_creation_tokens int [not null, default: 0]      // 캐시 쓰기 토큰
+  cache_read_tokens int [not null, default: 0]          // 캐시 읽기 토큰
+  estimated_cost_usd decimal(10,6) [null]               // 호출 시점 단가 기준 산출 비용($)
+  is_success bool [not null, default: true]
   created_at datetime [not null]
-  Note: 'REQ-NFR-012'
+
+  indexes {
+    (feature, created_at)      // 이번 달 기능별 사용량 조회용
+    (user_id, created_at)      // 사용자별 하루 호출 수 조회용
+  }
+
+  Note: 'REQ-NFR-012 · 호출 1번 = 1행 · 프롬프트·답변 본문은 저장하지 않음 · 추천 종류는 recommendation_type과 같이 관리'
 }
 
+Enum notification_type {
+  CHALLENGE_REMINDER    // NOTI-004 챌린지 리마인더 (스케줄형)
+  PARTNER_ACTIVITY      // NOTI-005 짝꿍 완료·응원 (이벤트형)
+  STREAK_ACHIEVED       // NOTI-006 연속 달성 (이벤트형)
+  WEEKLY_REPORT         // NOTI-007 주간 리포트 (스케줄형)
+  CUSTOM_REMINDER       // NOTI-009 (리마인더마다 시각, 설정 행은 전체 켜기·끄기용)
+}
+
+// 어떤 알림을, 언제 받을지 - 챌린지 리마인더, 짝꿍, 연속 달성, 주간 리포트
 Table notification_settings {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연
+  noti_type notification_type [not null]
+  is_enabled bool [not null, default: true]
+  days varchar(30) [null, note: '쉼표 구분 MON,TUE,WED,THU,FRI,SAT,SUN · 비어있으면 매일']
+  notify_at time [null, note: '스케줄형만 사용, 이벤트형은 null']
   created_at datetime [not null]
   updated_at datetime [not null]
-  Note: 'REQ-NOTI-001'
+
+  indexes {
+    (user_id, noti_type) [unique]
+  }
+
+  Note: 'REQ-NOTI-001 · 사용자 × 알림 종류마다 1행 · 챌린지 리마인더는 모든 챌린지 공통 시각 1개 · 행이 없으면 기본값(켜짐)으로 봄 · 방해 금지 시간은 users.quiet_start/quiet_end'
 }
 
+// 웹 푸시를 보낼 "주소"를 기기마다 저장
 Table push_subscriptions {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연
+  endpoint varchar(512) [not null, unique]   // 브라우저 푸시 서비스 고유 URL
+  p256dh varchar(255) [not null]             // 클라이언트 공개키 (Base64URL 인코딩)
+  auth varchar(100) [not null]               // 인증 시크릿 (Base64URL 인코딩)
+  user_agent varchar(512) [null]             // 기기·브라우저 식별용(예: 'Chrome on Android', 원문 UA)
+  last_used_at datetime [null]               // 마지막 푸시 발송 성공 시각
   created_at datetime [not null]
-  Note: 'REQ-NOTI-003 · 기기마다 1행'
+  updated_at datetime [not null]             // 동일 기기 재구독/키 갱신 시 업데이트
+
+  Note: 'REQ-NOTI-003 · 기기마다 1행 · 같은 endpoint가 다시 오면 user_id·키 갱신(upsert) · 로그아웃 시 그 기기 구독 삭제 · 발송 시 404/410이면 해당 행 즉시 삭제'
 }
 
+// 사용자가 직접 만드는 리마인더
 Table custom_reminders {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연
+  title varchar(100) [not null]               // 짝꿍 비공개, 로그 금지
+  days varchar(30) [null, note: '쉼표 구분 MON,TUE,WED,THU,FRI,SAT,SUN · 비어있으면 매일']
+  remind_at time [not null]                   // 알람 울릴 시각 (필수값)
+  is_enabled bool [not null, default: true]
   created_at datetime [not null]
-  updated_at datetime [not null]
-  Note: 'REQ-NOTI-009 · 약 정보 저장 안 함, title 짝꿍 비공개'
+  updated_at datetime [not null]              // 제목, 요일, 시각, 활성화 여부 수정 추적
+
+  indexes {
+    (is_enabled, remind_at)                   // 매 분/5분마다 실행되는 스케줄러 조회 최적화
+  }
+
+  Note: 'REQ-NOTI-009 · 약 정보는 저장 안 함 · 방해 금지와 겹치면 저장 시 안내 + 발송은 스킵 · 1인당 최대 10개(API에서 검사) · 삭제 시 실제 삭제'
 }
 
+// 보낸 알림을 쌓아두는 기록
 Table notifications {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 김지연
-  created_at datetime [not null]
-  Note: 'REQ-NOTI-002, 004~007'
+  noti_type notification_type [not null]
+  title varchar(100) [not null]
+  body varchar(255) [null]                      // 짧은 알림은 제목만 있을 수 있으므로 null 허용
+  link varchar(255) [null]                      // 딥링크/라우트 경로
+  read_at datetime [null]
+  is_read bool [not null, default: false]
+  is_push_sent bool [not null, default: false]  // 웹 푸시 발송 여부
+  created_at datetime [not null]                // 알림 생성(발송) 시각
+
+  indexes {
+    (user_id, created_at)       // 유저별 최신순 알림 목록 조회용
+    (user_id, is_read)          // 상단 벨 아이콘 안 읽은 알림 배지(COUNT) 조회용
+  }
+
+  Note: 'REQ-NOTI-002, 004~007, 009 · 보관 30일 · 본문은 로그 금지 · 수정은 읽음 처리뿐이라 read_at으로 대신함'
 }
 
 // ───────── 이지희 ─────────
@@ -149,6 +330,11 @@ Table challenge_participants {
   challenge_id bigint [not null, ref: > challenges.id]
   user_id bigint [not null, ref: > users.id]
   created_at datetime [not null]
+
+  indexes {
+    (challenge_id, user_id) [unique]
+  }
+
   Note: 'REQ-PAIR-002'
 }
 
@@ -196,6 +382,11 @@ Table health_logs {
   measured_at datetime [not null]
   memo varchar(500) [null]
   created_at datetime [not null]
+
+  indexes {
+    (user_id, log_type, measured_at)
+  }
+
   Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량'
 }
 
@@ -235,38 +426,59 @@ Table meals {
   image_url varchar(2048) [not null]
   eaten_at datetime [not null]
   category meal_category [not null, default: 'MEAL']
-  status meal_status [not null]
+  status meal_status [not null, default: 'PENDING']
   retry_count int [not null, default: 0]
   model_version varchar(50) [null]
   candidates json [null]
-  portion decimal(2,1) [null, default: 1.0]
+  portion decimal(2,1) [not null, default: 1.0]
   nutrients json [null]
   created_at datetime [not null]
   updated_at datetime [not null]
+
+  indexes {
+    (user_id, eaten_at)
+  }
+
   Note: 'REQ-FOOD-001~003 · 분류는 워커가 비동기로 채움'
 }
 
-TableGroup kim_jiyeon {
+TableGroup user_profile {  // 회원·동의·설문·검진
   users
+  user_consents
   health_profiles
   checkup_records
+}
+
+TableGroup prediction {  // 위험도 예측
   risk_predictions
+}
+
+TableGroup challenge_pair {  // 챌린지·짝꿍
+  challenge_templates
+  challenges
+  challenge_participants
+  challenge_checks
+  pairs
+  cheers
+}
+
+TableGroup health_record {  // 집에서 잰 기록
+  health_logs
+}
+
+TableGroup meal {  // 식단
+  foods
+  meals
+}
+
+TableGroup llm {  // LLM 추천·사용량
   recommendations
   llm_usage_logs
+}
+
+TableGroup notification {  // 알림
   notification_settings
   push_subscriptions
   custom_reminders
   notifications
-}
-
-TableGroup lee_jihee {
-  challenge_templates
-  pairs
-  challenges
-  challenge_participants
-  challenge_checks
-  cheers
-  health_logs
-  foods
-  meals
 }

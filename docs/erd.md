@@ -8,7 +8,10 @@
 ## 1. 공통 규칙
 - 테이블명은 snake_case 복수형 (`users`, `health_logs`)
 - PK는 `id` (BigInt), FK는 `<대상>_id` (예: `user_id`)
-- 모든 테이블에 `created_at`, 수정되는 테이블은 `updated_at`도 둠
+- 모든 테이블에 `created_at`, 수정되는 테이블에만 `updated_at`도 둠 (기록용 테이블은 `created_at`만, 11/17 확정)
+- 이름: 불리언은 `is_`로 시작, 날짜+시간은 `_at`, 날짜만은 `_on` (예: `checked_on`), enum 값은 대문자 (11/17 확정)
+- 시간은 한국 시간(KST)으로 저장 (11/17 확정)
+- 삭제: 회원 탈퇴 시 개인정보(이메일·닉네임 등)는 지우고 나머지는 표시만 하는 방향 (11/17, 세부는 구현 때 정함)
 - 고정된 선택지는 CharEnum (예: `status`, `log_type`), 값 목록은 이 문서에 적음
 - 형태가 자주 바뀌는 결과(예측 요인, 음식 후보 상위 5개, 영양소, 근거 출처)는 JSON 컬럼
 - 개인 건강정보는 로그에 남기지 않음. 짝꿍에게 보이는 건 `challenge_checks`의 완료 여부뿐임 (`REQ-PAIR-003`)
@@ -19,7 +22,8 @@
 ### 회원·건강 프로필 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `users` | 회원 (템플릿 있음, `phone_number` 제거) | email, hashed_password, name, gender, birthday | USER-001~004 |
+| `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday | USER-001~004 |
+| `user_consents` | 약관·개인정보·민감정보 동의 기록. 동의·철회할 때마다 행을 쌓고, 현재 상태는 종류별 최신 행 | user_id, agreement(TERMS/PRIVACY/SENSITIVE_HEALTH), version, is_agreed, created_at | USER-005 |
 | `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, 설문 항목들(**11/18 데이터팀 입력 변수 확정 후**), answered_at | PROF-001, PRED-004 |
 | `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, checked_on, source(manual/ocr) | PROF-002, PROF-003 |
 
@@ -46,8 +50,17 @@
 ### 식단 — 이지희 (여현지 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `foods` | 식약처 영양 DB에서 가져온 음식 (분류 클래스 30~50개와 1:1) | name, serving_g, kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g | FOOD-002 |
-| `meals` | 식단 사진 기록. 분류는 워커가 비동기로 채움 | user_id, image_url, eaten_at, status(pending/done/failed), candidates(JSON 상위 5개), food_id(사용자 선택), portion(0.5/1/1.5), nutrients(JSON) | FOOD-001~003 |
+| `foods` | 식약처 영양 DB에서 가져온 음식. 1차 학습 한식 18종과 1:1, 18종 값을 한 번 조회해서 넣음 (API 매번 호출 안 함) | name, serving_size_g, kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g(영양값은 null 허용), mfds_code(출처, unique), model_label(모델 클래스명, unique) | FOOD-002 |
+| `meals` | 식단 사진 기록. 분류는 워커가 비동기로 채움 | user_id, image_url, eaten_at, category, status, retry_count, candidates(JSON), food_id(사용자 선택, null 가능), portion, nutrients(JSON), model_version | FOOD-001~003 |
+
+> 식단 값 (11/18 여현지 의견 반영)  
+> - `meals.category`: `MEAL` / `DRINK` / `DESSERT`, 기본값 `'MEAL'`. 1차 학습 데이터는 식사 18종뿐이라 전부 `MEAL`, 음료·디저트 사전 분류 모델은 데이터 생기면 추가  
+> - `meals.status`: `PENDING` / `PROCESSING` / `COMPLETED` / `FAILED` — `recommendations.status`와 같은 값으로 통일 (11/18 여현지 동의). 분류 시작 시 `PROCESSING`, 결과 저장 시 `COMPLETED`, 실패 시 `FAILED` + `retry_count` 1 증가  
+> - `meals.model_version`: `food-cls-v1` 형식, 재학습하면 `v2`로 올림. v1 = (모델·입력 해상도·학습 데이터 — 여현지 작성 예정)  
+> - `foods.model_label` 18종 (학습 폴더 이름과 같음, `label_map.json`과 대조 예정): 간장게장, 갈비탕, 감자탕, 김치찌개, 냉면, 닭개장, 닭볶음탕, 된장찌개, 떡만두국, 삼계탕, 설렁탕, 수제비, 순두부찌개, 육개장, 잔치국수, 짬뽕, 칼국수, 콩나물국  
+> - `meals.candidates`: `[{"food_id": 3, "score": 0.82}, ...]` softmax 확률 내림차순 상위 5개  
+> - `meals.portion`: `decimal(2,1)`, 0.5 / 1.0 / 1.5, 기본값 1.0  
+> - `meals.nutrients`: `foods` 기준값 × `portion` 스냅샷. 키는 `foods` 컬럼명과 같게 (나중에 `foods`가 바뀌어도 과거 기록 유지)
 
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
@@ -63,12 +76,13 @@
 | `custom_reminders` | 사용자가 직접 만든 리마인더 (영양제·혈압 재기 등). 약 정보는 저장 안 함, `title`은 짝꿍에게 비공개 | user_id, title, days(JSON), remind_at, is_enabled | NOTI-009 |
 | `notifications` | 보낸 알림 기록 (앱 안 알림 목록·읽음 표시) | user_id, noti_type, title, body, link(바로 이동할 화면), is_read, sent_at | NOTI-002, NOTI-004~007 |
 
-> 총 19개 (김지연 10 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
+> 총 20개 (김지연 11 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
 
 ## 3. 관계 한눈에 보기
 
 ```mermaid
 erDiagram
+  users ||--o{ user_consents : "동의"
   users ||--o{ health_profiles : "설문"
   users ||--o{ checkup_records : "검진"
   users ||--o{ risk_predictions : "예측"
@@ -114,6 +128,9 @@ erDiagram
 ## 5. 정할 것
 - [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
 - [ ] 예측 대상에 따라 `risk_predictions.disease` 값 (고혈압·당뇨 각각 vs 대사증후군)
-- [ ] 짝꿍은 한 사람당 1명만인지, 여러 명 가능한지 (`pairs` 유니크 조건)
+- [x] 짝꿍은 한 사람당 여러 명 가능 (11/17). 같은 두 사람 사이 짝꿍은 하나만
+- [ ] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 — 해제할 때 "종료"와 "개인 챌린지로 계속" 중 고르게 하는 안, 문구 정하기
+- [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)
 - [ ] `health_logs`를 한 테이블로 둘지, 항목별로 나눌지
-- [ ] 이미지 저장 위치 (`meals.image_url`) — S3 답변 대기, 안 되면 EC2 디스크
+- [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
+- [ ] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`)을 언제 다시 시도할지 — 워커 담당과 정함 (XAUTOCLAIM 대기 시간·최대 재시도 횟수)
