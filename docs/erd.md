@@ -50,8 +50,15 @@
 ### 식단 — 이지희 (여현지 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `foods` | 식약처 영양 DB에서 가져온 음식 (분류 클래스 30~50개와 1:1) | name, serving_g, kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g | FOOD-002 |
-| `meals` | 식단 사진 기록. 분류는 워커가 비동기로 채움 | user_id, image_url, eaten_at, status(pending/done/failed), candidates(JSON 상위 5개), food_id(사용자 선택), portion(0.5/1/1.5), nutrients(JSON) | FOOD-001~003 |
+| `foods` | 식약처 영양 DB에서 가져온 음식. 1차 학습 한식 18종과 1:1, 18종 값을 한 번 조회해서 넣음 (API 매번 호출 안 함) | name, serving_size_g, kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g(영양값은 null 허용), mfds_code(출처, unique), model_label(모델 클래스명, unique) | FOOD-002 |
+| `meals` | 식단 사진 기록. 분류는 워커가 비동기로 채움 | user_id, image_url, eaten_at, category, status, retry_count, candidates(JSON), food_id(사용자 선택, null 가능), portion, nutrients(JSON), model_version | FOOD-001~003 |
+
+> 식단 값 (11/18 여현지 의견 반영)  
+> - `meals.category`: `MEAL` / `DRINK` / `DESSERT`, 기본값 `'MEAL'`. 1차 학습 데이터는 식사 18종뿐이라 전부 `MEAL`, 음료·디저트 사전 분류 모델은 데이터 생기면 추가  
+> - `meals.status`: `PENDING` / `PROCESSING` / `COMPLETED` / `FAILED` — `recommendations.status`와 같은 값으로 통일하는 안 (이지희·여현지 확인 필요)  
+> - `meals.candidates`: `[{"food_id": 3, "score": 0.82}, ...]` softmax 확률 내림차순 상위 5개  
+> - `meals.portion`: `decimal(2,1)`, 0.5 / 1.0 / 1.5, 기본값 1.0  
+> - `meals.nutrients`: `foods` 기준값 × `portion` 스냅샷. 키는 `foods` 컬럼명과 같게 (나중에 `foods`가 바뀌어도 과거 기록 유지)
 
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
