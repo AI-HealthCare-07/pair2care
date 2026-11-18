@@ -394,6 +394,13 @@ Enum health_log_type {
   STEPS
   CONDITION
   WEIGHT
+  // 주간 기록 (주 1번, measured_at = 그 주 월요일 00:00 KST, value / value2 / unit)
+  WALK_DAYS       // 0~7 / - / days_per_week
+  STRENGTH_DAYS   // 0~5 (5 = 5일 이상) / - / days_per_week
+  SITTING_HOURS   // 0~24 / - / hours_per_day
+  SLEEP           // 주중 시간 / 주말 시간 / hours_per_day
+  BREAKFAST       // 거의 안 함 0 · 주1~2 1 · 주3~4 2 · 주5~7 3 / - / null
+  STRESS          // 거의 안 느낌 0 · 조금 1 · 많이 2 · 대단히 많이 3 / - / null
 }
 
 Table health_logs {
@@ -411,7 +418,7 @@ Table health_logs {
     (user_id, log_type, measured_at)
   }
 
-  Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량'
+  Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량 · 주간 기록 6종은 한 사람·한 주·종류마다 1행, 다시 입력하면 덮어씀(API에서 검사, 혈압처럼 하루 여러 번 재는 기록 때문에 유니크 제약은 안 둠) · 주간 기록 값은 예측에 안 써서 국건영 코드가 아닌 우리 코드'
 }
 
 Table foods {
