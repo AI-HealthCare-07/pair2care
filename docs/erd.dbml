@@ -59,7 +59,7 @@ Table health_profiles {
   // 신체
   height_cm decimal(4,1) [not null]        // HE_ht, 예측
   weight_kg decimal(4,1) [not null]        // HE_wt, 예측
-  waist_cm decimal(4,1) [null]             // HE_wc, 기록용 (선택)
+  waist_cm decimal(4,1) [null]             // HE_wc, 기록용 (선택), 재설문 때 안 적으면 복사하지 않고 null (측정일 = created_at)
   // 가족력: 예 1 / 아니오 0 / 모름 9 / 형제자매 없음 8 (형제자매만)
   father_diabetes_history tinyint [not null]       // HE_DMfh1
   mother_diabetes_history tinyint [not null]       // HE_DMfh2
@@ -87,7 +87,7 @@ Table health_profiles {
     (user_id, created_at)                 // 내 최신 설문 조회용
   }
 
-  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행(기록용) · 재설문에서 안 묻는 항목은 직전 행 값 복사 → 최신 행 하나가 완전한 모델 입력 · 성별·나이는 users에서 (created_at 기준 만 나이)'
+  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행(기록용) · 재설문에서 안 묻는 항목은 직전 행 값 복사 → 최신 행 하나가 완전한 모델 입력 (허리둘레는 복사 안 함) · 재설문에서 상위 답(10·11·14·15)이 바뀌면 건너뛰기 상태가 달라진 하위 문항만 다시 물음: 새로 해당되면 다시 묻고, 해당 안 되면 8 / 888 자동 저장 · 성별·나이는 users에서 (created_at 기준 만 나이)'
 }
 
 Enum checkup_source {
