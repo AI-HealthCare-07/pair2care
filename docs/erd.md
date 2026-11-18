@@ -3,7 +3,9 @@
 > 상태: **테이블 목록 초안** — 11/17 작성, 11/19 컬럼 초안 → 11/20 교차 확인  
 > 기준: [requirements.md](requirements.md)의 `REQ-*`. 컬럼은 후보이고 담당자가 확정함  
 > 담당: 김지연 · 이지희
-> 컬럼은 [erd.dbml](erd.dbml)에 채움 → [dbdiagram.io](https://dbdiagram.io)에 붙여넣으면 그림으로 보임. 완성되면 PNG로 내보내서 여기 붙임
+> 컬럼은 [erd.dbml](erd.dbml)에 채움 → [dbdiagram.io](https://dbdiagram.io)에 붙여넣으면 그림으로 보임
+
+![ERD 전체 (11/18 기준)](images/erd.png)
 
 ## 1. 공통 규칙
 - 테이블명은 snake_case 복수형 (`users`, `health_logs`)
