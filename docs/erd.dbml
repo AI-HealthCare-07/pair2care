@@ -330,6 +330,11 @@ Table challenge_participants {
   challenge_id bigint [not null, ref: > challenges.id]
   user_id bigint [not null, ref: > users.id]
   created_at datetime [not null]
+
+  indexes {
+    (challenge_id, user_id) [unique]
+  }
+
   Note: 'REQ-PAIR-002'
 }
 
@@ -377,6 +382,11 @@ Table health_logs {
   measured_at datetime [not null]
   memo varchar(500) [null]
   created_at datetime [not null]
+
+  indexes {
+    (user_id, log_type, measured_at)
+  }
+
   Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량'
 }
 
@@ -416,14 +426,19 @@ Table meals {
   image_url varchar(2048) [not null]
   eaten_at datetime [not null]
   category meal_category [not null, default: 'MEAL']
-  status meal_status [not null]
+  status meal_status [not null, default: 'PENDING']
   retry_count int [not null, default: 0]
   model_version varchar(50) [null]
   candidates json [null]
-  portion decimal(2,1) [null, default: 1.0]
+  portion decimal(2,1) [not null, default: 1.0]
   nutrients json [null]
   created_at datetime [not null]
   updated_at datetime [not null]
+
+  indexes {
+    (user_id, eaten_at)
+  }
+
   Note: 'REQ-FOOD-001~003 · 분류는 워커가 비동기로 채움'
 }
 
