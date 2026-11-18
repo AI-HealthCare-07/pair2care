@@ -55,7 +55,9 @@
 
 > 식단 값 (11/18 여현지 의견 반영)  
 > - `meals.category`: `MEAL` / `DRINK` / `DESSERT`, 기본값 `'MEAL'`. 1차 학습 데이터는 식사 18종뿐이라 전부 `MEAL`, 음료·디저트 사전 분류 모델은 데이터 생기면 추가  
-> - `meals.status`: `PENDING` / `PROCESSING` / `COMPLETED` / `FAILED` — `recommendations.status`와 같은 값으로 통일하는 안 (이지희·여현지 확인 필요)  
+> - `meals.status`: `PENDING` / `PROCESSING` / `COMPLETED` / `FAILED` — `recommendations.status`와 같은 값으로 통일 (11/18 여현지 동의). 분류 시작 시 `PROCESSING`, 결과 저장 시 `COMPLETED`, 실패 시 `FAILED` + `retry_count` 1 증가  
+> - `meals.model_version`: `food-cls-v1` 형식, 재학습하면 `v2`로 올림. v1 = (모델·입력 해상도·학습 데이터 — 여현지 작성 예정)  
+> - `foods.model_label` 18종 (학습 폴더 이름과 같음, `label_map.json`과 대조 예정): 간장게장, 갈비탕, 감자탕, 김치찌개, 냉면, 닭개장, 닭볶음탕, 된장찌개, 떡만두국, 삼계탕, 설렁탕, 수제비, 순두부찌개, 육개장, 잔치국수, 짬뽕, 칼국수, 콩나물국  
 > - `meals.candidates`: `[{"food_id": 3, "score": 0.82}, ...]` softmax 확률 내림차순 상위 5개  
 > - `meals.portion`: `decimal(2,1)`, 0.5 / 1.0 / 1.5, 기본값 1.0  
 > - `meals.nutrients`: `foods` 기준값 × `portion` 스냅샷. 키는 `foods` 컬럼명과 같게 (나중에 `foods`가 바뀌어도 과거 기록 유지)
@@ -130,4 +132,5 @@ erDiagram
 - [ ] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 — 해제할 때 "종료"와 "개인 챌린지로 계속" 중 고르게 하는 안, 문구 정하기
 - [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)
 - [ ] `health_logs`를 한 테이블로 둘지, 항목별로 나눌지
-- [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17)
+- [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
+- [ ] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`)을 언제 다시 시도할지 — 워커 담당과 정함 (XAUTOCLAIM 대기 시간·최대 재시도 횟수)
