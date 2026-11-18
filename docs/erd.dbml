@@ -98,16 +98,27 @@ Table notifications {
 
 Table challenge_templates {
   id bigint [pk, increment]
-  // TODO 이지희
+  title varchar(100) [not null]
+  category varchar(30) [not null]
+  default_times_per_week int [not null]
   created_at datetime [not null]
   Note: 'REQ-CHAL-001 · 기본 제공 목록'
+}
+
+Enum pair_status {
+  PENDING
+  ACCEPTED
+  ENDED
 }
 
 Table pairs {
   id bigint [pk, increment]
   requester_id bigint [not null, ref: > users.id]
-  partner_id bigint [null, ref: > users.id]
-  // TODO 이지희
+  partner_id bigint [null, ref: >? users.id]
+  invite_code varchar(128) [not null]
+  status pair_status [not null]
+  accepted_at datetime [null]
+  updated_at datetime [not null]
   created_at datetime [not null]
   Note: 'REQ-PAIR-001'
 }
@@ -115,9 +126,13 @@ Table pairs {
 Table challenges {
   id bigint [pk, increment]
   created_by bigint [not null, ref: > users.id]
-  challenge_template_id bigint [null, ref: > challenge_templates.id]
-  pair_id bigint [null, ref: > pairs.id]
-  // TODO 이지희
+  challenge_template_id bigint [null, ref: >? challenge_templates.id]
+  pair_id bigint [null, ref: >? pairs.id]
+  title varchar(100) [not null]
+  times_per_week int [not null]
+  starts_on date [not null]
+  ends_on date [null]
+  status varchar(20) [not null]
   created_at datetime [not null]
   updated_at datetime [not null]
   Note: 'REQ-CHAL-001, PAIR-002'
@@ -127,7 +142,7 @@ Table challenge_participants {
   id bigint [pk, increment]
   challenge_id bigint [not null, ref: > challenges.id]
   user_id bigint [not null, ref: > users.id]
-  // TODO 이지희
+  joined_at datetime [not null]
   created_at datetime [not null]
   Note: 'REQ-PAIR-002'
 }
@@ -136,7 +151,11 @@ Table challenge_checks {
   id bigint [pk, increment]
   challenge_id bigint [not null, ref: > challenges.id]
   user_id bigint [not null, ref: > users.id]
-  // TODO 이지희 (challenge_id + user_id + 날짜 유니크)
+  checked_on date [not null]
+
+  Indexes {
+    (challenge_id, user_id, checked_on) [unique]
+  }
   created_at datetime [not null]
   Note: 'REQ-CHAL-002~003, PAIR-003 · 짝꿍에게 보이는 유일한 정보'
 }
@@ -145,8 +164,8 @@ Table cheers {
   id bigint [pk, increment]
   from_user_id bigint [not null, ref: > users.id]
   to_user_id bigint [not null, ref: > users.id]
-  challenge_id bigint [null, ref: > challenges.id]
-  // TODO 이지희
+  challenge_id bigint [null, ref: >? challenges.id]
+  message varchar(255) [not null]
   created_at datetime [not null]
   Note: 'REQ-PAIR-004'
 }
@@ -154,23 +173,46 @@ Table cheers {
 Table health_logs {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  // TODO 이지희
+  log_type varchar(30) [not null]
+  value decimal(10,2) [not null]
+  value2 decimal(10,2) [null]
+  unit varchar(20) [null]
+  measured_at datetime [not null]
+  memo varchar(500) [null]
   created_at datetime [not null]
   Note: 'REQ-DASH-001~002, 005 · 집 혈압·혈당·음주·운동량'
 }
 
 Table foods {
   id bigint [pk, increment]
-  // TODO 이지희 (여현지 확인)
+  name varchar(150) [not null]
+  serving_g decimal(10,2) [null]
+  kcal decimal(10,2) [null]
+  carbs_g decimal(10,2) [null]
+  sugar_g decimal(10,2) [null]
+  sodium_mg decimal(10,2) [null]
+  protein_g decimal(10,2) [null]
+  fat_g decimal(10,2) [null]
   created_at datetime [not null]
   Note: 'REQ-FOOD-002 · 식약처 영양 DB'
+}
+
+Enum meal_status {
+  PENDING
+  DONE
+  FAILED
 }
 
 Table meals {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
-  food_id bigint [null, ref: > foods.id]
-  // TODO 이지희 (여현지 확인)
+  food_id bigint [null, ref: >? foods.id]
+  image_url varchar(2048) [not null]
+  eaten_at datetime [not null]
+  status meal_status [not null]
+  candidates json [null]
+  portion decimal(2,1) [null]
+  nutrients json [null]
   created_at datetime [not null]
   Note: 'REQ-FOOD-001~003 · 분류는 워커가 비동기로 채움'
 }
