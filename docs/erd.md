@@ -26,13 +26,13 @@
 |---|---|---|---|
 | `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday | USER-001~004 |
 | `user_consents` | 약관·개인정보·민감정보 동의 기록. 동의·철회할 때마다 행을 쌓고, 현재 상태는 종류별 최신 행 | user_id, agreement(TERMS/PRIVACY/SENSITIVE_HEALTH), version, is_agreed, created_at | USER-005 |
-| `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, 설문 항목들(**11/18 데이터팀 입력 변수 확정 후**), answered_at | PROF-001, PRED-004 |
+| `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, kind, 신체·가족력·음주·흡연·진단 여부 20문항 (코드는 `survey-mapping.md`), created_at. 재설문에서 안 묻는 항목은 직전 값 복사 | PROF-001, PRED-004 |
 | `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, checked_on, source(manual/ocr) | PROF-002, PROF-003 |
 
 ### 예측 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease, score, level, factors(JSON), model_version | PRED-001~004, DASH-003 |
+| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease(HYPERTENSION/DIABETES), score(0~100 정수), level(LOW/CAUTION/HIGH), factors(JSON 상위 3개), model_version(`diabetes_risk:v1`) | PRED-001~004, DASH-003 |
 
 ### 챌린지·짝꿍 — 이지희
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
@@ -129,7 +129,7 @@ erDiagram
 
 ## 5. 정할 것
 - [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
-- [ ] 예측 대상에 따라 `risk_predictions.disease` 값 (고혈압·당뇨 각각 vs 대사증후군)
+- [x] `risk_predictions.disease` → 고혈압·당뇨 각각 (11/18 데이터팀). 대사증후군은 검진 수치 기준표로 판정
 - [x] 짝꿍은 한 사람당 여러 명 가능 (11/17). 같은 두 사람 사이 짝꿍은 하나만
 - [ ] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 — 해제할 때 "종료"와 "개인 챌린지로 계속" 중 고르게 하는 안, 문구 정하기
 - [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)

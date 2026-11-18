@@ -55,15 +55,39 @@ Table health_profiles {
   user_id bigint [not null, ref: > users.id]
   kind survey_kind [not null]
   survey_version varchar(20) [not null]   // 예: 'v1.0' (질문이 바뀌면 올림)
-  // TODO 데이터팀 입력 변수 (11/18) — 핵심 변수는 컬럼으로 추가
-  answers json [null]                     // 핵심 컬럼 외 나머지 응답 (질문 키: 값)
+  // 코드 값은 docs/survey-mapping.md (국건영 코드 그대로, 건너뛴 문항도 코드로 저장)
+  // 신체
+  height_cm decimal(4,1) [not null]        // HE_ht, 예측
+  weight_kg decimal(4,1) [not null]        // HE_wt, 예측
+  waist_cm decimal(4,1) [null]             // HE_wc, 기록용 (선택)
+  // 가족력: 예 1 / 아니오 0 / 모름 9 / 형제자매 없음 8 (형제자매만)
+  father_diabetes_history tinyint [not null]       // HE_DMfh1
+  mother_diabetes_history tinyint [not null]       // HE_DMfh2
+  sibling_diabetes_history tinyint [not null]      // HE_DMfh3
+  father_hypertension_history tinyint [not null]   // HE_HPfh1
+  mother_hypertension_history tinyint [not null]   // HE_HPfh2
+  sibling_hypertension_history tinyint [not null]  // HE_HPfh3
+  // 음주
+  alcohol_ever tinyint [not null]          // BD1: 없다 1 / 있다 2 (건너뛰기용)
+  alcohol_frequency tinyint [not null]     // BD1_11: 1~6, 비해당 8
+  alcohol_amount tinyint [not null]        // BD2_1: 1~5, 비해당 8
+  binge_frequency tinyint [not null]       // BD2_31: 1~5, 비해당 8, 기록용
+  // 흡연
+  smoking_lifetime tinyint [not null]      // BS1_1: 5갑 미만 1 / 이상 2 / 없음 3 (건너뛰기용)
+  smoking_current tinyint [not null]       // BS3_1: 매일 1 / 가끔 2 / 지금은 안 피움 3, 비해당 8
+  cigarettes_per_day smallint [not null]   // BS3_2: 1~60, 비해당 888, 기록용
+  heated_tobacco tinyint [not null]        // BS12_47: 매일 1 / 가끔 2 / 과거 3 / 안 함 8, 기록용
+  liquid_ecig tinyint [not null]           // BS12_2: 현재 1 / 과거 2 / 안 함 8, 기록용
+  // 진단 여부 (예면 그 질환은 예측 안 함)
+  is_hypertension_diagnosed bool [not null]
+  is_diabetes_diagnosed bool [not null]
   created_at datetime [not null]          // 설문 응답 시각 (예측 나이 기준)
 
   indexes {
     (user_id, created_at)                 // 내 최신 설문 조회용
   }
 
-  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행(기록용) · 성별·나이는 users에서 (created_at 기준 나이 계산) · 입력 변수는 데이터팀 결정 후 확정'
+  Note: 'REQ-PROF-001, PRED-004 · 재설문마다 새 행(기록용) · 재설문에서 안 묻는 항목은 직전 행 값 복사 → 최신 행 하나가 완전한 모델 입력 · 성별·나이는 users에서 (created_at 기준 만 나이)'
 }
 
 Enum checkup_source {
@@ -94,7 +118,7 @@ Enum disease_type {
 
 Enum risk_level {
   LOW             // 저위험 / 정상
-  MODERATE        // 중위험 / 주의
+  CAUTION         // 주의
   HIGH            // 고위험 / 위험
 }
 
@@ -104,11 +128,11 @@ Table risk_predictions {
   user_id bigint [not null, ref: > users.id]
   health_profile_id bigint [not null, ref: > health_profiles.id]
   checkup_record_id bigint [null, ref: > checkup_records.id]
-  disease disease_type [not null]          // 데이터팀 결정에 따라 METABOLIC_SYNDROME 추가 가능
-  score decimal(5,2) [not null]            // 확률(0.00~100.00%)과 점수(0~100점) 모두 수용 가능
+  disease disease_type [not null]          // 대사증후군은 모델 없이 검진 수치 기준표로 판정
+  score tinyint [not null]                 // 모델 확률 ×100 → 0~100 정수
   level risk_level [not null]
-  factors json [null]                      // 주요 위험 요인 및 기여도 배열/객체
-  model_version varchar(50) [not null]     // 예: 'xgb_htn_v1.2.0'
+  factors json [null]                      // 상위 3개 [{"feature": ..., "direction": "UP"|"DOWN"}]
+  model_version varchar(50) [not null]     // MLflow 등록 이름:버전, 예: 'diabetes_risk:v1'
   input_snapshot json [not null]           // 예측 시점의 실제 모델 입력값 박제
   created_at datetime [not null]           // 예측 시각
 
@@ -116,7 +140,7 @@ Table risk_predictions {
     (user_id, disease, created_at)
   }
 
-  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 습관 시뮬레이션(PRED-003)은 저장하지 않음'
+  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음'
 }
 
 Enum recommendation_type {

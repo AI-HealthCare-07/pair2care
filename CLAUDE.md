@@ -64,6 +64,7 @@ docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 - `requirements.md` 요구사항 정의서 — 기능 ID `REQ-카테고리-001` 형식 (예: `REQ-USER-001`, 공식 템플릿 기준)
 - `wireframe.md` 와이어프레임 링크(Figma)·화면 목록
 - `erd.md` ERD·테이블 명세서
+- `survey-mapping.md` 설문 ↔ 국건영 코드 대응표 — 예측 입력은 국건영 코드 그대로 저장, 건너뛴 문항 코드 포함
 - `api-spec.md` API 명세서 — 각 API에 관련 `REQ-xxx` 표기
 - Daily Scrum 기록은 레포가 아니라 노션 팀 페이지에 남김 (평일 10:10)
 - 기능 구현 전 해당 `REQ-xxx`와 API 명세를 먼저 읽음
