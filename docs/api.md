@@ -31,7 +31,7 @@
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열) |
-| 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 409 중복·순서 충돌 / 422 형식 오류 |
+| 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → SSE로 결과 전달 (REQ-NFR-005). 이 문서 담당분은 모두 동기 처리 |
 
@@ -361,6 +361,8 @@ S-13~S-17 · REQ-CHAL-001~004, PAIR-001~004 · 근거: erd.dbml, erd.md "짝꿍 
 - 짝꿍에게 보이는 건 **닉네임 + 날짜별 완료 여부(`checked_on`)뿐**. 건강 수치·검진·위험도·기록은 어떤 응답에도 넣지 않음 (REQ-PAIR-003). 체중 챌린지도 "쟀다/안 쟀다"만
 - 참여자가 아닌 챌린지·남의 짝꿍 관계는 404
 - 범위: 12/4까지 **혼자(SOLO)·1:1(PAIR)**, 1:N(GROUP)은 그 다음. 같은 API에 `mode`만 추가하는 구조라 12/4 이후 엔드포인트가 늘지 않음
+- **`mode`는 DB에 저장하지 않고 응답에서 계산** (ERD 컬럼 추가 없음): `pair_id`가 있으면 `PAIR` / 아니고 남은 참여자(INVITED·JOINED)가 2명 이상이면 `GROUP` / 그 외 `SOLO` → `continue-solo` 뒤엔 `pair_id`가 비어 `SOLO`로 보임. 8-7 요청의 `mode`는 초대 인원 검사에만 씀
+- **호스트(owner)** = `challenges.created_by` ("현재 호스트" 뜻, ERD Note에 표기 예정). 방장·리더 대신 이 용어로 통일 (짝꿍 사이에 위아래가 생기지 않게)
 
 ### 8-1. 기본 목록 `GET /api/v1/challenge-templates`
 ```json
@@ -440,7 +442,7 @@ S-14, S-10 "이걸로 챌린지 만들기"
 
 **저장 (한 트랜잭션)**
 1. `challenges` 1행, `status = ACTIVE`, `created_by = 나`
-2. `challenge_participants`: **만든 사람은 `JOINED` + `joined_at = 지금`**, 초대한 사람은 `INVITED`
+2. `challenge_participants`: **만든 사람(= 호스트)은 `JOINED` + `joined_at = 지금`**, 초대한 사람은 `INVITED`
 3. 초대 알림 생성 (알림 담당과 맞춤)
 
 응답: 8-9 상세와 같은 형태
@@ -450,19 +452,21 @@ S-14, S-10 "이걸로 챌린지 만들기"
 |---|---|---|---|
 | `POST /api/v1/challenges/{id}/join` | 초대받은 사람 | INVITED → JOINED, `joined_at = 지금` | `times_per_week`(개인 목표)를 같이 보낼 수 있음, 안 보내면 챌린지 기본값 |
 | `POST /api/v1/challenges/{id}/decline` | 초대받은 사람 | INVITED → LEFT | |
-| `POST /api/v1/challenges/{id}/leave` | 참여자 | JOINED → LEFT | 체크 기록은 남김. 만든 사람이면 아래 "권한 넘기기" |
+| `POST /api/v1/challenges/{id}/leave` | 참여자 | JOINED → LEFT | 체크 기록은 남김. 1:N 호스트면 아래 "호스트 넘기기", 1:1이면 남은 사람이 고르기 |
 | `PATCH /api/v1/challenges/{id}/me` | 참여자 | 개인 목표 변경 | 1~7, 다음 주 월요일부터 적용 (이번 주 칸 수가 바뀌지 않게) |
-| `PATCH /api/v1/challenges/{id}` | **만든 사람만** | 제목·기간·기본 횟수 수정 | 그 외 403 `"챌린지를 만든 사람만 바꿀 수 있어요."` |
-| `POST /api/v1/challenges/{id}/invites` | **만든 사람만** | 짝꿍 추가 초대 (INVITED) | 1:N만, 8-7과 같은 검사 (짝꿍만, 총 4명까지) |
-| `POST /api/v1/challenges/{id}/end` | **만든 사람만** | ACTIVE → ENDED | **JOINED가 나 혼자일 때만**. 같이 하는 사람이 있으면 409 `"함께하는 분이 있어서 끝낼 수 없어요."` 삭제가 아니라 ENDED (기록 보존) |
+| `PATCH /api/v1/challenges/{id}` | **호스트만** | 제목·기간·기본 횟수 수정 | 그 외 403 `"호스트만 바꿀 수 있어요."` |
+| `POST /api/v1/challenges/{id}/invites` | **호스트만** | 짝꿍 추가 초대 (INVITED) | 1:N만, 8-7과 같은 검사 (짝꿍만, 총 4명까지) |
+| `POST /api/v1/challenges/{id}/end` | **호스트만** | ACTIVE → ENDED | **JOINED가 나 혼자일 때만**. 같이 하는 사람이 있으면 409 `"함께하는 분이 있어서 끝낼 수 없어요."` 삭제가 아니라 ENDED (기록 보존) |
 
-**만든 사람이 나갈 때 (1:N, 단톡방 방장 넘기기처럼)**
+**호스트가 나갈 때 — 1:N만 (호스트 넘기기)**
 ```json
 POST /api/v1/challenges/{id}/leave
 { "new_owner_user_id": 7 }
 ```
 - `new_owner_user_id`: 남은 JOINED 중 한 명. 안 보내면 **먼저 들어온 사람**(`joined_at`이 가장 빠른 JOINED)
-- 넘긴 뒤 나는 LEFT, `challenges.created_by`를 새 사람으로 바꿈 → **ERD 확인 필요**: `created_by`를 "현재 방장" 뜻으로 쓸지, 처음 만든 사람 기록이 필요하면 `owner_id`를 따로 둘지
+- 넘긴 뒤 나는 LEFT, `challenges.created_by`를 새 사람으로 바꿈 (`created_by` = 현재 호스트, 11/19 ERD 확정)
+- 화면: 1:N은 "이제 ○○님이 호스트예요" 안내 / **1:1은 호스트를 화면에 표시하지 않음**
+- 1:1에서 호스트가 나가면 넘기기 없이 아래 "남은 사람이 고르기"로 감 (`new_owner_user_id`를 보내도 무시)
 - 남은 JOINED가 없으면 나가기 대신 `end`로 안내 (400)
 
 **1:1에서 짝꿍이 끊거나 나갔을 때 — 남은 사람이 고르기**
@@ -472,7 +476,7 @@ POST /api/v1/challenges/{id}/leave
 | 선택 | API | 처리 |
 |---|---|---|
 | 혼자 계속 | `POST /api/v1/challenges/{id}/continue-solo` | `pair_id = null` → 혼자 챌린지로 (참여 기록은 `challenge_participants`에 남음) |
-| 종료 | `POST /api/v1/challenges/{id}/end` | ACTIVE → ENDED (이 경우는 남은 사람이 만든 사람이 아니어도 허용) |
+| 종료 | `POST /api/v1/challenges/{id}/end` | ACTIVE → ENDED (이 경우는 남은 사람이 호스트가 아니어도 허용) |
 
 - 컬럼 추가 없이 "`pair_id`가 남아 있고 상대가 빠졌는지"로 판단
 
@@ -566,7 +570,7 @@ S-17 · 11/19 결정 "함께 채운 칸 ÷ 전체 칸"
 | 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 데이터팀 결정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 남은 것(검진 유효기간, 수치 일부만 있을 때 규칙)은 **장성은님이 5장 작성하며 정리해 별도 PR** | 장성은 |
 | 10 | 서비스 방향(보건소·보험사 기관 화면)이 채택되면 계정 역할·권한 | 보험사 역할은 API에서 달성 여부만 내려주도록 막음 (화면이 아니라 서버에서) | 전원 |
 | 11 | `challenge_templates.category` 값 | ✅ 11/19 확정: 대문자 7종 (ERD PR에서 반영) | — |
-| 12 | 짝꿍 끊기·만든 사람 나가기 | ✅ 11/19 확정 → 8-6·8-8. 남은 것: 방장 넘길 때 `created_by`를 바꿀지 `owner_id`를 따로 둘지 | ERD |
+| 12 | 짝꿍 끊기·호스트 나가기 | ✅ 11/19 확정 → 8-6·8-8. 호스트 넘기기는 1:N만, 1:1은 남은 사람이 고르기. `created_by` = 현재 호스트 (컬럼 추가 없음) | — |
 | 13 | "연속" 기준 | ✅ 11/19 확정: 목표 채운 주 연속 (8-9) | — |
 | 14 | 체중 챌린지 체크와 체중 기록 연결 | 체중 기록(`health_logs` WEIGHT)을 남기면 그날 체중 챌린지 자동 체크 (수치는 짝꿍에게 안 감) — 선택 | 백엔드 |
 | 15 | 초대 링크 만료 | ✅ 11/19 확정: created_at 기준 7일 (8-2~8-4) | — |
