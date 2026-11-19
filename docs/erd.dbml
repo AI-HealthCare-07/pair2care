@@ -81,6 +81,7 @@ Table health_profiles {
   // 진단 여부 (예면 그 질환은 예측 안 함)
   is_hypertension_diagnosed bool [not null]
   is_diabetes_diagnosed bool [not null]
+  is_pregnant bool [null, note: '여성만, 예면 두 질환 모두 예측 안 함 (모델이 임신부를 빼고 학습)']   // 남성은 null, 재설문에서도 물음 (11/19 데이터팀 요청)
   created_at datetime [not null]          // 설문 응답 시각 (예측 나이 기준)
 
   indexes {
@@ -104,11 +105,18 @@ Table checkup_records {
   diastolic_bp smallint [null]                                      // 이완기 혈압 mmHg
   fasting_glucose smallint [null]                                   // 공복혈당 mg/dL
   waist_cm decimal(4,1) [null]                                      // 허리둘레 (cm, 소수점 첫째 자리까지)
-  // 후보: height_cm, weight_kg, total_cholesterol ... (데이터팀 결정 후)
+  triglyceride smallint [null]                                      // 중성지방 mg/dL, 대사증후군 기준 ≥150 (11/19 데이터팀 요청)
+  hdl_cholesterol smallint [null]                                   // HDL 콜레스테롤 mg/dL, 대사증후군 기준 남 <40 / 여 <50
+  hba1c decimal(3,1) [null]                                         // 당화혈색소 %, 선택 입력. 당뇨 전단계 기준 ≥5.7
   source checkup_source [not null, default: 'MANUAL']
   created_at datetime [not null]
   updated_at datetime [not null]             // 오타 수정 및 빈 항목 추가 입력 추적용
-  Note: 'REQ-PROF-002~003 · 검진 수치. 대시보드 혈압 그래프에는 안 씀(집 혈압은 health_logs) · 수치는 최소 1개 이상 입력(API에서 검사)'
+  Note: 'REQ-PROF-002~003 · 검진 수치. 대시보드 혈압 그래프에는 안 씀(집 혈압은 health_logs) · 수치는 최소 1개 이상 입력(API에서 검사) · 키·몸무게·총콜레스테롤은 받지 않음(11/19 데이터팀) · 대사증후군 판정은 저장하지 않고 이 수치로 매번 계산(기준표 버전은 코드 상수)'
+}
+
+Enum prediction_method {
+  MODEL              // 설문 모델 점수. 검진 수치가 있어도 항상 저장
+  CHECKUP_CRITERIA   // 검진 수치 기준표 판정. score·model_version 없음
 }
 
 Enum disease_type {
@@ -127,20 +135,21 @@ Table risk_predictions {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
   health_profile_id bigint [not null, ref: > health_profiles.id]
-  checkup_record_id bigint [null, ref: > checkup_records.id]
-  disease disease_type [not null]          // 대사증후군은 모델 없이 검진 수치 기준표로 판정
-  score tinyint [not null]                 // 모델 확률 ×100 → 0~100 정수
+  checkup_record_id bigint [null, ref: > checkup_records.id]   // 검진 기록 삭제 시 null (ON DELETE SET NULL, 이력은 input_snapshot에 남음)
+  disease disease_type [not null]          // 대사증후군은 행을 만들지 않음 (checkup_records로 매번 계산)
+  method prediction_method [not null, default: 'MODEL']
+  score tinyint [null]                     // 모델 확률 ×100 → 0~100 정수. CHECKUP_CRITERIA 행은 null
   level risk_level [not null]
   factors json [null]                      // 상위 3개 [{"feature": ..., "direction": "UP"|"DOWN"}]
-  model_version varchar(50) [not null]     // MLflow 등록 이름:버전, 예: 'diabetes_risk:v1'
-  input_snapshot json [not null]           // 예측 시점의 실제 모델 입력값 박제
+  model_version varchar(50) [null]         // CHECKUP_CRITERIA 행은 null. MLflow 등록 이름:버전, 예: 'diabetes_risk:v1'
+  input_snapshot json [not null]           // 예측 시점의 실제 모델 입력값 박제. CHECKUP_CRITERIA 행은 판정에 쓴 검진 수치 (factors는 null) — 제안
   created_at datetime [not null]           // 예측 시각
 
   indexes {
     (user_id, disease, created_at)
   }
 
-  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음'
+  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음 · 검진 수치가 있으면 한 질환에 MODEL 행 + CHECKUP_CRITERIA 행 2개(11/19 데이터팀), 위험도 추이는 MODEL 행만'
 }
 
 Enum recommendation_type {
@@ -304,7 +313,7 @@ Table notifications {
 Table challenge_templates {
   id bigint [pk, increment]
   title varchar(100) [not null]
-  category varchar(30) [not null]
+  category varchar(30) [not null]   // 대문자 고정 7종: WALK / WATER / EXERCISE / STRETCH / LESS_ALCOHOL / WEIGHT / NO_SMOKING (11/19)
   default_times_per_week int [not null]
   created_at datetime [not null]
   Note: 'REQ-CHAL-001 · 기본 제공 목록'
@@ -337,7 +346,7 @@ Enum challenge_status {
 
 Table challenges {
   id bigint [pk, increment]
-  created_by bigint [not null, ref: > users.id]
+  created_by bigint [not null, ref: > users.id]   // 현재 호스트(owner). 1:N에서 호스트가 나가면 넘겨받은 사람으로 바뀜 (11/19)
   challenge_template_id bigint [null, ref: > challenge_templates.id]
   pair_id bigint [null, ref: > pairs.id]
   title varchar(100) [not null]
@@ -347,7 +356,7 @@ Table challenges {
   status challenge_status [not null]
   created_at datetime [not null]
   updated_at datetime [not null]
-  Note: 'REQ-CHAL-001, PAIR-002 · pair_id는 1:1 짝꿍 챌린지만. 1:N은 비우고 참여자는 challenge_participants로 관리 (11/19 안 A)'
+  Note: 'REQ-CHAL-001, PAIR-002 · pair_id는 1:1 짝꿍 챌린지만. 1:N은 비우고 참여자는 challenge_participants로 관리 (11/19 안 A) · 혼자/1:1/1:N(mode)은 저장하지 않고 응답에서 계산: pair_id 있으면 PAIR, 남은 참여자 2명 이상 GROUP, 그 외 SOLO'
 }
 
 Enum participant_status {
