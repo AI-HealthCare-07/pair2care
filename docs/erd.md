@@ -52,7 +52,7 @@
 ### 식단 — 이지희 (여현지 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `foods` | 식약처 영양 DB에서 가져온 음식. 1차 학습 한식 18종과 1:1, 18종 값을 한 번 조회해서 넣음 (API 매번 호출 안 함) | name, serving_size_g, kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g(영양값은 null 허용), mfds_code(출처, unique), model_label(모델 클래스명, unique) | FOOD-002 |
+| `foods` | 식약처 영양 DB에서 가져온 음식. 1차 학습 한식 18종과 1:1, 18종 값을 한 번 조회해서 넣음 (API 매번 호출 안 함) | name, serving_size, serving_unit(G/ML), kcal, carbs_g, sugar_g, sodium_mg, protein_g, fat_g(영양값은 null 허용), mfds_code(출처, unique), model_label(모델 클래스명, unique) | FOOD-002 |
 | `meals` | 식단 사진 기록. 분류는 워커가 비동기로 채움 | user_id, image_url, eaten_at, category, status, retry_count, candidates(JSON), food_id(사용자 선택, null 가능), portion, nutrients(JSON), model_version | FOOD-001~003 |
 
 > 식단 값 (11/18 여현지 의견 반영)  
@@ -64,7 +64,8 @@
 > - `meals.portion`: `decimal(2,1)`, 0.5 / 1.0 / 1.5, 기본값 1.0  
 > - `meals.nutrients`: `foods` 기준값 × `portion` 스냅샷. 키는 `foods` 컬럼명과 같게 (나중에 `foods`가 바뀌어도 과거 기록 유지)
 > - `foods` 영양값 출처 (11/19 여현지): 식약처 식품영양성분DB OpenAPI `FoodNtrCpntDbInfo03`. `kcal`=AMT_NUM1, `protein_g`=AMT_NUM3, `fat_g`=AMT_NUM4, `carbs_g`=AMT_NUM6, `sugar_g`=AMT_NUM7, `sodium_mg`=AMT_NUM13, 1인분 중량=Z10500, 기준량=SERVING_SIZE. `foods`에는 1인분으로 환산한 값을 넣음 (기준량당 값 × 1인분 중량 ÷ 기준량)
-> - 18종 ↔ 식약처 행 매칭: 이름이 정확히 같은 음식(D) 행, 여러 개면 식품기원 우선순위(외식 분석 → 외식 → 가정식 → 산업체 → 중고등 → 초등). 이름이 다른 4종은 대체 행 사용 — 간장게장→`게장_간장`, 닭개장→`육개장_간편조리세트_닭개장`, 냉면→`냉면_물냉면`·`냉면_비빔냉면`, 순두부찌개→`순두부찌개_김치`·`순두부찌개_해물`. 결과 20행, `mfds_code` 중복 없음
+> - 18종 ↔ 식약처 행 매칭: 이름이 정확히 같은 음식(D) 행, 여러 개면 식품기원 우선순위(외식 분석 → 외식 → 가정식 → 산업체 → 중고등 → 초등). 점심 외식 사진 기준이라 한 음식에 한 행만 둠. 이름이 다른 4종은 대체 행 사용 — 간장게장→`게장_간장`, 닭개장→`육개장_간편조리세트_닭개장`, 냉면→`물냉면`(외식), 순두부찌개→`순두부찌개_해물`. 결과 18행으로 `model_label`과 1:1, `mfds_code` 중복 없음
+> - `foods.serving_size`·`serving_unit`: 1인분 양과 단위(`G`/`ML`). 식약처 기준량 단위를 그대로 따라서 18행 중 9행(갈비탕·감자탕·냉면·삼계탕·순두부찌개·잔치국수·짬뽕·칼국수·콩나물국)은 `ML`. S-22에 "1인분 797mL"처럼 표시
 
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
@@ -148,7 +149,8 @@ erDiagram
 - [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
 - [ ] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`)을 언제 다시 시도할지 — 워커 담당과 정함 (XAUTOCLAIM 대기 시간·최대 재시도 횟수)
 
-### 식단 테이블 확인 요청 (11/19 여현지 → 이지희)
-- [ ] `foods` 한 음식에 종류가 2개인 경우 — 냉면(물·비빔)·순두부찌개(김치·해물)라 18종이 20행이 되어 `model_label` unique와 충돌함. 제안: `variant_name varchar(50) null`, `is_default bool` 추가하고 unique를 `(model_label, variant_name)`으로 변경. `meals.candidates`의 `food_id`는 기본 종류(`is_default`) 행을 가리키고, 사용자가 S-22에서 종류를 바꾸면 `meals.food_id`만 바뀜
-- [ ] 1인분 단위 — 20행 중 8행(갈비탕·감자탕·삼계탕·짬뽕 등 국물·면류)은 식약처 기준이 mL라 `serving_size_g` 이름과 맞지 않음. 제안: `serving_size decimal(10,2)` + `serving_unit` enum(`G`/`ML`), 또는 이름만 두고 Note에 mL 포함 명시
-- [ ] 닭개장 — 식약처에 일반 음식 행이 없어 간편조리세트 제품 행 사용, 탄수화물·지방 값 없음(null), 1인분은 육개장과 같은 440g 임시값. 더 맞는 행 찾으면 교체
+### 식단 테이블 결정 (11/19, PR #32 리뷰 의견 반영 — 이지희 복귀 후 확인)
+- [x] 한 음식에 한 행 — `foods` 18행, `model_label` unique 그대로 (냉면 = 물냉면, 순두부찌개 = 해물). 식단이 P2라 종류 고르기는 1차에서 뺌. 나중에 붙이면 `variant_name varchar(50) null` + `is_default bool` 추가, unique를 `(model_label, variant_name)`으로 바꾸는 안 (리뷰 찬성)
+- [x] 1인분 단위 — `serving_size_g` → `serving_size decimal(10,2)` + `serving_unit` enum(`G`/`ML`). S-22에 g·mL를 표시해야 해서 단위를 저장함
+- [x] 닭개장 — 일반 음식 행이 없어 간편조리세트 제품 행 사용. 탄수화물·지방은 null → S-23에서 "정보 없음"으로 표시. 1인분 440g은 임시값, 더 맞는 행 찾으면 교체
+- [ ] 순두부찌개 1인분 — 해물 행이 초등학교급식 기준(190mL)이라 외식 1인분(식약처 1회 제공량 400g 근거)으로 바꿀 방법 정하는 중. 값만 바뀌고 컬럼은 그대로 (여현지)
