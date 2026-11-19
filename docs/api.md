@@ -13,7 +13,8 @@
 6. **건강 기록** — 최현영
 7. **대시보드** — 최현영
 8. **챌린지·짝꿍** — 최현영 초안 (11/19 PR #30·#31 반영)
-10. 식단 / LLM 추천 / 알림 — 담당 미정
+10. **식단** — 여현지
+11. LLM 추천 / 알림 — 담당 미정
 9. 정할 것
 
 ---
@@ -551,7 +552,184 @@ S-17 · 11/19 결정 "함께 채운 칸 ÷ 전체 칸"
 > - 예측 서비스 함수 시그니처 예: `predict(user, health_profile, checkup_record | None) -> list[RiskPrediction]`
 > - 예측 상세 조회(S-09), 시뮬레이션(S-10, 저장 안 함), 최근 예측 조회
 
-## 2·10. 인증·회원 / 식단 / LLM 추천 / 알림
+## 10. 식단 — `meals`, `foods` (여현지)
+S-21(식단 기록), S-22(음식 고르기), S-23(영양 결과) · REQ-FOOD-001~003, NFR-005 · **P2** (식단이 없어도 핵심 흐름은 돌아가야 함, NFR-009)
+
+- 사진 분류는 몇 초 걸려서 **`202 + task_id` → AI 워커 → SSE** (공통 규칙). 나머지는 동기 처리
+- 음식 목록은 `foods` 18행 (한 음식에 한 행, 냉면 = 물냉면, 순두부찌개 = 해물). 영양값은 식약처 OpenAPI로 미리 받아 둔 **1인분 값**
+- 1차 모델은 18종 중 하나로만 답함. 목록에 없는 음식은 직접 검색(10-8)으로 고름
+
+### 10-1. 사진 올리기 `POST /api/v1/meals` → 202
+S-21 · REQ-FOOD-001
+
+**요청** `multipart/form-data`
+
+| 필드 | 규칙 |
+|---|---|
+| image | 필수. jpg / png / webp, 최대 10MB (제안 → 정할 것 16번). 아니면 400, 크기 초과 413 |
+| eaten_at | 선택. 없으면 지금(KST). 지금보다 미래면 400 `"먹은 시간은 지금 이후로 할 수 없어요."` |
+
+**처리 순서**
+1. 이미지 저장 → `image_url` (저장 위치는 S3 답변 후 결정, ERD 정할 것)
+2. `meals` 저장: `status = PENDING`, `category = MEAL`(1차는 식사만), `portion = 1.0`
+3. `TaskMessage(task_type = MEAL_CLASSIFY, user_id, target_id = meals.id)`를 `ai:tasks`에 XADD
+4. Redis에 못 넣으면 `status = FAILED`로 두고 응답은 그대로 202 → 사용자가 10-6으로 다시 시도
+
+**응답 202**
+```json
+{ "meal_id": 101, "task_id": "8f1c2d4e-3b5a-4c6d-9e7f-0a1b2c3d4e5f", "status": "PENDING" }
+```
+
+### 10-2. 분류 결과 알림 (SSE)
+- 워커 처리: `status = PROCESSING` → 분류 → `candidates`·`model_version` 저장, `COMPLETED` / 3번 실패하면 `FAILED`, `retry_count + 1` → `ai:results`에 발행
+- SSE 연결 주소·이벤트 형식은 공통 SSE 명세를 따름 (담당 미정). 식단 결과 `data` 제안:
+```json
+{ "task_id": "8f1c2d4e-...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "status": "COMPLETED" }
+```
+- 프론트는 이벤트를 받으면 10-4로 다시 조회. SSE가 끊겼으면 10-4를 몇 초 간격으로 조회해도 됨
+
+### 10-3. 하루 식단 목록 `GET /api/v1/meals?date=2026-11-19`
+S-21 · REQ-FOOD-001
+
+- 그날(KST) `eaten_at` 순. 하루 끼니 수가 적어서 커서 없이 전부 줌
+- `daily_total`: 그날 **음식을 고른 식단**의 `nutrients` 합 (REQ-FOOD-003 하루 기준 비교에 씀)
+
+**응답 200**
+```json
+{
+  "date": "2026-11-19",
+  "items": [
+    {
+      "id": 101,
+      "image_url": "https://.../meals/101.jpg",
+      "eaten_at": "2026-11-19T12:30:00+09:00",
+      "status": "COMPLETED",
+      "food": { "id": 14, "name": "육개장" },
+      "portion": 1.0,
+      "nutrients": { "kcal": 132.0, "carbs_g": 6.6, "sugar_g": 3.3, "sodium_mg": 884.4, "protein_g": 16.2, "fat_g": 4.4 }
+    },
+    {
+      "id": 102,
+      "image_url": "https://.../meals/102.jpg",
+      "eaten_at": "2026-11-19T19:10:00+09:00",
+      "status": "PROCESSING",
+      "food": null,
+      "portion": 1.0,
+      "nutrients": null
+    }
+  ],
+  "daily_total": { "kcal": 132.0, "carbs_g": 6.6, "sugar_g": 3.3, "sodium_mg": 884.4, "protein_g": 16.2, "fat_g": 4.4 }
+}
+```
+
+### 10-4. 식단 한 건 `GET /api/v1/meals/{id}` ⚕️
+S-22, S-23 · REQ-FOOD-001~003
+
+**응답 200**
+```json
+{
+  "id": 101,
+  "image_url": "https://.../meals/101.jpg",
+  "eaten_at": "2026-11-19T12:30:00+09:00",
+  "category": "MEAL",
+  "status": "COMPLETED",
+  "retry_count": 0,
+  "model_version": "food-cls-v1",
+  "candidates": [
+    { "food_id": 14, "model_label": "육개장", "name": "육개장", "score": 0.887 },
+    { "food_id": 6, "model_label": "닭개장", "name": "육개장_간편조리세트_닭개장", "score": 0.061 },
+    { "food_id": 4, "model_label": "김치찌개", "name": "김치찌개", "score": 0.021 },
+    { "food_id": 13, "model_label": "순두부찌개", "name": "순두부찌개_해물", "score": 0.012 },
+    { "food_id": 3, "model_label": "감자탕", "name": "감자탕", "score": 0.006 }
+  ],
+  "food": null,
+  "portion": 1.0,
+  "nutrients": null,
+  "feedback": null,
+  "created_at": "2026-11-19T12:31:02+09:00",
+  "updated_at": "2026-11-19T12:31:05+09:00"
+}
+```
+- `candidates`: `COMPLETED`일 때 확률 높은 순 5개, 그 전·`FAILED`면 null. `score`는 0~1 (소수 셋째 자리)
+- `food`: 고르기 전엔 null. 고른 뒤엔 `foods` 행 요약 `{ id, name, model_label, serving_size, serving_unit }`
+- 화면은 S-22에서 후보 첫 번째를 미리 선택해 보여 줌 (저장은 10-5에서)
+- `feedback`: 음식을 고른 뒤에만 채움 (10-9)
+
+### 10-5. 음식·인분 고르기 `PATCH /api/v1/meals/{id}`
+S-22 · REQ-FOOD-001·002
+```json
+{ "food_id": 14, "portion": 1.5 }
+```
+| 필드 | 규칙 |
+|---|---|
+| food_id | `foods`에 있는 id. 없으면 404. 후보 5개 밖의 음식(직접 검색)도 가능 |
+| portion | 0.5 / 1.0 / 1.5만. 아니면 422 |
+| eaten_at | 선택. 10-1과 같은 규칙 |
+| 공통 | 보낸 필드만 바꿈. 음식을 고른 적 없는데 `portion`만 보내면 400 `"음식을 먼저 골라 주세요."` |
+
+- `status`가 `PENDING`·`PROCESSING`이면 **409** `"사진을 분석하고 있어요. 잠시 후 골라 주세요."`
+- `FAILED`여도 직접 골라 저장 가능 (C-02 "직접 고르기")
+- 저장할 때 `nutrients` = `foods` 1인분 값 × `portion` (소수 첫째 자리 반올림) 스냅샷. 나중에 `foods` 값이 바뀌어도 이 기록은 그대로
+- `foods` 영양값이 null인 항목(예: 닭개장 탄수화물·지방)은 `nutrients`에서도 null → 화면은 "정보 없음"
+- 응답 200: 10-4와 같은 형식 (`food`·`nutrients`·`feedback` 채워짐)
+```json
+"nutrients": { "kcal": 198.0, "carbs_g": 9.9, "sugar_g": 5.0, "sodium_mg": 1326.6, "protein_g": 24.3, "fat_g": 6.6 }
+```
+
+### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202
+C-02 · REQ-FOOD-001, NFR-005
+- `FAILED`일 때만. 아니면 409 `"다시 분석할 수 없는 상태예요."`
+- `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 발행 → 응답 `{ "meal_id", "task_id", "status": "PENDING" }`
+- 같은 식단의 재시도 횟수 제한 → 정할 것 18번
+
+### 10-7. 삭제 `DELETE /api/v1/meals/{id}` → 204
+- 분석 중에도 삭제 가능. 워커는 `meals` 행이 없으면 건너뛰고 XACK
+- 저장한 이미지도 함께 지움
+
+### 10-8. 음식 목록·검색 `GET /api/v1/foods?q=국수`
+S-22 "목록에 없어요" · REQ-FOOD-001·002
+- `q` 없으면 18행 전부, 있으면 `name`·`model_label` 부분 일치. 18행이라 커서 없이 전부 줌
+- 영양값은 **1인분 기준**, `serving_unit`은 `G` / `ML` (18행 중 9행이 mL)
+
+**응답 200**
+```json
+{
+  "items": [
+    {
+      "id": 15,
+      "name": "잔치국수",
+      "model_label": "잔치국수",
+      "serving_size": 800.0,
+      "serving_unit": "ML",
+      "kcal": 488.0,
+      "carbs_g": 84.6,
+      "sugar_g": 6.6,
+      "sodium_mg": 2176.0,
+      "protein_g": 19.2,
+      "fat_g": 6.7
+    }
+  ]
+}
+```
+- `mfds_code`(식약처 식품코드)는 화면에 안 써서 응답에서 뺌. 화면 출처 표기는 "식약처 식품영양성분DB" 고정 문구
+- 식약처 API 실시간 검색은 1차 범위 밖 → 정할 것 19번
+
+### 10-9. 영양 피드백 (10-4·10-5 응답의 `feedback`) ⚕️
+S-23 · REQ-FOOD-003
+- 질환별 주의 항목: 고혈압 → `sodium_mg`, 당뇨 → `sugar_g`·`carbs_g`. 질환은 최근 설문의 진단 여부 + 최근 예측 결과에서 정함 (3장·5장)
+- 이 끼니 값과 그날 누적(10-3 `daily_total`)을 하루 기준량과 비교
+```json
+"feedback": {
+  "focus": ["sodium_mg"],
+  "items": [
+    { "key": "sodium_mg", "meal_value": 1326.6, "daily_total": 2211.0, "daily_reference": null, "percent": null, "level": null }
+  ]
+}
+```
+- **하루 기준량·판단 기준(`level` 값)은 미정** → 정할 것 17번. 정하기 전엔 `daily_reference`·`percent`·`level`을 null로 두고 값만 보여 줌
+- "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 LLM 추천(REQ-LLM-002, 김민준) 쪽 API
+
+## 2·11. 인증·회원 / LLM 추천 / 알림
 > 담당 정해지면 채움
 
 ---
@@ -574,3 +752,9 @@ S-17 · 11/19 결정 "함께 채운 칸 ÷ 전체 칸"
 | 13 | "연속" 기준 | ✅ 11/19 확정: 목표 채운 주 연속 (8-9) | — |
 | 14 | 체중 챌린지 체크와 체중 기록 연결 | 체중 기록(`health_logs` WEIGHT)을 남기면 그날 체중 챌린지 자동 체크 (수치는 짝꿍에게 안 감) — 선택 | 백엔드 |
 | 15 | 초대 링크 만료 | ✅ 11/19 확정: created_at 기준 7일 (8-2~8-4) | — |
+| 16 | 식단 사진 형식·크기 | jpg / png / webp, 최대 10MB. 아이폰 HEIC는 프론트에서 jpg로 바꿔 올림 | 프론트(김지연)·백엔드 |
+| 17 | 식단 피드백 하루 기준량·판단 기준 (10-9) | 나트륨·당류·탄수화물 하루 기준량과 출처, 끼니 단위 vs 하루 누적 → 여현지가 정해 requirements REQ-FOOD-003에 기록 | 여현지 |
+| 18 | 식단 재분류 횟수 제한 (10-6) | 같은 식단 하루 3번까지, 넘으면 429 `"다시 분석은 3번까지 할 수 있어요. 직접 골라 주세요."` | 워커 담당 |
+| 19 | 목록에 없는 음식 (10-8) | 1차는 `foods` 18행 안에서만 검색. 식약처 API 실시간 검색은 호출 한도·캐시 문제로 S5 이후 검토 | 여현지·백엔드 |
+| 20 | 공통 SSE 명세 | 식단·LLM·OCR 결과를 같은 SSE 연결로 보낼지, 이벤트 이름·`data` 형식 (10-2 제안) | 워커·LLM 담당 |
+| 21 | 식단 비전 LLM 보조 (REQ-FOOD-001) | 쓸지 여부, top-1 확률 기준, 18종 밖 음식 처리. 쓰면 10-2 워커 처리 안에서 호출(새 API 없음) | 여현지·LLM(김민준) |
