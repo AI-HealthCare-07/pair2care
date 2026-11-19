@@ -250,7 +250,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 반올림 정수 0~100 |
 | level | `LOW` / `CAUTION` / `HIGH`. 기준값은 학습 후 점수 분포로 정함 (12/4 전) |
-| factors | 상위 3개 `[{"feature": "weight_kg", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장 |
+| factors | 상위 3개 `[{"feature": "weight_kg", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
 | checkup_record_id | null |
 | input_snapshot | 모델에 실제로 넣은 값 (변환 후). 예측 이력·"바뀐 입력값" 비교용 |
@@ -345,6 +345,7 @@ S-10 · **저장하지 않음** (`risk_predictions`에 행 안 생김)
 - 바꿀 수 있는 값: `weight_kg`, `alcohol_frequency`, `alcohol_amount`, `smoking_current` (위험도를 바꾸는 생활 요인 = 체중·음주·흡연)
 - 그 외 필드를 보내면 **400** `"체중·음주·흡연만 바꿔 볼 수 있어요."`
 - 보낸 값만 최근 설문 값 위에 덮어서 계산. 값 범위·건너뛰기 규칙은 3-1과 같음 (예: 음주 빈도 1이면 양은 8로 서버가 채움)
+- - 최근 설문에서 비해당인 문항은 바꿀 수 없음 → **400** `"지금 해당하지 않는 습관은 바꿔 볼 수 없어요."` (예: 음주 경험 "없다"인 사람이 `alcohol_frequency`를 보냄, 흡연한 적 없는 사람이 `smoking_current`를 보냄). S-10 화면은 해당하는 습관만 보여줌
 
 **응답 200**
 ```json
