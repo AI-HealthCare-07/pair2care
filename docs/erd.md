@@ -26,19 +26,19 @@
 |---|---|---|---|
 | `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday | USER-001~004 |
 | `user_consents` | 약관·개인정보·민감정보 동의 기록. 동의·철회할 때마다 행을 쌓고, 현재 상태는 종류별 최신 행 | user_id, agreement(TERMS/PRIVACY/SENSITIVE_HEALTH), version, is_agreed, created_at | USER-005 |
-| `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, kind, 신체·가족력·음주·흡연·진단 여부 20문항 (코드는 `survey-mapping.md`), created_at. 재설문에서 안 묻는 항목은 직전 값 복사(허리둘레는 빈칸), 상위 답이 바뀌면 하위 문항만 다시 물음 | PROF-001, PRED-004 |
-| `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, checked_on, source(manual/ocr) | PROF-002, PROF-003 |
+| `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, kind, 신체·가족력·음주·흡연·진단 여부 20문항 (코드는 `survey-mapping.md`), is_pregnant(여성만, 예면 예측 안 함), created_at. 재설문에서 안 묻는 항목은 직전 값 복사(허리둘레는 빈칸), 상위 답이 바뀌면 하위 문항만 다시 물음 | PROF-001, PRED-004 |
+| `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, triglyceride, hdl_cholesterol, hba1c(선택), checked_on, source(manual/ocr) | PROF-002, PROF-003 |
 
 ### 예측 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease(HYPERTENSION/DIABETES), score(0~100 정수), level(LOW/CAUTION/HIGH), factors(JSON 상위 3개), model_version(`diabetes_risk:v1`) | PRED-001~004, DASH-003 |
+| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease(HYPERTENSION/DIABETES), method(MODEL/CHECKUP_CRITERIA), score(0~100 정수, 기준표 행은 null), level(LOW/CAUTION/HIGH), factors(JSON 상위 3개), model_version(`diabetes_risk:v1`, 기준표 행은 null) | PRED-001~004, DASH-003 |
 
 ### 챌린지·짝꿍 — 이지희
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
 | `challenge_templates` | 기본 제공 챌린지 목록 (걷기·물·운동·스트레칭·절주·체중·금연, 11/19 체중·금연 추가) | title, category, default_times_per_week | CHAL-001 |
-| `challenges` | 만든 챌린지. 1:1 짝꿍 챌린지면 `pair_id` 있음, 1:N은 비움 | created_by, challenge_template_id, pair_id(null 가능), title, times_per_week, starts_on, ends_on, status | CHAL-001, PAIR-002 |
+| `challenges` | 만든 챌린지. 1:1 짝꿍 챌린지면 `pair_id` 있음, 1:N은 비움 | created_by(현재 호스트), challenge_template_id, pair_id(null 가능), title, times_per_week, starts_on, ends_on, status | CHAL-001, PAIR-002 |
 | `challenge_participants` | 챌린지 참여자 (개인 1명, 1:1 짝꿍 2명, 1:N 2~4명) | challenge_id, user_id, status(INVITED/JOINED/LEFT), times_per_week(개인 목표, null이면 챌린지 값), joined_at(수락 시각) | PAIR-002 |
 | `challenge_checks` | 날짜별 완료 체크. 연속 달성·달성률 계산 | challenge_id, user_id, checked_on (challenge_id+user_id+checked_on 유니크) | CHAL-002~003, PAIR-003 |
 | `pairs` | 짝꿍 관계 | requester_id, partner_id(null 가능), invite_code, pair_key(작은 id:큰 id, unique), status(PENDING/ACCEPTED/ENDED), accepted_at | PAIR-001 |
@@ -133,6 +133,14 @@ erDiagram
 ## 5. 정할 것
 - [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
 - [x] `risk_predictions.disease` → 고혈압·당뇨 각각 (11/18 데이터팀). 대사증후군은 검진 수치 기준표로 판정
+- [x] 데이터팀 ERD 요청 반영 (11/19 장성은)
+  - `health_profiles.is_pregnant`: 여성만, "예"면 두 질환 모두 예측 안 함
+  - `checkup_records`: 중성지방·HDL(대사증후군 판정), 당화혈색소(선택) 추가. 키·몸무게·총콜레스테롤은 받지 않음
+  - `risk_predictions.method`: 검진 수치가 있으면 한 질환에 모델 행(`MODEL`) + 기준표 행(`CHECKUP_CRITERIA`). 기준표 행은 `score`·`model_version`이 null, 추이 그래프는 모델 행만
+  - 대사증후군 판정은 저장하지 않고 `checkup_records`로 매번 계산 (추이가 없어서 이력 불필요, 기준표 버전은 코드 상수)
+  - "혈압약·당뇨약 복용"은 진단 여부 문항으로 대신, 이상지질혈증 진단 문항은 12/4 이후 검토
+- [x] 검진 기록 삭제 시 `risk_predictions.checkup_record_id`는 null (ON DELETE SET NULL, 당시 값은 `input_snapshot`에 남음)
+- [x] `CHECKUP_CRITERIA` 행의 `input_snapshot`·`factors` (11/19 장성은) — `input_snapshot`에 판정에 쓴 검진 수치 + 검진 날짜 `checked_on` (검진 기록을 지워도 어느 검진으로 판정했는지 남게), `factors`는 null. 예: `{"checked_on": "2026-05-10", "systolic_bp": 134, "diastolic_bp": 86}`
 - [x] 짝꿍은 한 사람당 여러 명 가능 (11/17). 같은 두 사람 사이 짝꿍은 하나만
 - [x] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 (11/19) — 1:1은 해제할 때 "종료 / 개인 챌린지로 계속" 중 선택, 1:N은 한 명이 나가도(`LEFT`) 나머지는 계속
 - [x] 같은 두 사람 짝꿍 중복 방지 (11/19) — `pairs.pair_key` unique로 DB에서 막음
@@ -144,6 +152,9 @@ erDiagram
 - 미션은 같은 템플릿 1개, 횟수는 각자 (`challenge_participants.times_per_week`)
 - 공동 진행률: 함께 채운 칸 ÷ 전체 칸. 개인 목표를 넘긴 체크는 칸에 더하지 않음
 - 화면: "이번 주 N회·누적"을 먼저, 연속 일수는 아래
+- 호스트(owner) = `challenges.created_by` ("현재 호스트" 뜻). 1:N에서 호스트가 나가면 고른 사람(안 고르면 먼저 들어온 사람)으로 바뀜, 1:1은 호스트를 화면에 표시하지 않음 (11/19 API 리뷰)
+- 혼자/1:1/1:N(`mode`)은 저장하지 않고 응답에서 계산 (`pair_id` 있으면 PAIR, 남은 참여자 2명 이상 GROUP, 그 외 SOLO)
+- `challenge_templates.category`: 대문자 고정 7종 `WALK`·`WATER`·`EXERCISE`·`STRETCH`·`LESS_ALCOHOL`·`WEIGHT`·`NO_SMOKING`
 - [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)
 - [x] `health_logs`는 한 테이블 + `log_type` enum. 주간 기록 6종도 enum 추가로 (11/18 이지희)
 - [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
