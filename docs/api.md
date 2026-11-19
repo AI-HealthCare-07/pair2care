@@ -6,7 +6,7 @@
 
 ## 0. 목차
 1. 공통 규칙
-2. 인증·회원 — 기존 코드(`/auth`, `/users`) 기준, 담당자 정리 예정
+2. **인증·회원** — 김지연
 3. **건강 프로필(설문)** — 최현영
 4. **검진 수치** — 최현영
 5. 예측·습관 시뮬레이션 — 장성은 (작성 중)
@@ -14,7 +14,8 @@
 7. **대시보드** — 최현영
 8. **챌린지·짝꿍** — 최현영 초안 (11/19 PR #30·#31 반영)
 10. **식단** — 여현지
-11. LLM 추천 / 알림 — 담당 미정
+11. LLM 추천 — 김민준 (작성 예정)
+12. **알림 (+ 공통 SSE)** — 김지연
 9. 정할 것
 
 ---
@@ -35,6 +36,148 @@
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → SSE로 결과 전달 (REQ-NFR-005). 이 문서 담당분은 모두 동기 처리 |
+
+---
+
+## 2. 인증·회원 — `users`, `user_consents` (김지연)
+S-01~S-05, S-27 · REQ-USER-001~005
+
+### 2-0. 기존 코드와 바꿀 점 (S2 구현 때)
+명세는 ERD 기준(1장 "필드 이름 = ERD 컬럼"). 지금 코드(`app/apis/v1/auth_routers.py`·`user_routers.py`, `app/dtos/`)와 다른 곳
+| 항목 | 지금 코드 | 바꿀 것 |
+|---|---|---|
+| 닉네임 | `name` (20자) | `nickname` (ERD varchar(50), 화면은 2~20자) |
+| 휴대폰 번호 | `phone_number` 필수 | 삭제 (11/17 결정, REQ-USER-001) |
+| 생년월일 | 가입 `birth_date` / 수정 `birthday` | `birthday` 하나로 |
+| 이메일 길이 | 최대 40자 | 최대 255자 (ERD) |
+| 회원가입 응답 | `{"detail": "회원가입이 성공적으로 완료되었습니다."}` | 2-1처럼 토큰 + 회원 요약 |
+| 토큰 갱신 | `GET /auth/token/refresh` | `POST` (상태를 바꾸는 요청) |
+| 로그아웃 | 없음 | 2-4 추가 |
+| 약관 동의 | 없음 | 가입 요청에 같이 받음 (2-1), 2-6 추가 |
+- 그대로 쓰는 것: 비밀번호 규칙(8자 이상, 대·소문자·숫자·특수문자 각 1개), 만 14세 미만 가입 불가(`validate_birthday`), access 토큰은 본문 / refresh 토큰은 httpOnly 쿠키
+
+### 2-1. 회원가입 `POST /api/v1/auth/signup` → 201
+S-02, S-03 · REQ-USER-001·005 · 로그인 필요 없음
+```json
+{
+  "email": "minsu@example.com",
+  "password": "Pair2care!",
+  "nickname": "민수",
+  "gender": "MALE",
+  "birthday": "1972-03-15",
+  "consents": [
+    { "agreement": "TERMS", "version": "v1.0", "is_agreed": true },
+    { "agreement": "PRIVACY", "version": "v1.0", "is_agreed": true },
+    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true }
+  ]
+}
+```
+| 필드 | 규칙 |
+|---|---|
+| email | 이메일 형식, 최대 255자. 이미 있으면 **409** `"이미 가입된 이메일이에요."` |
+| password | 위 비밀번호 규칙. 아니면 422 |
+| nickname | 2~20자. 중복 허용 (짝꿍 화면엔 닉네임만 보여서 같은 이름이 있어도 됨) |
+| gender | `MALE` / `FEMALE` (설문 임신 문항·대사증후군 기준에 씀) |
+| birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` |
+| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` → 정할 것 22번 |
+
+**처리 (한 트랜잭션)**: `users` 저장 → `user_consents` 3행 저장(`created_at` = 동의 시각) → 토큰 발급
+- 동의는 화면 S-03에서 받지만 저장은 가입과 한 번에 (동의 없이 가입만 된 계정이 생기지 않게)
+
+**응답 201** (바로 S-06 설문으로 넘어가도록 로그인 상태로 줌, refresh 토큰은 쿠키)
+```json
+{
+  "access_token": "eyJ...",
+  "user": { "id": 3, "email": "minsu@example.com", "nickname": "민수", "gender": "MALE", "birthday": "1972-03-15", "created_at": "2026-11-19T10:00:00+09:00" },
+  "has_health_profile": false
+}
+```
+- `has_health_profile`: 가입 설문(ONBOARDING)을 했는지 → 프론트가 S-06으로 보낼지 결정 (로그인 응답에도 같은 값)
+
+### 2-2. 로그인 `POST /api/v1/auth/login` → 200
+S-04 · REQ-USER-002 · 로그인 필요 없음
+```json
+{ "email": "minsu@example.com", "password": "Pair2care!" }
+```
+- 응답: `{ "access_token": "...", "has_health_profile": true }` + refresh 토큰 httpOnly 쿠키 (`Secure`는 운영만)
+- 이메일이 없거나 비밀번호가 틀리거나 탈퇴한 계정(`is_active = false`)이면 모두 **401** `"이메일 또는 비밀번호가 맞지 않아요."` (어느 쪽이 틀렸는지 알려 주면 가입된 이메일을 알아낼 수 있어서 같은 문구)
+- 성공 시 `users.last_login` 갱신
+- 토큰 유효 시간은 기존 설정 그대로 (`config`의 access·refresh 만료값)
+
+### 2-3. 토큰 갱신 `POST /api/v1/auth/token/refresh` → 200
+- 요청 본문 없음, refresh 토큰 쿠키로 판단. 응답 `{ "access_token": "..." }`
+- 쿠키가 없거나 만료·위조면 **401** `"다시 로그인해 주세요."` → 프론트는 S-04로
+- 프론트는 API가 401을 주면 한 번 갱신하고 원래 요청을 다시 보냄 (갱신도 401이면 로그아웃 처리)
+
+### 2-4. 로그아웃 `POST /api/v1/auth/logout` → 204
+- refresh 토큰 쿠키 삭제
+- 요청에 `push_endpoint`가 있으면 그 기기의 웹 푸시 구독도 삭제 (ERD `push_subscriptions` Note "로그아웃 시 그 기기 구독 삭제", 12-5)
+```json
+{ "push_endpoint": "https://fcm.googleapis.com/fcm/send/..." }
+```
+- access 토큰은 서버에서 막지 않음(블랙리스트 없음) → 만료 시간을 짧게 두는 것으로 대신 → 정할 것 23번
+
+### 2-5. 내 정보 `GET /api/v1/users/me` · `PATCH /api/v1/users/me`
+S-27 · REQ-USER-003
+**GET 응답 200**
+```json
+{ "id": 3, "email": "minsu@example.com", "nickname": "민수", "gender": "MALE", "birthday": "1972-03-15", "has_health_profile": true, "created_at": "2026-11-19T10:00:00+09:00" }
+```
+**PATCH** `{ "nickname": "민수아빠" }`
+- 바꿀 수 있는 건 **`nickname`만** (2~20자)
+- `email`: 로그인 아이디라 바꾸지 않음 (1차)
+- `gender`·`birthday`: 예측 입력(성별·나이)이라 바꾸면 지난 예측과 기준이 달라짐 → 1차는 수정 불가, 보내면 400 `"성별·생년월일은 바꿀 수 없어요."` → 정할 것 24번
+- 방해 금지 시간(`quiet_start`·`quiet_end`)은 `users` 컬럼이지만 12-2 알림 설정에서 다룸
+- 설문·검진 수정은 3·4장 API (S-27은 입구만)
+
+**비밀번호 변경** `PATCH /api/v1/users/me/password` → 204
+```json
+{ "current_password": "Pair2care!", "new_password": "Pair2care!!" }
+```
+- 현재 비밀번호가 틀리면 400 `"현재 비밀번호가 맞지 않아요."`, 새 비밀번호는 2-1 규칙
+
+### 2-6. 약관 동의 `GET /api/v1/users/me/consents` · `POST /api/v1/users/me/consents`
+S-27 "동의 내역" · REQ-USER-005
+- `user_consents`는 동의·철회할 때마다 새 행을 쌓고, 현재 상태는 종류별 최신 행
+**GET 응답 200** (종류별 최신 상태 + 지금 약관 버전)
+```json
+{
+  "items": [
+    { "agreement": "TERMS", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" },
+    { "agreement": "PRIVACY", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" },
+    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" }
+  ],
+  "needs_reconsent": false
+}
+```
+- `needs_reconsent`: 약관 버전이 올라가서 다시 동의가 필요하면 true → 프론트가 동의 화면을 띄움
+**POST** (새 버전 재동의) `{ "agreement": "PRIVACY", "version": "v1.1", "is_agreed": true }` → 201
+- 3종 모두 필수라서 **철회(`is_agreed: false`)는 여기서 받지 않고 탈퇴(2-8)로 안내** → 400 `"필수 동의는 철회할 수 없어요. 탈퇴로 진행해 주세요."` → 정할 것 22번
+- 약관 문구는 정적 페이지, 버전은 서버 상수
+
+### 2-7. 비밀번호 찾기 (P2)
+S-05 · REQ-USER-004 · 로그인 필요 없음
+1. `POST /api/v1/auth/password-reset` `{ "email": "..." }` → **항상 202** `"가입된 이메일이면 메일을 보냈어요."` (가입 여부를 알려 주지 않음)
+   - 가입된 이메일이면 재설정 토큰(`secrets.token_urlsafe(32)`)을 **Redis에 30분**(테이블 없음, ERD 결정) 저장하고 링크 메일 발송
+   - 같은 이메일 요청은 1분에 1번 → 넘으면 429 `"잠시 후 다시 시도해 주세요."`
+2. `POST /api/v1/auth/password-reset/confirm` `{ "token": "...", "new_password": "..." }` → 204
+   - 토큰이 없거나 만료면 **410** `"링크가 만료됐어요. 다시 요청해 주세요."`, 쓰면 바로 삭제(1회용)
+   - 비밀번호를 바꾸면 그 사용자의 refresh 토큰은 무효 처리하지 않음(블랙리스트 없음, 2-4와 같음)
+- 메일 발송 방법(SMTP·외부 서비스)은 구현 때 결정 (REQ-USER-004)
+- Figma M15·M16은 "이메일 인증번호" 흐름이라 REQ의 "재설정 링크"와 다름 → 정할 것 25번
+
+### 2-8. 탈퇴 `DELETE /api/v1/users/me` → 204
+S-27 · REQ-USER-003
+```json
+{ "password": "Pair2care!" }
+```
+- 비밀번호 확인 (틀리면 400)
+- **처리 (한 트랜잭션)**
+  1. 짝꿍 관계는 8-6 "끊기"와 같이 처리 (모든 짝꿍 ENDED, 1:1 챌린지는 상대가 "종료 / 혼자 계속" 고르기, 1:N은 LEFT + 호스트 넘기기)
+  2. 건강 정보(`health_profiles`·`checkup_records`·`risk_predictions`·`health_logs`·`meals`·`recommendations`)와 알림·푸시 구독·리마인더 **즉시 삭제**
+  3. `users`는 `is_active = false`, 이메일·닉네임을 지워서(예: `deleted_3@invalid`, "탈퇴한 사용자") 같은 이메일로 다시 가입 가능하게 함. 상대에게 남는 체크·응원 기록은 "탈퇴한 사용자"로 보임
+- 삭제 범위·보관 기간은 개인정보 처리방침과 맞춰야 함 → 정할 것 26번
+- 응답 뒤 refresh 쿠키 삭제
 
 ---
 
@@ -729,8 +872,111 @@ S-23 · REQ-FOOD-003
 - **하루 기준량·판단 기준(`level` 값)은 미정** → 정할 것 17번. 정하기 전엔 `daily_reference`·`percent`·`level`을 null로 두고 값만 보여 줌
 - "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 LLM 추천(REQ-LLM-002, 김민준) 쪽 API
 
-## 2·11. 인증·회원 / LLM 추천 / 알림
-> 담당 정해지면 채움
+## 11. LLM 추천 — 김민준 (작성 예정)
+> 오래 걸리는 작업은 `202 + task_id` → AI 워커(`RECOMMEND_LLM`, `target_id = recommendations.id`) → SSE(12-6)
+
+## 12. 알림 — `notifications`, `notification_settings`, `push_subscriptions`, `custom_reminders` (김지연)
+S-24~S-26, C-03 · REQ-NOTI-001~007, 009
+
+**공통 원칙**
+- 경로 두 가지: 사이트를 열어 둔 동안은 **SSE**(12-6), 닫혀 있으면 **웹 푸시**(12-5). 둘 다 `notifications`에 1행 남김
+- 알림 제목·본문·리마인더 이름은 **서버 로그에 남기지 않음**, 짝꿍 알림엔 수치를 넣지 않음 (REQ-PAIR-003, NFR-006)
+- 방해 금지 시간(`users.quiet_start`~`quiet_end`)에는 **웹 푸시를 보내지 않고** `notifications` 행만 쌓음 (앱을 열면 목록에서 보임)
+- 보관 30일 (ERD Note), 지난 행은 매일 정리
+
+### 12-0. 알림 종류 (`notification_type`)
+| 종류 | 언제 | 설정 | 누르면 |
+|---|---|---|---|
+| `CHALLENGE_REMINDER` | 정한 시각에 오늘 아직 안 한 챌린지가 있으면. 다 했으면 안 보냄 (NOTI-004) | 요일·시각 (모든 챌린지 공통 1개) | S-12 홈 |
+| `PARTNER_ACTIVITY` | 짝꿍이 체크했을 때, 응원 받았을 때, 짝꿍·챌린지 초대가 왔거나 수락됐을 때 (NOTI-005) | 켜기·끄기만 | S-17 / S-16 |
+| `STREAK_ACHIEVED` | 이번 주 목표를 채웠을 때, 연속 주 기록이 끊기기 전(일요일 저녁) (NOTI-006). `CHALLENGE_REMINDER`를 끄면 같이 꺼짐 | 켜기·끄기만 | S-15 |
+| `WEEKLY_REPORT` | 주 1회 리포트가 만들어지면 (NOTI-007) | 요일·시각 | S-20 |
+| `CUSTOM_REMINDER` | 사용자가 만든 리마인더 시각 (NOTI-009) | 리마인더마다 (12-4), 설정 행은 전체 켜기·끄기 | S-26 |
+
+### 12-1. 알림 목록 `GET /api/v1/notifications?limit=20&cursor=` · 읽음
+S-24 · REQ-NOTI-002
+```json
+{ "items": [ { "id": 77, "noti_type": "PARTNER_ACTIVITY", "title": "현영님이 오늘 걷기를 완료했어요", "body": null, "link": "/challenges/30", "is_read": false, "created_at": "2026-11-19T12:40:00+09:00" } ],
+  "next_cursor": 70, "unread_count": 3 }
+```
+- 최신순, 공통 목록 형식. `unread_count`는 상단 벨 배지용
+- `GET /api/v1/notifications/unread-count` → `{ "unread_count": 3 }` (홈 진입 시 가볍게)
+- `POST /api/v1/notifications/{id}/read` → 204 (`is_read = true`, `read_at = 지금`, 이미 읽었으면 그대로 204)
+- `POST /api/v1/notifications/read-all` → 204
+- 남의 알림 id는 404
+
+### 12-2. 알림 설정 `GET /api/v1/notification-settings` · `PUT /api/v1/notification-settings`
+S-25 · REQ-NOTI-001
+**GET 응답 200** (행이 없는 종류는 기본값으로 채워서 줌 → 5종 항상 다 옴)
+```json
+{
+  "settings": [
+    { "noti_type": "CHALLENGE_REMINDER", "is_enabled": true, "days": ["MON", "TUE", "WED", "THU", "FRI"], "notify_at": "19:00" },
+    { "noti_type": "PARTNER_ACTIVITY", "is_enabled": true, "days": null, "notify_at": null },
+    { "noti_type": "STREAK_ACHIEVED", "is_enabled": true, "days": null, "notify_at": null },
+    { "noti_type": "WEEKLY_REPORT", "is_enabled": true, "days": ["SUN"], "notify_at": "20:00" },
+    { "noti_type": "CUSTOM_REMINDER", "is_enabled": true, "days": null, "notify_at": null }
+  ],
+  "quiet_start": "22:00",
+  "quiet_end": "07:00"
+}
+```
+**PUT** — 보낸 종류만 바꿈(없으면 그 행 생성), `quiet_start`·`quiet_end`도 같이 받음
+| 필드 | 규칙 |
+|---|---|
+| days | 요일 배열(`MON`~`SUN`), 빈 배열·null이면 매일. DB엔 쉼표 문자열로 저장 (ERD) |
+| notify_at | `HH:MM` (10분 단위). 스케줄형(`CHALLENGE_REMINDER`·`WEEKLY_REPORT`)만, 이벤트형에 보내면 400 |
+| quiet_start · quiet_end | 둘 다 있거나 둘 다 null. 시작이 끝보다 늦으면 다음 날까지 (예: 22:00~07:00) |
+- 기본값(처음 행이 없을 때): 챌린지 리마인더 평일 19:00, 주간 리포트 일요일 20:00, 나머지 켜짐, 방해 금지 없음 → 정할 것 27번
+- `notify_at`이 방해 금지 시간 안이면 저장은 하고 응답에 `"warnings": ["방해 금지 시간이라 이 시각엔 푸시가 가지 않아요."]`
+
+### 12-3. 스케줄 발송 (API 아님)
+- 스케줄러가 **10분마다** 이번 10분 안에 보낼 `CHALLENGE_REMINDER`·`WEEKLY_REPORT`·`CUSTOM_REMINDER`를 찾아 `notifications` 생성 → SSE·웹 푸시
+- 실행 위치(FastAPI 안 / AI 워커 / 별도 프로세스)는 구현 때 결정 → 정할 것 28번
+- 같은 알림이 두 번 가지 않게 (사용자, 종류, 대상, 날짜·시각)로 중복 확인
+
+### 12-4. 직접 만든 리마인더 `/api/v1/custom-reminders`
+S-26 · REQ-NOTI-009
+| API | 내용 |
+|---|---|
+| `GET /api/v1/custom-reminders` | 내 리마인더 전부 (최대 10개라 커서 없음) |
+| `POST /api/v1/custom-reminders` → 201 | `{ "title": "혈압 재기", "days": ["MON", "WED", "FRI"], "remind_at": "08:00" }` |
+| `PATCH /api/v1/custom-reminders/{id}` | `title`·`days`·`remind_at`·`is_enabled` 중 보낸 것만 |
+| `DELETE /api/v1/custom-reminders/{id}` → 204 | 실제 삭제 (ERD) |
+- `title` 1~100자. **약 이름·용량을 적도록 유도하지 않음**(화면 예시는 "영양제 먹기·혈압 재기·물 마시기"), 짝꿍에게 안 보임, 로그 금지
+- 1인당 10개 → 넘으면 409 `"리마인더는 10개까지 만들 수 있어요."`
+- `remind_at`은 `HH:MM`(10분 단위, 12-3 주기와 맞춤). 방해 금지 시간과 겹치면 저장하고 `warnings`로 안내 (ERD Note)
+
+### 12-5. 웹 푸시 구독 `POST /api/v1/push-subscriptions` · `DELETE`
+S-25 "웹 푸시 켜기", C-03 · REQ-NOTI-003
+- `GET /api/v1/push-subscriptions/vapid-public-key` → `{ "public_key": "..." }` (서비스 워커 구독할 때 씀, **비밀키는 `.env`에만**)
+- `POST` → 201 / 200 (브라우저 `PushSubscription.toJSON()` 그대로)
+```json
+{ "endpoint": "https://fcm.googleapis.com/fcm/send/...", "keys": { "p256dh": "BN...", "auth": "k8..." } }
+```
+  - 같은 `endpoint`가 이미 있으면 `user_id`·키를 갱신하고 200 (ERD upsert), 새로 만들면 201. `user_agent`는 요청 헤더에서 서버가 채움
+- `DELETE /api/v1/push-subscriptions` `{ "endpoint": "..." }` → 204 (이 기기 푸시 끄기, 로그아웃 2-4에서도 호출)
+- 발송할 때 푸시 서비스가 404·410을 주면 그 행 바로 삭제, 성공하면 `last_used_at` 갱신
+- 권한 요청은 버튼을 눌렀을 때만, 아이폰은 iOS 16.4+ 홈 화면 추가 후에만 → 프론트가 C-03 안내 (API 없음)
+
+### 12-6. SSE 연결 `GET /api/v1/events` (공통, 정할 것 20번 제안)
+알림(12장)·식단 분류(10-2)·LLM 추천(11장)·결과지 인식(4-6) 결과를 **연결 하나**로 받음
+- 브라우저 `EventSource`는 `Authorization` 헤더를 못 붙임 → **SSE 티켓** 방식
+  1. `POST /api/v1/events/ticket` (로그인 필요) → `{ "ticket": "...", "expires_in": 30 }` (Redis 30초, 1회용)
+  2. `GET /api/v1/events?ticket=...` → `text/event-stream`. 티켓이 없거나 만료면 401
+  - access 토큰을 URL에 넣지 않으려고(서버·프록시 로그에 남음) 티켓을 따로 둠
+- 이벤트 형식 (`event:` 이름 + `data:` JSON)
+```text
+event: notification
+data: {"id": 77, "noti_type": "PARTNER_ACTIVITY", "title": "현영님이 오늘 걷기를 완료했어요", "link": "/challenges/30"}
+
+event: task
+data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "status": "COMPLETED"}
+```
+  - `task` 이벤트는 AI 워커가 `ai:results`에 발행한 값 중 위 4개만 내려줌 (`user_id`로 받을 사람을 찾고 응답엔 안 넣음). 결과 내용은 프론트가 해당 조회 API(10-4 등)로 다시 가져옴
+- 30초마다 `: ping` 주석으로 연결 유지, 끊기면 브라우저가 다시 연결 → **새 티켓**을 받아 다시 연결 (끊긴 동안 놓친 알림은 12-1 목록으로 확인)
+- 한 사람이 탭·기기 여러 개로 연결해도 모두에게 보냄
+
 
 ---
 
@@ -756,5 +1002,12 @@ S-23 · REQ-FOOD-003
 | 17 | 식단 피드백 하루 기준량·판단 기준 (10-9) | 나트륨·당류·탄수화물 하루 기준량과 출처, 끼니 단위 vs 하루 누적 → 여현지가 정해 requirements REQ-FOOD-003에 기록 | 여현지 |
 | 18 | 식단 재분류 횟수 제한 (10-6) | 같은 식단 하루 3번까지, 넘으면 429 `"다시 분석은 3번까지 할 수 있어요. 직접 골라 주세요."` | 워커 담당 |
 | 19 | 목록에 없는 음식 (10-8) | 1차는 `foods` 18행 안에서만 검색. 식약처 API 실시간 검색은 호출 한도·캐시 문제로 S5 이후 검토 | 여현지·백엔드 |
-| 20 | 공통 SSE 명세 | 식단·LLM·OCR 결과를 같은 SSE 연결로 보낼지, 이벤트 이름·`data` 형식 (10-2 제안) | 워커·LLM 담당 |
+| 20 | 공통 SSE 명세 | 12-6 제안: 연결 하나(`GET /api/v1/events`), 티켓 인증, 이벤트 `notification` / `task` | 김지연·LLM(김민준)·식단(여현지) |
 | 21 | 식단 비전 LLM 보조 (REQ-FOOD-001) | 쓸지 여부, top-1 확률 기준, 18종 밖 음식 처리. 쓰면 10-2 워커 처리 안에서 호출(새 API 없음) | 여현지·LLM(김민준) |
+| 22 | 필수 동의·철회 (2-1·2-6) | 이용약관·개인정보·민감정보 3종 모두 필수, 하나라도 철회하려면 탈퇴로 진행 (건강정보 없이 쓸 수 있는 기능이 없어서) | 전원 |
+| 23 | 로그아웃 후 access 토큰 (2-4) | 블랙리스트 없이 만료 시간을 짧게(예: 30분), refresh는 쿠키 삭제 | 백엔드 |
+| 24 | 성별·생년월일 수정 (2-5) | 1차는 수정 불가(예측 입력이라 이력 기준이 바뀜). 잘못 넣은 경우 처리 방법은 S2에서 | 김지연·예측(장성은) |
+| 25 | 비밀번호 찾기 방식 (2-7) | REQ-USER-004는 "재설정 링크", Figma M15·M16은 "인증번호" → 하나로 맞춤 (제안: 링크, 입력이 한 번 줄어듦) | 김지연 |
+| 26 | 탈퇴 시 삭제 범위·보관 (2-8) | 건강 정보 즉시 삭제, `users`는 비활성 + 이메일·닉네임 지움, 체크·응원은 "탈퇴한 사용자"로 남김 → 개인정보 처리방침과 맞춤 | 전원 |
+| 27 | 알림 기본값 (12-2) | 챌린지 리마인더 평일 19:00, 주간 리포트 일요일 20:00, 나머지 켜짐, 방해 금지 없음 | 김지연·프론트 |
+| 28 | 스케줄 발송 위치 (12-3) | 10분 주기. FastAPI 안 / AI 워커 / 별도 프로세스 중 구현 때 결정 | 백엔드 |
