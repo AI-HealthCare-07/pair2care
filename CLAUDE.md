@@ -19,7 +19,9 @@
 - 배포: AWS EC2 + Docker Compose (nginx / fastapi / redis / ai-worker / DB 컨테이너 분리, 멀티스테이지 빌드), 모델·이미지 파일은 S3
 - 아키텍처: Client → Nginx(HTTPS·리버스 프록시) → FastAPI(Producer) → Redis Stream(XADD) → AI Worker(Consumer Group, XACK) → Redis Pub/Sub → FastAPI → SSE로 결과 전달
   - 몇 초 이상 걸리는 작업(LLM 추천, 이미지 분류)만 워커로 보냄. 가벼운 예측(트리 모델 추론, ms 단위)은 FastAPI에서 바로 처리
-  - 워커 장애 시 미완료 작업은 XAUTOCLAIM으로 다른 워커가 가져감. 작업 메시지 형식은 한 파일(약속 문서)로 고정
+  - 상태 저장은 A안: **워커가 DB의 작업 상태(`meals`·`recommendations`의 PENDING → PROCESSING → COMPLETED / FAILED)를 직접 저장**하고, Pub/Sub은 "끝났다" 알림만 보냄. 기준은 DB
+  - 워커 장애 시: 시작할 때 내 Pending 재처리, 5분 넘게 멈춘 작업은 XAUTOCLAIM으로 다른 워커가 가져감, 배달 3번 넘으면 dead-letter(`ai:tasks:dead`)
+  - 작업 메시지 형식은 `ai_worker/schemas/task.py`(`TaskMessage`) 한 파일로 고정. Stream에는 `payload` 필드 하나로 넣음
 
 ## 3. 디렉토리 구조
 ```
