@@ -58,11 +58,13 @@
 > 식단 값 (11/18 여현지 의견 반영)  
 > - `meals.category`: `MEAL` / `DRINK` / `DESSERT`, 기본값 `'MEAL'`. 1차 학습 데이터는 식사 18종뿐이라 전부 `MEAL`, 음료·디저트 사전 분류 모델은 데이터 생기면 추가  
 > - `meals.status`: `PENDING` / `PROCESSING` / `COMPLETED` / `FAILED` — `recommendations.status`와 같은 값으로 통일 (11/18 여현지 동의). 분류 시작 시 `PROCESSING`, 결과 저장 시 `COMPLETED`, 실패 시 `FAILED` + `retry_count` 1 증가  
-> - `meals.model_version`: `food-cls-v1` 형식, 재학습하면 `v2`로 올림. v1 = (모델·입력 해상도·학습 데이터 — 여현지 작성 예정)  
-> - `foods.model_label` 18종 (학습 폴더 이름과 같음, `label_map.json`과 대조 예정): 간장게장, 갈비탕, 감자탕, 김치찌개, 냉면, 닭개장, 닭볶음탕, 된장찌개, 떡만두국, 삼계탕, 설렁탕, 수제비, 순두부찌개, 육개장, 잔치국수, 짬뽕, 칼국수, 콩나물국  
+> - `meals.model_version`: `food-cls-v1` 형식, 재학습하면 `v2`로 올림. v1 = DINOv3 ViT-S/16(`facebook/dinov3-vits16-pretrain-lvd1689m`) 백본 고정 + 선형 헤드, 입력 224px, 한식 18종 5,383장(학습·검증·테스트 8:1:1, seed 42), 테스트 top-1 0.853 · top-5 0.981 (11/19)  
+> - `foods.model_label` 18종 (학습 폴더 이름과 같음, `label_map.json`과 대조 완료 11/19): 간장게장, 갈비탕, 감자탕, 김치찌개, 냉면, 닭개장, 닭볶음탕, 된장찌개, 떡만두국, 삼계탕, 설렁탕, 수제비, 순두부찌개, 육개장, 잔치국수, 짬뽕, 칼국수, 콩나물국  
 > - `meals.candidates`: `[{"food_id": 3, "score": 0.82}, ...]` softmax 확률 내림차순 상위 5개  
 > - `meals.portion`: `decimal(2,1)`, 0.5 / 1.0 / 1.5, 기본값 1.0  
 > - `meals.nutrients`: `foods` 기준값 × `portion` 스냅샷. 키는 `foods` 컬럼명과 같게 (나중에 `foods`가 바뀌어도 과거 기록 유지)
+> - `foods` 영양값 출처 (11/19 여현지): 식약처 식품영양성분DB OpenAPI `FoodNtrCpntDbInfo03`. `kcal`=AMT_NUM1, `protein_g`=AMT_NUM3, `fat_g`=AMT_NUM4, `carbs_g`=AMT_NUM6, `sugar_g`=AMT_NUM7, `sodium_mg`=AMT_NUM13, 1인분 중량=Z10500, 기준량=SERVING_SIZE. `foods`에는 1인분으로 환산한 값을 넣음 (기준량당 값 × 1인분 중량 ÷ 기준량)
+> - 18종 ↔ 식약처 행 매칭: 이름이 정확히 같은 음식(D) 행, 여러 개면 식품기원 우선순위(외식 분석 → 외식 → 가정식 → 산업체 → 중고등 → 초등). 이름이 다른 4종은 대체 행 사용 — 간장게장→`게장_간장`, 닭개장→`육개장_간편조리세트_닭개장`, 냉면→`냉면_물냉면`·`냉면_비빔냉면`, 순두부찌개→`순두부찌개_김치`·`순두부찌개_해물`. 결과 20행, `mfds_code` 중복 없음
 
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
@@ -145,3 +147,8 @@ erDiagram
 - [x] `health_logs`는 한 테이블 + `log_type` enum. 주간 기록 6종도 enum 추가로 (11/18 이지희)
 - [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
 - [ ] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`)을 언제 다시 시도할지 — 워커 담당과 정함 (XAUTOCLAIM 대기 시간·최대 재시도 횟수)
+
+### 식단 테이블 확인 요청 (11/19 여현지 → 이지희)
+- [ ] `foods` 한 음식에 종류가 2개인 경우 — 냉면(물·비빔)·순두부찌개(김치·해물)라 18종이 20행이 되어 `model_label` unique와 충돌함. 제안: `variant_name varchar(50) null`, `is_default bool` 추가하고 unique를 `(model_label, variant_name)`으로 변경. `meals.candidates`의 `food_id`는 기본 종류(`is_default`) 행을 가리키고, 사용자가 S-22에서 종류를 바꾸면 `meals.food_id`만 바뀜
+- [ ] 1인분 단위 — 20행 중 8행(갈비탕·감자탕·삼계탕·짬뽕 등 국물·면류)은 식약처 기준이 mL라 `serving_size_g` 이름과 맞지 않음. 제안: `serving_size decimal(10,2)` + `serving_unit` enum(`G`/`ML`), 또는 이름만 두고 Note에 mL 포함 명시
+- [ ] 닭개장 — 식약처에 일반 음식 행이 없어 간편조리세트 제품 행 사용, 탄수화물·지방 값 없음(null), 1인분은 육개장과 같은 440g 임시값. 더 맞는 행 찾으면 교체
