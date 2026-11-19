@@ -38,10 +38,10 @@
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
 | `challenge_templates` | 기본 제공 챌린지 목록 (걷기·물·절주 등) | title, category, default_times_per_week | CHAL-001 |
-| `challenges` | 만든 챌린지. 짝꿍 챌린지면 `pair_id` 있음 | created_by, challenge_template_id, pair_id(null 가능), title, times_per_week, starts_on, ends_on, status | CHAL-001, PAIR-002 |
-| `challenge_participants` | 챌린지 참여자 (개인 1명, 짝꿍 2명) | challenge_id, user_id, joined_at | PAIR-002 |
+| `challenges` | 만든 챌린지. 1:1 짝꿍 챌린지면 `pair_id` 있음, 1:N은 비움 | created_by, challenge_template_id, pair_id(null 가능), title, times_per_week, starts_on, ends_on, status | CHAL-001, PAIR-002 |
+| `challenge_participants` | 챌린지 참여자 (개인 1명, 1:1 짝꿍 2명, 1:N 2~4명) | challenge_id, user_id, status(INVITED/JOINED/LEFT), times_per_week(개인 목표, null이면 챌린지 값), joined_at(수락 시각) | PAIR-002 |
 | `challenge_checks` | 날짜별 완료 체크. 연속 달성·달성률 계산 | challenge_id, user_id, checked_on (challenge_id+user_id+checked_on 유니크) | CHAL-002~003, PAIR-003 |
-| `pairs` | 짝꿍 관계 | requester_id, partner_id(null 가능), invite_code, status(pending/accepted/ended), accepted_at | PAIR-001 |
+| `pairs` | 짝꿍 관계 | requester_id, partner_id(null 가능), invite_code, pair_key(작은 id:큰 id, unique), status(PENDING/ACCEPTED/ENDED), accepted_at | PAIR-001 |
 | `cheers` | 응원 | from_user_id, to_user_id, challenge_id, message | PAIR-004 |
 
 ### 건강 기록 — 이지희
@@ -131,7 +131,16 @@ erDiagram
 - [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
 - [x] `risk_predictions.disease` → 고혈압·당뇨 각각 (11/18 데이터팀). 대사증후군은 검진 수치 기준표로 판정
 - [x] 짝꿍은 한 사람당 여러 명 가능 (11/17). 같은 두 사람 사이 짝꿍은 하나만
-- [ ] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 — 해제할 때 "종료"와 "개인 챌린지로 계속" 중 고르게 하는 안, 문구 정하기
+- [x] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 (11/19) — 1:1은 해제할 때 "종료 / 개인 챌린지로 계속" 중 선택, 1:N은 한 명이 나가도(`LEFT`) 나머지는 계속
+- [x] 같은 두 사람 짝꿍 중복 방지 (11/19) — `pairs.pair_key` unique로 DB에서 막음
+
+### 짝꿍 챌린지 결정 (11/19, 이지희 제안서 기준)
+- 1:N 구현함: 1:1 먼저(12/4 테스트 배포), 1:N은 그 다음
+- 구조는 안 A: 테이블 추가 없이 `challenge_participants`로 참여자 관리 (안 B 그룹 테이블, 안 C 챌린지 초대 링크는 채택 안 함)
+- 참여 자격: 만든 사람의 짝꿍만, 인원 2~4명 (API 검사)
+- 미션은 같은 템플릿 1개, 횟수는 각자 (`challenge_participants.times_per_week`)
+- 공동 진행률: 함께 채운 칸 ÷ 전체 칸. 개인 목표를 넘긴 체크는 칸에 더하지 않음
+- 화면: "이번 주 N회·누적"을 먼저, 연속 일수는 아래
 - [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)
 - [x] `health_logs`는 한 테이블 + `log_type` enum. 주간 기록 6종도 enum 추가로 (11/18 이지희)
 - [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)

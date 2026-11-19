@@ -321,11 +321,12 @@ Table pairs {
   requester_id bigint [not null, ref: > users.id]
   partner_id bigint [null, ref: > users.id]
   invite_code varchar(128) [not null, unique]
+  pair_key varchar(50) [null, unique]  // 작은 user_id:큰 user_id (예: '3:7'). 수락 시 채우고 ENDED 시 비움
   status pair_status [not null]
   accepted_at datetime [null]
   updated_at datetime [not null]
   created_at datetime [not null]
-  Note: 'REQ-PAIR-001'
+  Note: 'REQ-PAIR-001 · 같은 두 사람 사이 짝꿍은 하나만 → pair_key unique로 A→B·B→A 중복을 DB에서 막음 (11/19)'
 }
 
 Enum challenge_status {
@@ -346,20 +347,30 @@ Table challenges {
   status challenge_status [not null]
   created_at datetime [not null]
   updated_at datetime [not null]
-  Note: 'REQ-CHAL-001, PAIR-002'
+  Note: 'REQ-CHAL-001, PAIR-002 · pair_id는 1:1 짝꿍 챌린지만. 1:N은 비우고 참여자는 challenge_participants로 관리 (11/19 안 A)'
+}
+
+Enum participant_status {
+  INVITED
+  JOINED
+  LEFT
 }
 
 Table challenge_participants {
   id bigint [pk, increment]
   challenge_id bigint [not null, ref: > challenges.id]
   user_id bigint [not null, ref: > users.id]
+  status participant_status [not null, default: 'INVITED']  // 만든 사람은 JOINED로 생성
+  times_per_week int [null]  // 개인 목표 횟수. 비어 있으면 challenges.times_per_week 사용
+  joined_at datetime [null]  // 수락한 시각 (created_at = 초대한 시각)
   created_at datetime [not null]
+  updated_at datetime [not null]
 
   indexes {
     (challenge_id, user_id) [unique]
   }
 
-  Note: 'REQ-PAIR-002'
+  Note: 'REQ-PAIR-002 · 1:N은 2~4명, 만든 사람의 짝꿍만 초대(API 검사). 서로 완료 여부만 공개'
 }
 
 Table challenge_checks {
