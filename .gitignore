@@ -12,6 +12,7 @@ wheels/
 .coverage
 *.coverage
 .coverage.*
+.DS_Store
 
 # 학습 데이터·모델 가중치
 data/
