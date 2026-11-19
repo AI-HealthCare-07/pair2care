@@ -996,19 +996,50 @@ S-22 "목록에 없어요" · REQ-FOOD-001·002
 - 식약처 API 실시간 검색은 1차 범위 밖 → 정할 것 19번
 
 ### 10-9. 영양 피드백 (10-4·10-5 응답의 `feedback`) ⚕️
-S-23 · REQ-FOOD-003
-- 질환별 주의 항목: 고혈압 → `sodium_mg`, 당뇨 → `sugar_g`·`carbs_g`. 질환은 최근 설문의 진단 여부 + 최근 예측 결과에서 정함 (3장·5장)
-- 이 끼니 값과 그날 누적(10-3 `daily_total`)을 하루 기준량과 비교
+S-23 · REQ-FOOD-003 · 11/19 1차 반영 (정할 것 17번)
+
+**하루 기준치** — 2,000kcal 기준, 모든 사용자 같은 값
+| key | 하루 기준치 | 근거 |
+|---|---|---|
+| `sodium_mg` | 2,000 | 식약처 1일 영양성분 기준치. 고혈압(대한고혈압학회 2026: 나트륨 2,000mg 이하)·당뇨(대한당뇨병학회 2025: 2,300mg 이내) 모두 만족 |
+| `sugar_g` | 100 | 식약처 기준치(총당류) = 2025 한국인 영양소 섭취기준 총당류 에너지 20% 이내. `sugar_g`는 첨가당이 아니라 총당류 |
+| `carbs_g` | 324 | 식약처 기준치 = 2025 섭취기준 탄수화물 권장 범위(에너지 50~65%)의 상한 65% |
+
+- 질환별로 기준값을 다르게 두지 않음 → "당뇨면 더 먹어도 되나?"처럼 읽히는 것을 막고 계산을 단순하게 함
+- 필요 열량(성별·나이·키·몸무게) 개인화는 12/4 이후 개선
+
+**강조 항목(`focus`)** — 최근 설문의 진단 여부만 씀
+- `is_hypertension_diagnosed = true` → `sodium_mg`, `is_diabetes_diagnosed = true` → `sugar_g`·`carbs_g`, 둘 다면 셋 다, 진단 없으면 빈 배열
+- 예측 위험도·검진 수치가 질환 범위여도 강조하지 않음 (예측을 진단처럼 쓰지 않음, NFR-001). 대신 일반 기준으로 보여 주고 병원 확인 권유는 예측·검진 화면(S-09)에서
+- `is_pregnant = true`면 `focus` 빈 배열 + `notice` 문구 "임신 중에는 의료진 안내를 따르세요."
+
+**`level`** — 지침 값이 아닌 서비스 설계값 (부족은 안내하지 않음)
+| level | 조건 |
+|---|---|
+| `DAILY_OVER` | 그날 누적(`daily_total`)이 하루 기준치의 100% 이상 |
+| `MEAL_HIGH` | 이 끼니 값이 하루 기준치의 1/3(33.3%) 이상 |
+| `OK` | 그 외 |
+
+- 둘 다 해당하면 `DAILY_OVER`. 값이 null(예: 닭개장 탄수화물)이면 그 항목은 `level`·`percent` 모두 null
+- 그날 누적은 **기록한 끼니만** 더한 값 → 화면에 "기록한 끼니 기준" 표시 (한 끼만 기록하면 `DAILY_OVER`는 거의 안 뜸)
+- 화면 문구는 담담하게 "하루 기준치의 ○%예요" (NFR-007 말투). "많아요"·"위험해요" 같은 표현은 쓰지 않음
+
 ```json
 "feedback": {
+  "basis": "2,000kcal 기준 · 기록한 끼니 기준",
   "focus": ["sodium_mg"],
+  "notice": null,
   "items": [
-    { "key": "sodium_mg", "meal_value": 1326.6, "daily_total": 2211.0, "daily_reference": null, "percent": null, "level": null }
+    { "key": "sodium_mg", "meal_value": 1326.6, "meal_percent": 66.3, "daily_total": 2211.0, "daily_reference": 2000, "percent": 110.5, "level": "DAILY_OVER" },
+    { "key": "sugar_g", "meal_value": 5.0, "meal_percent": 5.0, "daily_total": 8.3, "daily_reference": 100, "percent": 8.3, "level": "OK" },
+    { "key": "carbs_g", "meal_value": 9.9, "meal_percent": 3.1, "daily_total": 16.5, "daily_reference": 324, "percent": 5.1, "level": "OK" }
   ]
 }
 ```
-- **하루 기준량·판단 기준(`level` 값)은 미정** → 정할 것 17번. 정하기 전엔 `daily_reference`·`percent`·`level`을 null로 두고 값만 보여 줌
+- `meal_percent` = 이 끼니 값 ÷ 하루 기준치 × 100, `percent` = 그날 누적 ÷ 하루 기준치 × 100 (소수 첫째 자리)
+- 화면 하단 의료 안내 문구(C-01) 고정
 - "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 11장 LLM 추천(REQ-LLM-002, 김민준)
+
 
 ## 11. LLM 추천 — 김민준 (작성 예정)
 > 오래 걸리는 작업은 `202 + task_id` → AI 워커(`RECOMMEND_LLM`, `target_id = recommendations.id`) → SSE(12-6)
@@ -1137,7 +1168,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 14 | 체중 챌린지 체크와 체중 기록 연결 | 체중 기록(`health_logs` WEIGHT)을 남기면 그날 체중 챌린지 자동 체크 (수치는 짝꿍에게 안 감) — 선택 | 백엔드 |
 | 15 | 초대 링크 만료 | ✅ 11/19 확정: created_at 기준 7일 (8-2~8-4) | — |
 | 16 | 식단 사진 형식·크기 | jpg / png / webp, 최대 10MB. 아이폰 HEIC는 프론트에서 jpg로 바꿔 올림 | 프론트(김지연)·백엔드 |
-| 17 | 식단 피드백 하루 기준량·판단 기준 (10-9) | 나트륨·당류·탄수화물 하루 기준량과 출처, 끼니 단위 vs 하루 누적 → 여현지가 정해 requirements REQ-FOOD-003에 기록 | 여현지 |
+| 17 | 식단 피드백 하루 기준량·판단 기준 (10-9) | 11/19 1차 반영 (팀 의견 받는 중): 식약처 1일 기준치(나트륨 2,000mg·당류 100g·탄수화물 324g, 2,000kcal), 질환별 값 차이 없음, 강조는 설문 진단 "예"만, `level` = 끼니 1/3·하루 100%, 부족 안내 없음 | 전원(식단 여현지) |
 | 18 | 식단 재분류 횟수 제한 (10-6) | ✅ 11/19 확정: `retry_count` 3 이상이면 429 (누적 기준, 컬럼 추가 없음). 처음 분석 포함 3번 = 다시 분석은 2번, 문구 "분석은 3번까지" | — |
 | 19 | 목록에 없는 음식 (10-8) | 1차는 `foods` 18행 안에서만 검색. 식약처 API 실시간 검색은 호출 한도·캐시 문제로 S5 이후 검토 | 여현지·백엔드 |
 | 20 | 공통 SSE 명세 | 12-6 제안: 연결 하나(`GET /api/v1/events`), 티켓 인증, 이벤트 `notification` / `task` | 김지연·LLM(김민준)·식단(여현지) |
