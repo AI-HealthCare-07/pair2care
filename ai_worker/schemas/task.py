@@ -9,6 +9,7 @@ STREAM_KEY = "ai:tasks"  # FastAPI가 XADD 하는 곳
 GROUP_NAME = "ai-workers"  # 워커들의 Consumer Group
 RESULT_CHANNEL = "ai:results"  # 끝나면 Pub/Sub으로 알리는 곳
 KST = ZoneInfo("Asia/Seoul")
+DEAD_LETTER_KEY = "ai:tasks:dead"  # 실패한 작업 모아두는 Stream
 
 
 class TaskType(StrEnum):

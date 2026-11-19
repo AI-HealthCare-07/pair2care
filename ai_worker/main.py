@@ -1,11 +1,13 @@
 import asyncio
+import json
 
+from pydantic import ValidationError
 from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
 from ai_worker.core import config
 from ai_worker.core import default_logger as logger
-from ai_worker.schemas.task import GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage, TaskType
+from ai_worker.schemas.task import DEAD_LETTER_KEY, GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage, TaskType
 
 CONSUMER_NAME = "worker-1"  # 워커가 여러 대면 이름을 다르게
 
@@ -31,6 +33,48 @@ async def handle(task: TaskMessage) -> None:
         logger.warning("처리 함수가 없는 작업 종류: %s (task_id=%s)", task.task_type, task.task_id)
 
 
+MAX_ATTEMPTS = 3
+
+
+async def run_with_retry(task: TaskMessage) -> bool:
+    """성공하면 True, 3번 다 실패하면 False"""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            await handle(task)
+            return True
+        except Exception:
+            logger.exception("작업 실패 (%s/%s): %s", attempt, MAX_ATTEMPTS, task.task_id)
+            if attempt < MAX_ATTEMPTS:
+                # attempt=1 -> 2**0 = 1초 대기, attempt=2 -> 2**1 = 2초 대기
+                await asyncio.sleep(2 ** (attempt - 1))
+    return False
+
+
+async def process_message(redis: Redis, message_id: str, fields: dict[str, str]) -> None:
+    # A. 깨진 메시지 → 재시도 없이 dead-letter
+    try:
+        task = TaskMessage.model_validate_json(fields["payload"])
+    except (KeyError, ValidationError):  # 💡 fields에 "payload"가 아예 없을 때 나는 에러 이름은?
+        logger.error("깨진 메시지: %s", message_id)  # 💡 왜 payload 내용은 로그에 안 찍을까?
+        await redis.xadd(DEAD_LETTER_KEY, {"message_id": message_id, "reason": "INVALID_MESSAGE"})
+        await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+        return
+
+    logger.info("작업 받음: %s %s", task.task_type, task.task_id)
+
+    # B. 처리 (최대 3번)
+    is_success = await run_with_retry(task)
+    if not is_success:
+        await redis.xadd(
+            DEAD_LETTER_KEY, {"message_id": message_id, "reason": "MAX_RETRY_EXCEEDED", "payload": fields["payload"]}
+        )
+        # TODO 5단계: DB status = FAILED
+
+    await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+    status = "COMPLETED" if is_success else "FAILED"
+    await redis.publish(RESULT_CHANNEL, json.dumps({**task.model_dump(mode="json"), "status": status}))
+
+
 async def main() -> None:
     redis = Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, decode_responses=True)
     await ensure_group(redis)
@@ -50,17 +94,7 @@ async def main() -> None:
 
         for _stream, messages in streams:
             for message_id, fields in messages:
-                task = TaskMessage.model_validate_json(
-                    fields["payload"]
-                )  # FastAPI에서 XADD 할 때 {"payload": task.model_dump_json()} 형태로 넣기로 약속
-                logger.info("작업 받음: %s %s", task.task_type, task.task_id)
-
-                await handle(task)
-
-                # xack : "처리 끝났어" 표시하여 Pending 목록에서 제거
-                await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
-                # publish : FastAPI가 SSE로 넘길 때 user_id, task_id, target_id를 알 수 있도록 JSON 통째로 발행
-                await redis.publish(RESULT_CHANNEL, task.model_dump_json())
+                await process_message(redis, message_id, fields)
 
 
 if __name__ == "__main__":
