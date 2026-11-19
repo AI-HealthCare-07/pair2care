@@ -158,7 +158,7 @@ erDiagram
 - [x] `challenge_checks` 중복 기준 — (챌린지, 사용자, 날짜) 유니크. 다른 챌린지는 같은 날 각각 체크 가능 (11/17)
 - [x] `health_logs`는 한 테이블 + `log_type` enum. 주간 기록 6종도 enum 추가로 (11/18 이지희)
 - [ ] 이미지 저장 위치 — 우선 `meals.image_url` 문자열로 두고 S3 답변 후 결정 (11/17, 여현지 동의)
-- [ ] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`)을 언제 다시 시도할지 — 워커 담당과 정함 (XAUTOCLAIM 대기 시간·최대 재시도 횟수)
+- [x] `PROCESSING`에서 멈춘 작업(`meals`·`recommendations`) 다시 시도 (11/19 AI 워커 #44) — 워커가 처리 중 죽으면 다시 켜질 때 재처리, 5분 넘게 멈춘 작업은 다른 워커가 XAUTOCLAIM으로 가져감, 배달 3번 넘으면 dead-letter + `FAILED`
 
 ### 식단 테이블 결정 (11/19, PR #32 리뷰 의견 반영 — 이지희 복귀 후 확인)
 - [x] 한 음식에 한 행 — `foods` 18행, `model_label` unique 그대로 (냉면 = 물냉면, 순두부찌개 = 해물). 식단이 P2라 종류 고르기는 1차에서 뺌. 나중에 붙이면 `variant_name varchar(50) null` + `is_default bool` 추가, unique를 `(model_label, variant_name)`으로 바꾸는 안 (리뷰 찬성)
