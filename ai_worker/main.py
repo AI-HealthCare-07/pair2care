@@ -1,5 +1,6 @@
 import asyncio
 import json
+import socket
 
 from pydantic import ValidationError
 from redis.asyncio import Redis
@@ -9,7 +10,10 @@ from ai_worker.core import config
 from ai_worker.core import default_logger as logger
 from ai_worker.schemas.task import DEAD_LETTER_KEY, GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage, TaskType
 
-CONSUMER_NAME = "worker-1"  # 워커가 여러 대면 이름을 다르게
+CONSUMER_NAME = config.WORKER_NAME or socket.gethostname()
+# ↑ Consumer 이름이 워커마다 달라야 "내 Pending"이 안 섞임 (같은 이름이면 두 워커가 서로의 메시지를 재처리)
+#   Docker는 컨테이너를 새로 만들면 호스트명이 바뀜 → 옛 이름의 Pending은 claim_stuck이 5분 뒤 가져감
+DEAD_LETTER_MAXLEN = 1000  # dead-letter가 끝없이 쌓이지 않게 대략 최근 1000건만 남김
 
 # ── 4단계: 워커가 처리 도중 죽었을 때 남은 메시지 되살리기 ──
 # 처리 중 워커가 꺼지면 XACK을 못 한 메시지가 Pending 목록(PEL)에 계속 남음.
@@ -41,6 +45,7 @@ async def handle(task: TaskMessage) -> None:
         await asyncio.sleep(1)  # TODO: 현지님 분류 함수로 교체
     elif task.task_type == TaskType.RECOMMEND_LLM:
         await asyncio.sleep(1)  # TODO: 민준님 LLM 함수로 교체
+        # TODO 6단계: LLM 호출엔 타임아웃(예: 60초) 필수 — CLAIM_IDLE_MS(5분)는 "작업 하나가 5분 안에 끝남"이 전제
     else:
         logger.warning("처리 함수가 없는 작업 종류: %s (task_id=%s)", task.task_type, task.task_id)
 
@@ -69,7 +74,12 @@ async def process_message(redis: Redis, message_id: str, fields: dict[str, str])
     except (KeyError, ValidationError):  # KeyError: fields에 "payload"가 아예 없을 때
         # payload 내용은 로그에 안 찍음: 건강 정보가 들어갈 수 있어서 (REQ-NFR-006)
         logger.error("깨진 메시지: %s", message_id)
-        await redis.xadd(DEAD_LETTER_KEY, {"message_id": message_id, "reason": "INVALID_MESSAGE"})
+        await redis.xadd(
+            DEAD_LETTER_KEY,
+            {"message_id": message_id, "reason": "INVALID_MESSAGE"},
+            maxlen=DEAD_LETTER_MAXLEN,
+            approximate=True,
+        )
         await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
         return
 
@@ -79,7 +89,10 @@ async def process_message(redis: Redis, message_id: str, fields: dict[str, str])
     is_success = await run_with_retry(task)
     if not is_success:
         await redis.xadd(
-            DEAD_LETTER_KEY, {"message_id": message_id, "reason": "MAX_RETRY_EXCEEDED", "payload": fields["payload"]}
+            DEAD_LETTER_KEY,
+            {"message_id": message_id, "reason": "MAX_RETRY_EXCEEDED", "payload": fields["payload"]},
+            maxlen=DEAD_LETTER_MAXLEN,
+            approximate=True,
         )
         # TODO 5단계: DB status = FAILED
 
@@ -90,6 +103,13 @@ async def process_message(redis: Redis, message_id: str, fields: dict[str, str])
 
 async def handle_claimed(redis: Redis, message_id: str, fields: dict[str, str]) -> None:
     """다시 가져온 메시지: 너무 많이 배달됐으면 dead-letter, 아니면 평소처럼 처리."""
+    # 스트림에서 지워지거나 잘린(MAXLEN) 메시지는 Pending에 id만 남아 fields가 None·{}로 옴
+    # → 처리할 내용이 없으니 ACK만 하고 끝냄 (None이면 fields["payload"]가 TypeError라 워커가 죽음)
+    if not fields:
+        logger.warning("내용이 사라진 메시지, ACK만 함: %s", message_id)
+        await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+        return
+
     # XPENDING으로 이 메시지가 지금까지 몇 번 배달됐는지 확인
     # (">"·"0"으로 읽거나 XAUTOCLAIM으로 가져올 때마다 Redis가 1씩 올림 → 지금 배달도 포함된 숫자)
     info = await redis.xpending_range(STREAM_KEY, GROUP_NAME, min=message_id, max=message_id, count=1)
@@ -101,6 +121,8 @@ async def handle_claimed(redis: Redis, message_id: str, fields: dict[str, str]) 
         await redis.xadd(
             DEAD_LETTER_KEY,
             {"message_id": message_id, "reason": "MAX_DELIVERIES_EXCEEDED", "payload": fields.get("payload", "")},
+            maxlen=DEAD_LETTER_MAXLEN,
+            approximate=True,
         )
         await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
         # 결과를 기다리는 화면이 계속 "분석 중"에 멈추지 않게 FAILED를 알림 (payload가 깨졌으면 알릴 대상이 없어서 생략)
