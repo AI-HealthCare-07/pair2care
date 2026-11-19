@@ -9,7 +9,7 @@
 2. 인증·회원 — 기존 코드(`/auth`, `/users`) 기준, 담당자 정리 예정
 3. **건강 프로필(설문)** — 최현영
 4. **검진 수치** — 최현영
-5. 예측·습관 시뮬레이션 — 장성은 (작성 중)
+5. **예측·습관 시뮬레이션** — 장성은 
 6. **건강 기록** — 최현영
 7. **대시보드** — 최현영
 8. **챌린지·짝꿍** — 최현영 초안 (11/19 PR #30·#31 반영)
@@ -229,6 +229,139 @@ S-07(직접 입력), S-08(결과지 인식, P2) · REQ-PROF-002·003
 ### 4-6. 결과지 인식 (P2, 12/4 이후, 김지연)
 - `POST /api/v1/checkup-records/ocr` (multipart 사진) → 202 `{ "task_id": "..." }` → SSE로 읽은 수치 → 사용자가 확인 후 4-1에 `source: "OCR"`로 저장
 - 결과지에 없는 항목은 null 그대로(추정해서 채우지 않음), 이름·주민번호는 LLM 전에 지움 (REQ-NFR-010)
+
+---
+## 5. 예측·습관 시뮬레이션 — 장성은
+S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거: 데이터셋 진행 상황, survey-mapping.md, erd.dbml
+> 모든 응답은 "위험도 참고값". "진단", "발병 확정" 표현 금지 (C-01)
+
+### 5-0. 예측 서비스 (API 아님, 3-1·4-1·4-4에서 호출)
+`predict(user, health_profile, checkup_record | None) -> list[RiskPrediction]`
+
+**처리 순서**
+1. 나이(`health_profile.created_at` 기준 만 나이)가 30~69세 밖 → 두 질환 모두 행 없음, `skipped_reason = AGE_OUT_OF_RANGE`
+2. `is_pregnant = true` → 두 질환 모두 행 없음, `skipped_reason = PREGNANT`
+3. 진단 "예"인 질환 → 행 없음, `managed_diseases`에 넣음
+4. 나머지 질환 → 모델 행(`MODEL`) 저장
+5. 유효한 검진 수치로 판정이 되면 같은 질환에 기준표 행(`CHECKUP_CRITERIA`) 추가 저장 (5-1)
+
+**모델 행 (`method = MODEL`)**
+| 필드 | 규칙 |
+|---|---|
+| score | 모델 확률 × 100, 반올림 정수 0~100 |
+| level | `LOW` / `CAUTION` / `HIGH`. 기준값은 학습 후 점수 분포로 정함 (12/4 전) |
+| factors | 상위 3개 `[{"feature": "weight_kg", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장 |
+| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
+| checkup_record_id | null |
+| input_snapshot | 모델에 실제로 넣은 값 (변환 후). 예측 이력·"바뀐 입력값" 비교용 |
+
+**입력 변환**
+- 모델 입력 13개: sex, age, 키, 몸무게, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
+- 변환은 학습 전처리와 같은 함수를 씀 (학습·서빙 따로 짜지 않음)
+- 키·몸무게를 그대로 넣을지 BMI로 넣을지, 가족력 9(모름)·8(형제 없음) 처리, 음주·흡연 8 처리 → **S2 학습 때 정하고 이 표에 채움** (variables.md 1-5)
+
+### 5-1. 기준표 판정 (`method = CHECKUP_CRITERIA`)
+검진 수치는 모델 입력에 넣지 않고, 기준표로만 판정
+
+| 필드 | 규칙 |
+|---|---|
+| score · model_version · factors | null |
+| level | 아래 기준표 |
+| checkup_record_id | 판정에 쓴 검진 기록 |
+| input_snapshot | 판정에 쓴 검진 수치 + 검진 날짜 `{"checked_on": "2026-05-10", "systolic_bp": 134, "diastolic_bp": 86}` (검진 기록을 지워도 남도록) |
+
+| 질환 | LOW (정상) | CAUTION (전단계 이상, 정답 기준과 같음) | HIGH (질환 범위) |
+|---|---|---|---|
+| 고혈압 | 수축기 130 미만 그리고 이완기 80 미만 | 수축기 130 이상 또는 이완기 80 이상 | 수축기 140 이상 또는 이완기 90 이상 |
+| 당뇨 | 공복혈당 100 미만 그리고 당화혈색소 5.7 미만 | 공복혈당 100 이상 또는 당화혈색소 5.7 이상 | 공복혈당 126 이상 또는 당화혈색소 6.5 이상 |
+
+- 출처: 대한고혈압학회·대한당뇨병학회 진료지침 (보고서에 지침 연도 표기)
+- **쓰는 검진**: `checked_on`이 가장 최근인 검진 기록 1건
+- **유효기간**: 그 검진의 `checked_on`이 예측 시점(`health_profile.created_at`) 기준 1년 이내일 때만. 지나면 기준표 행 없음 (모델 행만)
+- **수치가 일부만 있을 때**
+  - 있는 값 중 하나라도 기준 이상 → 그 값으로 판정 (가장 높은 단계)
+  - `LOW`(정상)는 그 질환 항목이 모두 있고 모두 정상일 때만 (고혈압: 수축기·이완기 / 당뇨: 공복혈당·당화혈색소)
+  - 그 외(있는 값은 정상인데 항목이 빠짐, 또는 그 질환 수치가 없음) → 기준표 행 없음 (모델 행만)
+  - 이유: 일부 수치만으로 "정상"을 내면 빠진 수치가 높은 사람을 안심시킬 수 있음
+- 화면 표현: "진단"이 아니라 "수치가 ○○ 범위예요" + `CAUTION`·`HIGH`는 병원 확인 권유
+
+**대사증후군 (저장 안 함, 5-2 응답에서 매번 계산, 11/19 ERD 확정)**
+- 기준 5개 중 3개 이상: 허리둘레 남 90·여 85 이상 / 중성지방 150 이상 / HDL 남 40·여 50 미만 / 혈압 130/85 이상 또는 고혈압 진단 / 공복혈당 100 이상 또는 당뇨 진단
+- 약 복용은 진단 여부로 대신 (진단 없이 약 먹는 사람 데이터에 0명)
+- 이상지질혈증 약은 설문에 없어 중성지방·HDL은 수치로만 판정
+- 쓰는 검진·유효기간은 기준표 판정과 같음 (가장 최근 1건, 1년)
+- 빠진 항목이 있으면: 해당 3개 이상 → `MET` / 빠진 항목이 모두 해당이어도 3개 미만 → `NOT_MET` / 그 외 → `UNKNOWN`
+- 기준표 버전은 코드 상수로 관리
+- 출처: 수정 NCEP-ATP III + 대한비만학회 허리둘레 기준
+
+### 5-2. 최근 예측 `GET /api/v1/risk-predictions/latest` ⚕️
+S-09, S-12 홈 카드
+```json
+{
+  "health_profile_id": 31,
+  "predictions": [
+    { "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION", "created_at": "2026-11-19T10:40:00+09:00" },
+    { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8, "created_at": "2026-11-19T10:40:00+09:00" },
+    { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW", "created_at": "2026-11-19T10:40:00+09:00" }
+  ],
+  "managed_diseases": [],
+  "skipped_reason": null,
+  "metabolic_syndrome": { "status": "UNKNOWN", "met_count": 2, "missing": ["triglyceride", "hdl_cholesterol"] }
+}
+```
+- 질환별 가장 최근 `MODEL` 행 1개 + (있으면) `CHECKUP_CRITERIA` 행 1개
+- 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
+- `metabolic_syndrome`: 유효한 검진이 없으면 null
+
+### 5-3. 예측 상세 `GET /api/v1/risk-predictions/{id}` ⚕️
+S-09 상세
+```json
+{
+  "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
+  "factors": [
+    { "feature": "weight_kg", "direction": "UP" },
+    { "feature": "father_diabetes_history", "direction": "UP" },
+    { "feature": "alcohol_frequency", "direction": "DOWN" }
+  ],
+  "model_version": "diabetes_risk:v1",
+  "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
+  "previous": { "id": 40, "score": 37, "level": "CAUTION", "created_at": "2026-11-12T09:10:00+09:00" },
+  "created_at": "2026-11-19T10:40:00+09:00"
+}
+```
+- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot`과 비교한 값. "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
+- `factors`의 feature → 화면 문구(예: `weight_kg` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
+- 요인 크기 숫자는 내려주지 않음 (방향만)
+- 남의 것이면 404
+
+### 5-4. 습관 시뮬레이션 `POST /api/v1/risk-predictions/simulate` ⚕️
+S-10 · **저장하지 않음** (`risk_predictions`에 행 안 생김)
+
+**요청**
+```json
+{ "changes": { "weight_kg": 75.0, "alcohol_frequency": 3, "alcohol_amount": 2, "smoking_current": 3 } }
+```
+- 바꿀 수 있는 값: `weight_kg`, `alcohol_frequency`, `alcohol_amount`, `smoking_current` (위험도를 바꾸는 생활 요인 = 체중·음주·흡연)
+- 그 외 필드를 보내면 **400** `"체중·음주·흡연만 바꿔 볼 수 있어요."`
+- 보낸 값만 최근 설문 값 위에 덮어서 계산. 값 범위·건너뛰기 규칙은 3-1과 같음 (예: 음주 빈도 1이면 양은 8로 서버가 채움)
+
+**응답 200**
+```json
+{
+  "results": [
+    { "disease": "DIABETES", "before": { "score": 34, "level": "CAUTION" }, "after": { "score": 29, "level": "LOW" } },
+    { "disease": "HYPERTENSION", "before": { "score": 21, "level": "LOW" }, "after": { "score": 21, "level": "LOW" } }
+  ],
+  "managed_diseases": [],
+  "skipped_reason": null
+}
+```
+- `before` = 최근 `MODEL` 행 점수. 없으면(예측 실패 등) 최근 설문으로 그 자리에서 계산
+- 진단 "예"·임신·나이 밖은 5-0과 같이 빠짐
+- 고혈압은 금연해도 점수가 거의 안 바뀜 → 화면에서 "고혈압 위험도엔 반영되지 않아요" 안내 (S-10, 와이어프레임 반영 예정)
+- 운동은 직접 바꾸지 않고 체중 변화로 보여줌 (variables.md 2장 논의 B)
+- 설문이 없으면 404
 
 ---
 
@@ -546,10 +679,6 @@ S-17 · 11/19 결정 "함께 채운 칸 ÷ 전체 칸"
 ### 8-13. 대시보드 연결
 - 7-3 요약 카드의 `challenge.achievement_rate` = 내 ACTIVE 챌린지들의 `Σ filled ÷ Σ target` (8-11과 같은 계산) → 정할 것 8번 해결안
 
-## 5. 예측·습관 시뮬레이션 — 장성은 (작성 중)
-> 3-1·4-1에서 예측을 호출하므로 아래만 맞추면 됨
-> - 예측 서비스 함수 시그니처 예: `predict(user, health_profile, checkup_record | None) -> list[RiskPrediction]`
-> - 예측 상세 조회(S-09), 시뮬레이션(S-10, 저장 안 함), 최근 예측 조회
 
 ## 2·10. 인증·회원 / 식단 / LLM 추천 / 알림
 > 담당 정해지면 채움
@@ -563,11 +692,11 @@ S-17 · 11/19 결정 "함께 채운 칸 ÷ 전체 칸"
 | 2 | 검진 기록 삭제 시 예측 행 처리 | `risk_predictions.checkup_record_id` FK `ON DELETE SET NULL` (스냅샷이 있어서 이력은 남음) | ERD |
 | 3 | 일일 기록 값 규칙(6-0 위쪽 7종) | 위 표대로 ERD Note에 추가 | ERD·프론트 |
 | 4 | 건강 기록 수정 허용 여부 | 허용하려면 `health_logs.updated_at` 추가, 아니면 삭제 후 재입력 | ERD |
-| 5 | 주간 재설문 하루·주 몇 번까지 | 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | 예측(장성은) |
-| 6 | 예측 실패 시 설문 저장 여부 | 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1) | 예측(장성은) |
+| 5 | 주간 재설문 하루·주 몇 번까지 | ✅ 11/19 확정: 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | — |
+| 6 | 예측 실패 시 설문 저장 여부 | ✅ 11/19 확정: 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1) | — |
 | 7 | 설문 문항 정의 API(3-6) 할지 | P2. 처음엔 프론트 상수 | 프론트(김지연·여현지) |
 | 8 | 대시보드 챌린지 달성률 계산식 | 8-13: Σ min(체크, 개인 목표) ÷ Σ 개인 목표 | 챌린지 담당 |
-| 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 데이터팀 결정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 남은 것(검진 유효기간, 수치 일부만 있을 때 규칙)은 **장성은님이 5장 작성하며 정리해 별도 PR** | 장성은 |
+| 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 확정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 가장 최근 검진 1건·1년 이내만, 정상은 그 질환 항목이 모두 있을 때만 (5-1) | — |
 | 10 | 서비스 방향(보건소·보험사 기관 화면)이 채택되면 계정 역할·권한 | 보험사 역할은 API에서 달성 여부만 내려주도록 막음 (화면이 아니라 서버에서) | 전원 |
 | 11 | `challenge_templates.category` 값 | ✅ 11/19 확정: 대문자 7종 (ERD PR에서 반영) | — |
 | 12 | 짝꿍 끊기·호스트 나가기 | ✅ 11/19 확정 → 8-6·8-8. 호스트 넘기기는 1:N만, 1:1은 남은 사람이 고르기. `created_by` = 현재 호스트 (컬럼 추가 없음) | — |
