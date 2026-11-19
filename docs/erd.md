@@ -17,7 +17,7 @@
 - 고정된 선택지는 CharEnum (예: `status`, `log_type`), 값 목록은 이 문서에 적음
 - 형태가 자주 바뀌는 결과(예측 요인, 음식 후보 상위 5개, 영양소, 근거 출처)는 JSON 컬럼
 - 개인 건강정보는 로그에 남기지 않음. 짝꿍에게 보이는 건 `challenge_checks`의 완료 여부뿐임 (`REQ-PAIR-003`)
-- 템플릿 `users`에서 `phone_number`는 뺌 (11/17 결정, 비밀번호 찾기는 이메일 재설정 링크 `REQ-USER-004`)
+- 템플릿 `users`에서 `phone_number`는 뺌 (11/17 결정, 비밀번호 찾기는 이메일 인증번호 `REQ-USER-004`, 11/19 링크에서 변경)
 
 ## 2. 테이블 목록
 
@@ -131,7 +131,7 @@ erDiagram
 - 11/20(금): 기획 4종 교차 확인
 
 ## 5. 정할 것
-- [x] `users.phone_number` → 뺌 (11/17). 비밀번호 재설정 토큰은 테이블 대신 Redis에 만료 시간으로 두는 안
+- [x] `users.phone_number` → 뺌 (11/17). 비밀번호 찾기 인증번호는 테이블 대신 Redis에 10분 만료로 둠 (api.md 2-7)
 - [x] `risk_predictions.disease` → 고혈압·당뇨 각각 (11/18 데이터팀). 대사증후군은 검진 수치 기준표로 판정
 - [x] 데이터팀 ERD 요청 반영 (11/19 장성은)
   - `health_profiles.is_pregnant`: 여성만, "예"면 두 질환 모두 예측 안 함
