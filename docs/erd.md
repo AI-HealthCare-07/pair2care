@@ -37,7 +37,7 @@
 ### 챌린지·짝꿍 — 이지희
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `challenge_templates` | 기본 제공 챌린지 목록 (걷기·물·절주 등) | title, category, default_times_per_week | CHAL-001 |
+| `challenge_templates` | 기본 제공 챌린지 목록 (걷기·물·운동·스트레칭·절주·체중·금연, 11/19 체중·금연 추가) | title, category, default_times_per_week | CHAL-001 |
 | `challenges` | 만든 챌린지. 1:1 짝꿍 챌린지면 `pair_id` 있음, 1:N은 비움 | created_by, challenge_template_id, pair_id(null 가능), title, times_per_week, starts_on, ends_on, status | CHAL-001, PAIR-002 |
 | `challenge_participants` | 챌린지 참여자 (개인 1명, 1:1 짝꿍 2명, 1:N 2~4명) | challenge_id, user_id, status(INVITED/JOINED/LEFT), times_per_week(개인 목표, null이면 챌린지 값), joined_at(수락 시각) | PAIR-002 |
 | `challenge_checks` | 날짜별 완료 체크. 연속 달성·달성률 계산 | challenge_id, user_id, checked_on (challenge_id+user_id+checked_on 유니크) | CHAL-002~003, PAIR-003 |
