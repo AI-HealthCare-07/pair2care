@@ -3,7 +3,7 @@
 > 상태: **화면 목록 초안** — 11/18 작성, 11/19 장성은 피드백 반영(S-06·09·10·11), 11/19 API 명세·ERD 결정 반영(S-06·07·09·10·11·13~19), Figma는 이 목록 기준으로 그림  
 > 기준: [requirements.md](requirements.md)의 `REQ-*`, 테이블은 [erd.md](erd.md), API는 [api.md](api.md)  
 > 담당: 김지연  
-> Figma 링크: (작성 후 추가)
+> Figma 링크: [Pair 2 Care 와이어프레임](https://www.figma.com/design/MFg6KUvPm3vyVEW3Xkd88M) — 페이지 "와이어프레임 v0.1"(모바일 M·데스크톱 D 화면, 각 화면 메모에 S번호·REQ), "화면 흐름도"
 
 ## 1. 기본 방향
 - 모바일 우선 PWA. 화면 폭 375px 기준으로 그리고, PC는 가운데 정렬로 같은 화면을 보여줌
