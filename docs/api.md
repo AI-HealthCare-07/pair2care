@@ -853,13 +853,18 @@ S-21 · REQ-FOOD-001
 { "meal_id": 101, "task_id": "8f1c2d4e-3b5a-4c6d-9e7f-0a1b2c3d4e5f", "status": "PENDING" }
 ```
 
-### 10-2. 분류 결과 알림 (SSE)
+### 10-2. 분류 결과 알림 — 공통 SSE(12-6)의 `task` 이벤트
+S-21, C-02 · REQ-FOOD-001, NFR-005
+- 연결·인증은 12-6 그대로 (`POST /api/v1/events/ticket` → `GET /api/v1/events?ticket=...`). 식단 전용 SSE 주소는 따로 두지 않음
 - 워커 처리: `status = PROCESSING` → 분류 → `candidates`·`model_version` 저장, `COMPLETED` / 3번 실패하면 `FAILED`, `retry_count + 1` → `ai:results`에 발행
-- SSE 연결 주소·이벤트 형식은 공통 SSE 명세를 따름 (담당 미정). 식단 결과 `data` 제안:
-```json
-{ "task_id": "8f1c2d4e-...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "status": "COMPLETED" }
+- 받는 이벤트 (12-6 형식, `task_type`이 `MEAL_CLASSIFY`인 것만 식단 화면에서 씀)
+```text
+event: task
+data: {"task_id": "8f1c2d4e-3b5a-4c6d-9e7f-0a1b2c3d4e5f", "task_type": "MEAL_CLASSIFY", "target_id": 101, "status": "COMPLETED"}
 ```
-- 프론트는 이벤트를 받으면 10-4로 다시 조회. SSE가 끊겼으면 10-4를 몇 초 간격으로 조회해도 됨
+  - `target_id` = `meals.id`, `status`는 `COMPLETED` 또는 `FAILED`
+  - 이벤트에는 후보가 없음 → 프론트가 10-4로 다시 조회해 `candidates`를 받음
+- 끊긴 동안 놓친 결과는 S-21을 열 때 10-3 목록의 `status`로 확인 (`PENDING`·`PROCESSING`이 남아 있으면 분석 중 표시)
 
 ### 10-3. 하루 식단 목록 `GET /api/v1/meals?date=2026-11-19`
 S-21 · REQ-FOOD-001
@@ -953,10 +958,11 @@ S-22 · REQ-FOOD-001·002
 C-02 · REQ-FOOD-001, NFR-005
 - `FAILED`일 때만. 아니면 409 `"다시 분석할 수 없는 상태예요."`
 - `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 발행 → 응답 `{ "meal_id", "task_id", "status": "PENDING" }`
-- 같은 식단의 재시도 횟수 제한 → 정할 것 18번
+- `retry_count`가 **3 이상**이면 429 `"다시 분석은 3번까지 할 수 있어요. 직접 골라 주세요."` → 10-5로 직접 고르기 (정할 것 18번)
+  - `retry_count`는 식단 한 건의 누적 실패 횟수(워커가 최종 `FAILED`로 끝낼 때 +1)라 하루 단위가 아님, 컬럼 추가 없음
 
 ### 10-7. 삭제 `DELETE /api/v1/meals/{id}` → 204
-- 분석 중에도 삭제 가능. 워커는 `meals` 행이 없으면 건너뛰고 XACK
+- 분석 중에도 삭제 가능. 워커는 `meals` 행이 없으면 건너뛰고 XACK (워커 5단계 DB 연결에서 반영)
 - 저장한 이미지도 함께 지움
 
 ### 10-8. 음식 목록·검색 `GET /api/v1/foods?q=국수`
@@ -1000,7 +1006,7 @@ S-23 · REQ-FOOD-003
 }
 ```
 - **하루 기준량·판단 기준(`level` 값)은 미정** → 정할 것 17번. 정하기 전엔 `daily_reference`·`percent`·`level`을 null로 두고 값만 보여 줌
-- "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 LLM 추천(REQ-LLM-002, 김민준) 쪽 API
+- "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 11장 LLM 추천(REQ-LLM-002, 김민준)
 
 ## 11. LLM 추천 — 김민준 (작성 예정)
 > 오래 걸리는 작업은 `202 + task_id` → AI 워커(`RECOMMEND_LLM`, `target_id = recommendations.id`) → SSE(12-6)
@@ -1130,7 +1136,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 15 | 초대 링크 만료 | ✅ 11/19 확정: created_at 기준 7일 (8-2~8-4) | — |
 | 16 | 식단 사진 형식·크기 | jpg / png / webp, 최대 10MB. 아이폰 HEIC는 프론트에서 jpg로 바꿔 올림 | 프론트(김지연)·백엔드 |
 | 17 | 식단 피드백 하루 기준량·판단 기준 (10-9) | 나트륨·당류·탄수화물 하루 기준량과 출처, 끼니 단위 vs 하루 누적 → 여현지가 정해 requirements REQ-FOOD-003에 기록 | 여현지 |
-| 18 | 식단 재분류 횟수 제한 (10-6) | 같은 식단 하루 3번까지, 넘으면 429 `"다시 분석은 3번까지 할 수 있어요. 직접 골라 주세요."` | 워커 담당 |
+| 18 | 식단 재분류 횟수 제한 (10-6) | ✅ 11/19 확정: `retry_count` 3 이상이면 429 (누적 기준, 컬럼 추가 없음) | — |
 | 19 | 목록에 없는 음식 (10-8) | 1차는 `foods` 18행 안에서만 검색. 식약처 API 실시간 검색은 호출 한도·캐시 문제로 S5 이후 검토 | 여현지·백엔드 |
 | 20 | 공통 SSE 명세 | 12-6 제안: 연결 하나(`GET /api/v1/events`), 티켓 인증, 이벤트 `notification` / `task` | 김지연·LLM(김민준)·식단(여현지) |
 | 21 | 식단 비전 LLM 보조 (REQ-FOOD-001) | 쓸지 여부, top-1 확률 기준, 18종 밖 음식 처리. 쓰면 10-2 워커 처리 안에서 호출(새 API 없음) | 여현지·LLM(김민준) |
