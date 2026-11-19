@@ -140,7 +140,7 @@ erDiagram
   - 대사증후군 판정은 저장하지 않고 `checkup_records`로 매번 계산 (추이가 없어서 이력 불필요, 기준표 버전은 코드 상수)
   - "혈압약·당뇨약 복용"은 진단 여부 문항으로 대신, 이상지질혈증 진단 문항은 12/4 이후 검토
 - [x] 검진 기록 삭제 시 `risk_predictions.checkup_record_id`는 null (ON DELETE SET NULL, 당시 값은 `input_snapshot`에 남음)
-- [ ] `CHECKUP_CRITERIA` 행의 `input_snapshot`·`factors` — 제안: `input_snapshot`에 판정에 쓴 검진 수치, `factors`는 null (데이터팀 확인)
+- [x] `CHECKUP_CRITERIA` 행의 `input_snapshot`·`factors` (11/19 장성은) — `input_snapshot`에 판정에 쓴 검진 수치 + 검진 날짜 `checked_on` (검진 기록을 지워도 어느 검진으로 판정했는지 남게), `factors`는 null. 예: `{"checked_on": "2026-05-10", "systolic_bp": 134, "diastolic_bp": 86}`
 - [x] 짝꿍은 한 사람당 여러 명 가능 (11/17). 같은 두 사람 사이 짝꿍은 하나만
 - [x] 짝꿍 해제 시 진행 중인 짝꿍 챌린지 처리 (11/19) — 1:1은 해제할 때 "종료 / 개인 챌린지로 계속" 중 선택, 1:N은 한 명이 나가도(`LEFT`) 나머지는 계속
 - [x] 같은 두 사람 짝꿍 중복 방지 (11/19) — `pairs.pair_key` unique로 DB에서 막음
