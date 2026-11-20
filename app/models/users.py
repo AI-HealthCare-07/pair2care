@@ -10,12 +10,13 @@ class Gender(StrEnum):
 
 class User(models.Model):
     id = fields.BigIntField(primary_key=True)
-    email = fields.CharField(max_length=40)
+    email = fields.CharField(max_length=255, unique=True)
     hashed_password = fields.CharField(max_length=128)
-    name = fields.CharField(max_length=20)
+    nickname = fields.CharField(max_length=50)
     gender = fields.CharEnumField(enum_type=Gender)
     birthday = fields.DateField()
-    phone_number = fields.CharField(max_length=11)
+    quiet_start = fields.TimeField(null=True)  # 방해 금지 시작, 안 쓰면 비어 있음
+    quiet_end = fields.TimeField(null=True)  # 방해 금지 끝
     is_active = fields.BooleanField(default=True)
     is_admin = fields.BooleanField(default=False)
     last_login = fields.DatetimeField(null=True)
