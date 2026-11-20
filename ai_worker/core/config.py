@@ -12,4 +12,7 @@ class Config(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
+    # 워커 이름(Consumer 이름). 비워 두면 호스트명을 씀 → 워커가 여러 대여도 이름이 겹치지 않음
+    WORKER_NAME: str = ""
+
     TIMEZONE: zoneinfo.ZoneInfo = field(default_factory=lambda: zoneinfo.ZoneInfo("Asia/Seoul"))
