@@ -1,7 +1,7 @@
-# ERD·테이블 명세서 (초안)
+# ERD·테이블 명세서 (v1 확정)
 
-> 상태: **테이블 목록 초안** — 11/17 작성, 11/19 컬럼 초안 → 11/20 교차 확인  
-> 기준: [requirements.md](requirements.md)의 `REQ-*`. 컬럼은 후보이고 담당자가 확정함  
+> 상태: **v1 확정** — 11/17 작성, 11/19 컬럼 초안, 11/20 4종(요구사항·와이어프레임·ERD·API) 교차 확인 후 확정. 이후 변경은 PR로 하고 관련 문서도 같이 고침  
+> 기준: [requirements.md](requirements.md)의 `REQ-*`. 컬럼 변경은 PR로 하고 api.md도 같이 고침  
 > 담당: 김지연 · 이지희
 > 컬럼은 [erd.dbml](erd.dbml)에 채움 → [dbdiagram.io](https://dbdiagram.io)에 붙여넣으면 그림으로 보임
 

@@ -1,4 +1,6 @@
-# API 명세서 (초안)
+# API 명세서 (v1 확정)
+
+> 상태: **v1 확정** — 11/20 4종(요구사항·와이어프레임·ERD·API) 교차 확인 후 확정. 이후 변경은 PR로 하고 관련 문서도 같이 고침. 9장 '정할 것'의 남은 항목은 결정되는 대로 반영함  
 
 > 기준: [erd.dbml](erd.dbml) · [survey-mapping.md](survey-mapping.md) · [requirements.md](requirements.md) · [wireframe.md](wireframe.md) (2026-11-19 develop 기준)
 > 담당: 1·3·4·6·7장 최현영 · 8장 이지희 (초안 최현영) · 2·12장 김지연 · 5장 명세·학습 장성은 / 서빙 구현 최현영 · 10장 여현지 · 11장 김민준 (장마다 제목에도 표기)
