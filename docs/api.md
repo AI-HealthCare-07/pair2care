@@ -14,7 +14,7 @@
 7. **대시보드** — 최현영
 8. **챌린지·짝꿍** — 이지희 (11/20 담당 확정, 초안 최현영 · 11/19 PR #30·#31 반영)
 10. **식단** — 여현지
-11. LLM 추천 — 김민준 (작성 중, 11/20 점심 전 PR 예정)
+11. **LLM 추천** — 김민준
 12. **알림 (+ 공통 SSE)** — 김지연
 9. 정할 것 (맨 끝에 둠, 장마다 생긴 미결 항목을 한 표로 모음)
 
@@ -842,7 +842,7 @@ S-21(식단 기록), S-22(음식 고르기), S-23(영양 결과) · REQ-FOOD-001
 - 음식 목록은 `foods` 18행 (한 음식에 한 행, 냉면 = 물냉면, 순두부찌개 = 해물). 영양값은 식약처 OpenAPI로 미리 받아 둔 **1인분 값**
 - 1차 모델은 18종 중 하나로만 답함. 목록에 없는 음식은 직접 검색(10-8)으로 고름
 
-### 10-1. 사진 올리기 `POST /api/v1/meals` → 202
+### 10-1. 사진 올리기 `POST /api/v1/meals` → 202 / 503
 S-21 · REQ-FOOD-001
 
 **요청** `multipart/form-data`
@@ -856,12 +856,18 @@ S-21 · REQ-FOOD-001
 1. 이미지 저장 → `image_url` (저장 위치는 S3 답변 후 결정, ERD 정할 것)
 2. `meals` 저장: `status = PENDING`, `category = MEAL`(1차는 식사만), `portion = 1.0`
 3. `TaskMessage(task_type = MEAL_CLASSIFY, user_id, target_id = meals.id)`를 `ai:tasks`에 XADD
-4. Redis에 못 넣으면 `status = FAILED`로 두고 응답은 그대로 202 → 사용자가 10-6으로 다시 시도
+4. 큐 등록에 성공한 경우에만 **202**. 등록 실패 시 이미지와 식단 기록은 남기고 `status = FAILED`로 저장. 워커는 실행되지 않았으므로 `retry_count`는 그대로 두고 **503** 반환.
 
 **응답 202**
 ```json
 { "meal_id": 101, "task_id": "8f1c2d4e-3b5a-4c6d-9e7f-0a1b2c3d4e5f", "status": "PENDING" }
 ```
+
+**응답 503 — 식단·추천 공통 큐 등록 실패 (10-6·11-5)**
+```json
+{ "detail": "작업을 시작하지 못했어요. 잠시 후 다시 시도해 주세요." }
+```
+- `task_id`가 없으므로 프론트는 SSE를 기다리지 않고 C-02 실패 상태를 표시함. 10-3 목록을 새로 불러와 방금 올린 실패 기록을 선택하고, 사진을 다시 올리는 대신 같은 `meal_id`로 10-6을 호출함.
 
 ### 10-2. 분류 결과 알림 — 공통 SSE(12-6)의 `task` 이벤트
 S-21, C-02 · REQ-FOOD-001, NFR-005
@@ -964,10 +970,11 @@ S-22 · REQ-FOOD-001·002
 "nutrients": { "kcal": 198.0, "carbs_g": 9.9, "sugar_g": 5.0, "sodium_mg": 1326.6, "protein_g": 24.3, "fat_g": 6.6 }
 ```
 
-### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202
+### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202 / 503
 C-02 · REQ-FOOD-001, NFR-005
 - `FAILED`일 때만. 아니면 409 `"다시 분석할 수 없는 상태예요."`
-- `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 발행 → 응답 `{ "meal_id", "task_id", "status": "PENDING" }`
+- `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 등록. 성공하면 **202** `{ "meal_id", "task_id", "status": "PENDING" }`.
+- 큐 등록에 실패하면 같은 행을 `FAILED`로 되돌리고 `retry_count`는 그대로 유지. **503** 응답은 10-1과 같으며, SSE를 기다리지 않음.
 - `retry_count`가 **3 이상**이면 429 `"분석은 3번까지 할 수 있어요. 직접 골라 주세요."` → 10-5로 직접 고르기 (정할 것 18번)
   - 처음 분석 + 다시 분석 2번 = 분석 3번. 워커 안에서도 매번 3번씩 재시도하므로 충분함
   - `retry_count`는 식단 한 건의 누적 실패 횟수(워커가 최종 `FAILED`로 끝낼 때 +1)라 하루 단위가 아님, 컬럼 추가 없음
@@ -1055,8 +1062,85 @@ S-23 · REQ-FOOD-003 · 11/19 1차 반영 (정할 것 17번)
 - "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 11장 LLM 추천(REQ-LLM-002, 김민준)
 
 
-## 11. LLM 추천 — 김민준 (작성 중, 11/20 점심 전 PR 예정)
-> 오래 걸리는 작업은 `202 + task_id` → AI 워커(`RECOMMEND_LLM`, `target_id = recommendations.id`) → SSE(12-6)
+## 11. LLM 추천 — `recommendations`, `llm_usage_logs` (김민준)
+S-12(홈), S-23(영양 결과), C-02(처리 중·실패) · REQ-LLM-001·002, NFR-001·002·005·006·011·012·017
+
+- 이번 명세는 `DAILY_ACTION`과 `MEAL_ALTERNATIVE`만 다룸. 날씨 대체 활동(LLM-003)·위험 요인 설명(LLM-004)·주간 리포트(LLM-005)는 검토 중이라 경로를 확정하지 않음. 식단 사진 분류·비전 보조는 10장 범위.
+- 모든 요청은 로그인 필요(1장). 사용자와 날짜는 서버에서 결정하고, 추천에 쓸 기록은 로그인 사용자의 저장된 데이터에서 읽음. 생성 요청 본문 없음.
+- 화면은 **저장본을 먼저 조회**하고, 저장본이 없거나 사용자가 실패 후 다시 시도할 때만 생성 요청. 새 작업만 **202 + `task_id`**, 이미 처리 중이거나 완료된 건 다시 큐에 넣지 않음.
+
+### 11-1. 오늘의 한 가지 생성 `POST /api/v1/recommendations/daily` → 202 / 200 ⚕️
+S-12 · REQ-LLM-001
+
+- `rec_type = DAILY_ACTION`, `target_on`은 요청 시점의 KST 날짜. **사용자·유형·날짜당 1행**을 쓰고 실패 시 같은 행을 재사용함.
+- 최근 건강·생활 기록에서 확인할 수 있는 정보만 쓰고, 사용자가 현실적으로 해볼 수 있는 예방 행동 **1개**를 제안함. 입력에 없는 습관이나 제약을 추정하지 않음.
+- 요청이 겹쳐도 중복 생성되지 않도록, ERD의 `(user_id, rec_type, target_on)` 인덱스는 조회용으로 두고 같은 사용자에 대한 추천 확인·생성·재시도 상태 변경을 DB 트랜잭션으로 직렬화함 (예: 사용자 행 잠금).
+
+### 11-2. 오늘의 한 가지 조회 `GET /api/v1/recommendations/daily` → 200 ⚕️
+- 기본은 오늘(KST)의 저장본. 선택 쿼리 `target_on=YYYY-MM-DD`로 기준 날짜를 지정할 수 있음(자정을 넘겨 처리된 작업 등). 날짜 형식이 잘못되면 **422**.
+- 해당 날짜에 저장된 추천 행이 없으면 **404** `"저장된 오늘의 추천이 없어요."` → 홈은 오늘 날짜의 첫 조회가 404일 때만 11-1 호출. 조회는 LLM을 호출하거나 큐를 만들지 않음.
+
+### 11-3. 다음 끼니에 바꿀 한 가지 생성 `POST /api/v1/meals/{id}/recommendation` → 202 / 200 ⚕️
+S-23 · REQ-LLM-002
+
+- 경로의 `id`는 **`meals.id`**. 식단이 없거나 다른 사용자의 기록이면 **404**. 10-5에서 음식을 골라 저장하기 전(`food_id = null`)이면 **409** `"음식을 골라 저장한 뒤 추천을 받아 주세요."` → 사진 분류에 실패했더라도 음식을 직접 골라 저장했으면 생성 가능.
+- `rec_type = MEAL_ALTERNATIVE`, `meal_id = meals.id`, `target_on`은 기준 식단의 `eaten_at`을 KST로 변환한 날짜. `meal_id` 유니크 기준으로 **식단당 1행**을 쓰고 실패 시 같은 행을 재사용함.
+- 확정된 메뉴·먹은 양과 사용자의 기록을 바탕으로 다음 끼니에 적용할 대체 메뉴나 바꿀 점 **1개**를 제안함. 영양값은 10장의 저장값을 쓰고, 값이 없는 항목은 추정하지 않음.
+
+### 11-4. 다음 끼니 추천 조회 `GET /api/v1/meals/{id}/recommendation` → 200 ⚕️
+- 해당 식단의 저장본을 반환. 식단이 없거나 다른 사용자의 것이면 **404** `"식단 기록을 찾을 수 없어요."` → 생성하지 않음.
+- 내 식단에 추천 행만 없으면 **404** `"저장된 식단 추천이 없어요."` → 음식 저장이 끝난 S-23에서만 11-3 호출. 식단 추천이 없어도 영양 결과(10-4·10-9)는 그대로 표시.
+
+### 11-5. 생성·조회 공통 응답 및 재시도
+
+| 호출·현재 상태 | 처리 | 응답 |
+|---|---|---|
+| POST · 추천 없음 | `PENDING` 행을 저장하고 새 작업 등록 | **202** |
+| POST · `PENDING` / `PROCESSING` / `COMPLETED` | 새 작업 없이 기존 저장본 반환 | **200**, 조회와 같은 본문 |
+| POST · `FAILED`이고 `retry_count < 3` | 같은 추천 ID로 `PENDING` 전환, 새 `task_id` 발급 | **202** |
+| POST · `FAILED`이고 `retry_count >= 3` | 상태를 바꾸거나 새 작업을 등록하지 않음 | **429** |
+| GET · 행 존재 | 상태와 저장본 반환. 재시도는 시작하지 않음 | **200** |
+| POST · 큐 등록 실패 | 행은 `FAILED`로 저장. 워커가 실행되지 않았으므로 `retry_count`는 그대로 둠 | **503**, 10-1과 동일한 `{ "detail": "작업을 시작하지 못했어요. 잠시 후 다시 시도해 주세요." }`. `task_id` 없음, SSE 대기 안 함 |
+
+**응답 202** — `recommendation_id`는 `recommendations.id`이고 `task_id`와 다름.
+```json
+{ "recommendation_id": 207, "task_id": "712d9c48-4fd2-4da0-8aed-53044372477e", "status": "PENDING" }
+```
+
+**응답 200** — 저장 추천 공통 형식. 아래 출처와 URL은 형식을 보여 주기 위한 예시.
+```json
+{
+  "id": 207,
+  "rec_type": "DAILY_ACTION",
+  "target_on": "2026-11-20",
+  "meal_id": null,
+  "status": "COMPLETED",
+  "content": "점심을 먹고 가능한 날에 가볍게 걸어보는 건 어때요? [1]",
+  "sources": [
+    { "number": 1, "title": "신체활동 가이드(예시)", "url": "https://example.com/activity-guide" }
+  ],
+  "retry_count": 0,
+  "created_at": "2026-11-20T11:00:01+09:00",
+  "updated_at": "2026-11-20T11:00:08+09:00"
+}
+```
+- 식단 추천은 `rec_type = MEAL_ALTERNATIVE`, `meal_id`에 기준 식단 ID를 반환. `PENDING`·`PROCESSING`·`FAILED`에서는 `content`·`sources`가 모두 `null`.
+- `retry_count`는 10-6과 같이 추천 한 건의 누적 작업 실패 횟수. 최초 값은 0이며 워커가 한 작업을 최종 `FAILED`로 저장할 때 1 증가함. **최초 생성 1번 + 재생성 2번**까지로, `retry_count >= 3`이면 **429** `"추천을 다시 요청할 수 있는 횟수를 모두 사용했어요."`.
+- 워커 내부 실행은 한 작업당 최대 3번(최초 1번 포함). 내부 재시도마다 `retry_count`를 올리지 않음.
+- 근거가 부족하면 `COMPLETED`로 저장하되 추천을 지어내지 않고 `content = "지금은 근거가 충분하지 않아 추천하기 어려워요."`, `sources = []`를 반환함. 기술적인 생성 실패(`FAILED`)와 구분함.
+
+### 11-6. 워커와 완료 알림 — 공통 SSE(12-6)
+1. 서버가 추천 행을 저장하고 `TaskMessage(task_type = RECOMMEND_LLM, user_id, target_id = recommendations.id)`를 `ai:tasks`에 등록. 메시지에 건강 수치·프롬프트 본문을 넣지 않음.
+2. 워커가 대상 행을 읽어 `PROCESSING`으로 전환. 공인 가이드 검색 결과 상위 3~5개 안에서만 근거를 쓰고, 결과 본문의 `[번호]`는 서버에서 확인한 실제 출처 배열과 일치시킴. 식별정보는 LLM 입력에서 제외함.
+3. 완료 시 `content`·`sources`·`model`·`prompt_version`과 `COMPLETED`를 먼저 저장. 최종 오류는 `FAILED` 저장. LLM 호출별 사용량·성공 여부는 `llm_usage_logs`에 기록하고 프롬프트·응답 본문은 사용량 로그에 남기지 않음.
+4. 상태 저장 후 `ai:results`에 발행. 12-6의 `task` 이벤트에서 받은 `target_id`는 **추천 ID**이며 식단 ID가 아님.
+```text
+event: task
+data: {"task_id": "712d9c48-4fd2-4da0-8aed-53044372477e", "task_type": "RECOMMEND_LLM", "target_id": 207, "status": "COMPLETED"}
+```
+- 이벤트는 `COMPLETED` / `FAILED`만 알림. 프론트는 요청한 화면의 11-2 또는 11-4로 갱신함. SSE를 놓친 경우에도 같은 GET으로 저장 상태를 확인함.
+- 결과 일관성(REQ-NFR-017)을 위해 모델별 `temperature` 등 생성 설정을 고정하고, 설정 변경 시 `prompt_version`을 올려 어떤 설정으로 생성했는지 추적함.
+- 추천은 진단·처방 또는 위험도 재계산 결과가 아님. 화면에는 C-01 의료 안내를 표시함.
 
 ## 12. 알림 — `notifications`, `notification_settings`, `push_subscriptions`, `custom_reminders` (김지연)
 S-24~S-26, C-03 · REQ-NOTI-001~007, 009
