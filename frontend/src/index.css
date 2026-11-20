@@ -1,0 +1,13 @@
+:root {
+  --color-primary: #1e3bd6;   /* 로고 파랑, 선택된 탭 */
+  --color-text: #141a40;      /* 본문 글자 */
+  --color-muted: #575d7c;     /* 보조 글자, 안 선택된 탭 */
+  --color-bg: #f4f5fc;        /* 화면 배경 */
+  --color-line: #dcdff3;      /* 테두리 */
+
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+body{margin: 0;}
