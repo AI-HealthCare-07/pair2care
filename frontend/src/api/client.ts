@@ -7,7 +7,19 @@ export function setAccessToken(token: string | null) {
   accessToken = token
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+// 동시에 401이 여러 개 와도 refresh는 한 번만 나가도록, 진행 중인 요청을 같이 기다림
+let refreshing: Promise<boolean> | null = null
+
+function refreshAccessToken(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = requestRefresh().finally(() => {
+      refreshing = null
+    })
+  }
+  return refreshing
+}
+
+async function requestRefresh(): Promise<boolean> {
   const res = await fetch(`${API_BASE}/auth/token/refresh`, {
     method: 'GET',              // 지금 백엔드 기준. api.md 2-3대로 POST로 바뀌면 같이 바꿈
     credentials: 'include',     // 쿠키(refresh_token)를 같이 보내라는 값
@@ -21,7 +33,10 @@ async function refreshAccessToken(): Promise<boolean> {
 export async function apiFetch(path: string, options: RequestInit = {}, isRetry = false): Promise<Response> {
   const headers = new Headers(options.headers)
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)   // 토큰 앞에 붙는 인증 방식 이름
-  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  // FormData(사진 업로드)는 브라우저가 boundary까지 넣어 주므로 Content-Type을 직접 넣지 않음
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include' })
 

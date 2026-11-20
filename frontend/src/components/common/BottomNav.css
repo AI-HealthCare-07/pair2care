@@ -5,7 +5,9 @@
     transform: translateX(-50%);
     width: 100%;
     max-width: 375px; /* PC에서도 폰 화면 폭으로 가운데 정렬 (wireframe.md 1장) */
-    height: 76px;
+    height: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom); /* 아이폰 홈 바와 안 겹치게 */
+    box-sizing: border-box;
     display: flex;
     background: #fff;
     border-top: 1px solid var(--color-line);

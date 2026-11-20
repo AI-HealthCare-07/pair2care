@@ -27,8 +27,13 @@ src/
 ├── router.tsx          # 주소 ↔ 화면 (탭 화면은 TabLayout 안)
 ├── layouts/TabLayout.tsx
 ├── pages/              # 화면 하나에 파일 하나 (S번호는 wireframe.md 대응표)
-├── components/         # 공통 컴포넌트 (BottomNav, NavIcons …)
-├── api/client.ts       # apiFetch: /api/v1 + Bearer 토큰, 401이면 refresh 후 1번 재시도
+├── components/
+│   ├── common/         # 여러 화면 공통 (Button·Input·Chip·TopBar, BottomNav …)
+│   ├── challenge/      # 기능별 컴포넌트 (meal/, pair/ … 같은 방식)
+│   └── meal/
+├── api/
+│   ├── client.ts       # apiFetch: /api/v1 + Bearer 토큰, 401이면 refresh 후 1번 재시도
+│   └── meals.ts …      # 기능별 API 함수 (auth.ts, challenges.ts …)
 ├── sw.ts               # 서비스 워커 (지금은 캐시만, 웹 푸시는 S4)
 └── index.css           # 색 변수 (Figma 기준)
 ```
@@ -39,3 +44,5 @@ src/
 - 백엔드 응답 키는 snake_case (`access_token`)
 - API 경로·필드는 `docs/api.md` 기준
 - 화면은 Figma 와이어프레임과 S번호를 맞춤
+- 주소는 탭 아래로 둠: 식단은 기록 탭 안이라 `/records/meals`(S-21) → `/records/meals/:id`(S-22) → `/records/meals/:id/result`(S-23)
+- 사진 업로드는 `FormData`로 보냄 (apiFetch가 Content-Type을 자동으로 비워 둠)

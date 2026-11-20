@@ -16,7 +16,7 @@ export default defineConfig({
         lang: 'ko',
         start_url: '/',
         display: 'standalone',          // 주소창 없이 앱처럼 열리게 하는 값
-        theme_color: '#1a2fc4',
+        theme_color: '#1e3bd6',
         background_color: '#f4f5fc',
         icons: [],                      // 아이콘은 다음에 로고로 채움
       },
