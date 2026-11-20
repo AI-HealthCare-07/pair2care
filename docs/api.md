@@ -842,7 +842,7 @@ S-21(식단 기록), S-22(음식 고르기), S-23(영양 결과) · REQ-FOOD-001
 - 음식 목록은 `foods` 18행 (한 음식에 한 행, 냉면 = 물냉면, 순두부찌개 = 해물). 영양값은 식약처 OpenAPI로 미리 받아 둔 **1인분 값**
 - 1차 모델은 18종 중 하나로만 답함. 목록에 없는 음식은 직접 검색(10-8)으로 고름
 
-### 10-1. 사진 올리기 `POST /api/v1/meals` → 202
+### 10-1. 사진 올리기 `POST /api/v1/meals` → 202 / 503
 S-21 · REQ-FOOD-001
 
 **요청** `multipart/form-data`
@@ -856,12 +856,18 @@ S-21 · REQ-FOOD-001
 1. 이미지 저장 → `image_url` (저장 위치는 S3 답변 후 결정, ERD 정할 것)
 2. `meals` 저장: `status = PENDING`, `category = MEAL`(1차는 식사만), `portion = 1.0`
 3. `TaskMessage(task_type = MEAL_CLASSIFY, user_id, target_id = meals.id)`를 `ai:tasks`에 XADD
-4. Redis에 못 넣으면 `status = FAILED`로 두고 응답은 그대로 202 → 사용자가 10-6으로 다시 시도
+4. 큐 등록에 성공한 경우에만 **202**. 등록 실패 시 이미지와 식단 기록은 남기고 `status = FAILED`로 저장. 워커는 실행되지 않았으므로 `retry_count`는 그대로 두고 **503** 반환.
 
 **응답 202**
 ```json
 { "meal_id": 101, "task_id": "8f1c2d4e-3b5a-4c6d-9e7f-0a1b2c3d4e5f", "status": "PENDING" }
 ```
+
+**응답 503 — 식단·추천 공통 큐 등록 실패 (10-6·11-5)**
+```json
+{ "detail": "작업을 시작하지 못했어요. 잠시 후 다시 시도해 주세요." }
+```
+- `task_id`가 없으므로 프론트는 SSE를 기다리지 않고 C-02 실패 상태를 표시함. 10-3 목록을 새로 불러와 방금 올린 실패 기록을 선택하고, 사진을 다시 올리는 대신 같은 `meal_id`로 10-6을 호출함.
 
 ### 10-2. 분류 결과 알림 — 공통 SSE(12-6)의 `task` 이벤트
 S-21, C-02 · REQ-FOOD-001, NFR-005
@@ -964,10 +970,11 @@ S-22 · REQ-FOOD-001·002
 "nutrients": { "kcal": 198.0, "carbs_g": 9.9, "sugar_g": 5.0, "sodium_mg": 1326.6, "protein_g": 24.3, "fat_g": 6.6 }
 ```
 
-### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202
+### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202 / 503
 C-02 · REQ-FOOD-001, NFR-005
 - `FAILED`일 때만. 아니면 409 `"다시 분석할 수 없는 상태예요."`
-- `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 발행 → 응답 `{ "meal_id", "task_id", "status": "PENDING" }`
+- `status = PENDING`으로 바꾸고 같은 `meals.id`로 새 `TaskMessage` 등록. 성공하면 **202** `{ "meal_id", "task_id", "status": "PENDING" }`.
+- 큐 등록에 실패하면 같은 행을 `FAILED`로 되돌리고 `retry_count`는 그대로 유지. **503** 응답은 10-1과 같으며, SSE를 기다리지 않음.
 - `retry_count`가 **3 이상**이면 429 `"분석은 3번까지 할 수 있어요. 직접 골라 주세요."` → 10-5로 직접 고르기 (정할 것 18번)
   - 처음 분석 + 다시 분석 2번 = 분석 3번. 워커 안에서도 매번 3번씩 재시도하므로 충분함
   - `retry_count`는 식단 한 건의 누적 실패 횟수(워커가 최종 `FAILED`로 끝낼 때 +1)라 하루 단위가 아님, 컬럼 추가 없음
@@ -1093,7 +1100,7 @@ S-23 · REQ-LLM-002
 | POST · `FAILED`이고 `retry_count < 3` | 같은 추천 ID로 `PENDING` 전환, 새 `task_id` 발급 | **202** |
 | POST · `FAILED`이고 `retry_count >= 3` | 상태를 바꾸거나 새 작업을 등록하지 않음 | **429** |
 | GET · 행 존재 | 상태와 저장본 반환. 재시도는 시작하지 않음 | **200** |
-| POST · 큐 등록 실패 | 행은 `FAILED`로 저장. 워커가 실행되지 않았으므로 `retry_count`는 그대로 둠 | **503** `"추천 요청을 시작하지 못했어요. 잠시 후 다시 시도해 주세요."` |
+| POST · 큐 등록 실패 | 행은 `FAILED`로 저장. 워커가 실행되지 않았으므로 `retry_count`는 그대로 둠 | **503**, 10-1과 동일한 `{ "detail": "작업을 시작하지 못했어요. 잠시 후 다시 시도해 주세요." }`. `task_id` 없음, SSE 대기 안 함 |
 
 **응답 202** — `recommendation_id`는 `recommendations.id`이고 `task_id`와 다름.
 ```json
