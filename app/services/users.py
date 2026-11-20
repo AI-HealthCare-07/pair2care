@@ -1,24 +1,23 @@
+from fastapi import HTTPException
+from starlette import status
 from tortoise.transactions import in_transaction
 
-from app.core.utils.common import normalize_phone_number
 from app.dtos.users import UserUpdateRequest
 from app.models.users import User
 from app.repositories.user_repository import UserRepository
-from app.services.auth import AuthService
 
 
 class UserManageService:
     def __init__(self):
         self.repo = UserRepository()
-        self.auth_service = AuthService()
 
     async def update_user(self, user: User, data: UserUpdateRequest) -> User:
-        if data.email:
-            await self.auth_service.check_email_exists(data.email)
-        if data.phone_number:
-            normalized_phone_number = normalize_phone_number(data.phone_number)
-            await self.auth_service.check_phone_number_exists(normalized_phone_number)
-            data.phone_number = normalized_phone_number
+        # 성별·생년월일은 예측 입력이라 직접 수정 불가 (api.md 2-5, 정할 것 24번)
+        if data.gender is not None or data.birthday is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="성별·생년월일은 바꿀 수 없어요. 고치려면 관리자에게 요청해 주세요.",
+            )
         async with in_transaction():
             await self.repo.update_instance(user=user, data=data.model_dump(exclude_none=True))
             await user.refresh_from_db()

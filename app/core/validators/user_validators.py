@@ -5,41 +5,26 @@ from dateutil.relativedelta import relativedelta
 
 from app.core import config
 
+SPECIAL_CHARS = r"!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~"  # string.punctuation과 같은 32자
+
 
 def validate_password(password: str) -> str:
     if len(password) < 8:
-        raise ValueError("비밀번호는 8자 이상이어야 합니다.")
+        raise ValueError("비밀번호는 8자 이상이어야 해요.")
 
-    # 대문자를 포함하고 있는지
-    if not re.search(r"[A-Z]", password):
-        raise ValueError("비밀번호에는 대문자, 소문자, 특수문자, 숫자가 각 하나씩 포함되어야 합니다.")
+    # 영문·숫자·키보드 기호 말고 다른 문자(공백·한글 등)는 안 됨
+    if not re.fullmatch(f"[A-Za-z0-9{SPECIAL_CHARS}]+", password):
+        raise ValueError("비밀번호에는 영문, 숫자, 특수문자만 쓸 수 있어요.")
 
-    # 소문자를 포함하고 있는지
-    if not re.search(r"[a-z]", password):
-        raise ValueError("비밀번호에는 대문자, 소문자, 특수문자, 숫자가 각 하나씩 포함되어야 합니다.")
-
-    # 숫자를 포함하고 있는지
+    # 영문·숫자·특수문자가 각각 하나 이상 있어야 함
+    if not re.search(r"[A-Za-z]", password):
+        raise ValueError("영문, 숫자, 특수문자를 모두 넣어 주세요.")
     if not re.search(r"[0-9]", password):
-        raise ValueError("비밀번호에는 대문자, 소문자, 특수문자, 숫자가 각 하나씩 포함되어야 합니다.")
-
-    # 특수문자를 포함하고 있는지
-    if not re.search(r"[^a-zA-Z0-9]", password):
-        raise ValueError("비밀번호에는 대문자, 소문자, 특수문자, 숫자가 각 하나씩 포함되어야 합니다.")
+        raise ValueError("영문, 숫자, 특수문자를 모두 넣어 주세요.")
+    if not re.search(f"[{SPECIAL_CHARS}]", password):
+        raise ValueError("영문, 숫자, 특수문자를 모두 넣어 주세요.")
 
     return password
-
-
-def validate_phone_number(phone_number: str) -> str:
-    patterns = [
-        r"010-\d{4}-\d{4}",  # 010-1234-5678
-        r"010\d{8}",  # 01012345678
-        r"\+8210\d{8}",  # +821012345678
-    ]
-
-    if not any(re.fullmatch(p, phone_number) for p in patterns):
-        raise ValueError("유효하지 않은 휴대폰 번호 형식입니다.")
-
-    return phone_number
 
 
 def validate_birthday(birthday: date | str) -> date:

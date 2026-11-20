@@ -3,20 +3,16 @@ from starlette import status
 from tortoise.contrib.test import TestCase
 
 from app.main import app
+from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
 
 
 class TestLoginAPI(TestCase):
     async def test_login_success(self):
         # 먼저 사용자 등록
-        signup_data = {
-            "email": "login_test@example.com",
-            "password": "Password123!",
-            "name": "로그인테스터",
-            "gender": "FEMALE",
-            "birth_date": "1995-05-05",
-            "phone_number": "01011112222",
-        }
-        login_data = {"email": "login_test@example.com", "password": "Password123!"}
+        signup_data = make_signup_data(
+            "login_test@example.com", nickname="로그인테스터", gender="FEMALE", birthday="1995-05-05"
+        )
+        login_data = {"email": "login_test@example.com", "password": DEFAULT_PASSWORD}
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post("/api/v1/auth/signup", json=signup_data)
