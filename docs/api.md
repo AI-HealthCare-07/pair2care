@@ -25,17 +25,17 @@
 | 항목 | 규칙 |
 |---|---|
 | 기본 주소 | `/api/v1` (기존 `v1_routers` 그대로) |
-| 인증 | `Authorization: Bearer <access_token>`. 이 문서의 API는 모두 로그인 필요 → 없거나 만료되면 401 |
+| 인증 | `Authorization: Bearer <access_token>`. 아래 예외를 빼고 모두 로그인 필요 → 없거나 만료되면 401<br>**예외(로그인 없이)**: 회원가입 2-1, 로그인 2-2, 토큰 갱신 2-3(refresh 쿠키로 판단), 비밀번호 찾기 2-7<br>SSE(12-6)는 헤더 대신 1회용 티켓(`?ticket=`)으로 인증 |
 | 내 데이터만 | 경로에 `user_id`를 받지 않음. 토큰의 사용자 기준으로만 읽고 씀. 남의 리소스 id로 접근하면 **404** (존재 여부를 숨김) |
 | 필드 이름 | 요청·응답 JSON은 **ERD 컬럼 이름 그대로** snake_case |
 | enum | ERD와 같은 대문자 (`ONBOARDING`, `HYPERTENSION`, `BLOOD_PRESSURE` …) |
-| 시간 | ISO 8601 + KST 오프셋. datetime `2026-11-19T09:30:00+09:00`, date `2026-11-19` |
+| 시간 | ISO 8601 + KST 오프셋. datetime `2026-11-19T09:30:00+09:00`, date `2026-11-19`, 하루 중 시각(알림·리마인더·방해 금지) `HH:MM` 24시간제 `19:00` |
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
-| 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → SSE로 결과 전달 (REQ-NFR-005). 이 문서 담당분은 모두 동기 처리 |
+| 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
 
 ---
 
@@ -1158,7 +1158,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | # | 내용 | 제안 | 누구랑 |
 |---|---|---|---|
 | 1 | 마이(S-27)에서 키·가족력 등 "안 묻는 문항" 수정 방법 | 새 kind `EDIT` 추가 없이, WEEKLY 전체 모드(모든 문항 받음)로 새 행 저장. 또는 enum에 `EDIT` 추가 | ERD(김지연·이지희) |
-| 2 | 검진 기록 삭제 시 예측 행 처리 | `risk_predictions.checkup_record_id` FK `ON DELETE SET NULL` (스냅샷이 있어서 이력은 남음) | ERD |
+| 2 | 검진 기록 삭제 시 예측 행 처리 | ✅ 11/19 ERD 확정(#37): `risk_predictions.checkup_record_id` FK `ON DELETE SET NULL`, 당시 값은 `input_snapshot`에 남음 | — |
 | 3 | 일일 기록 값 규칙(6-0 위쪽 7종) | 위 표대로 ERD Note에 추가 | ERD·프론트 |
 | 4 | 건강 기록 수정 허용 여부 | 허용하려면 `health_logs.updated_at` 추가, 아니면 삭제 후 재입력 | ERD |
 | 5 | 주간 재설문 하루·주 몇 번까지 | ✅ 11/19 확정: 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | — |
