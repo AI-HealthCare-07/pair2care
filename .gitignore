@@ -24,3 +24,9 @@ data/
 *.onnx
 *.joblib
 mlruns/
+
+# 국민건강영양조사 원본 (레포·클라우드·AI 공유 금지)
+*.sav
+*.sas7bdat
+*.xpt
+*.zip

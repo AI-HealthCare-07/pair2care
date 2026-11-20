@@ -34,6 +34,7 @@ app/                # FastAPI
 ├── core/           # config, db, jwt, logger
 └── tests/
 ai_worker/          # Redis Stream 소비자 (tasks/, schemas/)
+ml/                 # 예측 모델 학습·검증 (원본 데이터는 레포 밖, ml/README.md)
 infra/              # nginx 설정, 배포용 compose
 envs/               # example.*.env만 커밋. .local.env / .prod.env 는 커밋 금지
 scripts/            # ci(ruff·mypy·테스트), 배포, certbot
@@ -48,7 +49,7 @@ docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 - 변수명은 역할이 드러나게 씀 (`user_id` O, `id` X)
 - 타입 힌트 필수, 한 함수는 한 가지 일만 함
 - 로그는 `print()` 대신 `logger` 사용
-- API 응답 형식·엔드포인트·필드명은 `docs/api-spec.md`와 반드시 일치시킴. 명세에 없는 API를 새로 만들 땐 명세부터 수정함
+- API 응답 형식·엔드포인트·필드명은 `docs/api.md`와 반드시 일치시킴. 명세에 없는 API를 새로 만들 땐 명세부터 수정함
 - DB 테이블·컬럼은 `docs/erd.md` 기준. 임의로 컬럼 추가 금지
 
 ## 5. AI 기능 규칙
@@ -67,7 +68,7 @@ docs/               # 기획 문서 4종 + 회의록 (아래 6번)
 - `wireframe.md` 와이어프레임 링크(Figma)·화면 목록
 - `erd.md` ERD·테이블 명세서
 - `survey-mapping.md` 설문 ↔ 국건영 코드 대응표 — 예측 입력은 국건영 코드 그대로 저장, 건너뛴 문항 코드 포함
-- `api-spec.md` API 명세서 — 각 API에 관련 `REQ-xxx` 표기
+- `api.md` API 명세서 — 각 API에 관련 `REQ-xxx` 표기
 - Daily Scrum 기록은 레포가 아니라 노션 팀 페이지에 남김 (평일 10:10)
 - 기능 구현 전 해당 `REQ-xxx`와 API 명세를 먼저 읽음
 
