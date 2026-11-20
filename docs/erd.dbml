@@ -1,6 +1,6 @@
 // Pair 2 Care ERD (DBML) — dbdiagram.io에 통째로 붙여넣으면 그림으로 보임
 // 뼈대: PK·FK·created_at만 넣어 둠. 나머지 컬럼은 담당자가 채움 (목록·후보 컬럼은 docs/erd.md)
-// 타입 표기: bigint, varchar(n), int, decimal(5,1), date, datetime, bool, json, enum
+// 타입 표기: bigint, int, smallint, tinyint, varchar(n), text, decimal(5,1), date, time, datetime, bool, json, enum
 // 담당: 김지연 = 회원·프로필·예측·LLM·알림 / 이지희 = 챌린지·짝꿍·건강 기록·식단
 
 Project pair2care {
@@ -135,7 +135,7 @@ Table risk_predictions {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
   health_profile_id bigint [not null, ref: > health_profiles.id]
-  checkup_record_id bigint [null, ref: > checkup_records.id]   // 검진 기록 삭제 시 null (ON DELETE SET NULL, 이력은 input_snapshot에 남음)
+  checkup_record_id bigint [null]   // 검진 기록 삭제 시 null (ON DELETE SET NULL, 아래 Ref, 이력은 input_snapshot에 남음)
   disease disease_type [not null]          // 대사증후군은 행을 만들지 않음 (checkup_records로 매번 계산)
   method prediction_method [not null, default: 'MODEL']
   score tinyint [null]                     // 모델 확률 ×100 → 0~100 정수. CHECKUP_CRITERIA 행은 null
@@ -151,6 +151,9 @@ Table risk_predictions {
 
   Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음 · 검진 수치가 있으면 한 질환에 MODEL 행 + CHECKUP_CRITERIA 행 2개(11/19 데이터팀), 위험도 추이는 MODEL 행만'
 }
+
+// 인라인 ref는 delete 옵션을 못 달아서 따로 둠
+Ref: risk_predictions.checkup_record_id > checkup_records.id [delete: set null]
 
 Enum recommendation_type {
   DAILY_ACTION        // LLM-001 오늘의 한 가지
