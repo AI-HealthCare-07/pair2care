@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 from tortoise.contrib.test import TruncationTestCase
+from tortoise.transactions import in_transaction
 
 from ai_worker.core import config
 from ai_worker.main import ensure_group, process_message
@@ -128,13 +129,33 @@ class TestRecommendations(TruncationTestCase):
             await db.execute_query("UPDATE meals SET food_id=1 WHERE id=1")
             assert (await client.post("/api/v1/meals/2/recommendation")).status_code == 404
 
-            selector = AsyncMock(return_value=("htn_less_salt", {"input_tokens": 7, "output_tokens": 2}))
+            started = asyncio.Event()
+            finish = asyncio.Event()
+
+            async def choose(*args):
+                started.set()
+                await finish.wait()
+                return "htn_less_salt", {"input_tokens": 7, "output_tokens": 2}
+
+            selector = AsyncMock(side_effect=choose)
             self.enterContext(patch("ai_worker.tasks.llm_recommendation.AnthropicSelector.choose", selector))
             response = await client.post("/api/v1/meals/1/recommendation")
             assert response.status_code == 202
             message_id, fields = await read_task(redis)
             task = TaskMessage.model_validate_json(fields["payload"])
-            await asyncio.gather(run_recommendation(task), run_recommendation(task))
+            async with asyncio.TaskGroup() as tasks:
+                tasks.create_task(run_recommendation(task))
+                try:
+                    async with asyncio.timeout(5):
+                        await started.wait()
+                        await run_recommendation(task)
+                        async with in_transaction(Recommendation._meta.default_connection) as conn:
+                            rec = (
+                                await Recommendation.filter(id=task.target_id).using_db(conn).select_for_update().get()
+                            )
+                            assert rec.status == "PROCESSING"
+                finally:
+                    finish.set()
             await process_message(redis, message_id, fields)
             selector.assert_awaited_once()
             prompt, _ = selector.await_args.args

@@ -1,16 +1,21 @@
 """Redis 추천 작업의 입력 조회, 상태 전환 및 사용량 기록."""
 
+import asyncio
 import json
 import os
+from contextlib import suppress
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from redis.asyncio import Redis
+from redis.exceptions import LockNotOwnedError
 from tortoise import Tortoise
 from tortoise.exceptions import OperationalError
 from tortoise.transactions import in_transaction
 
+from ai_worker.core import config
 from ai_worker.schemas.task import KST, TaskMessage
 from ai_worker.tasks.llm_recommendation import MODEL, ClaudeCallError, RecommendationResult, generate_recommendation
 from app.core.db.databases import TORTOISE_ORM
@@ -43,6 +48,7 @@ async def _gather_facts(rec: Recommendation) -> dict[str, Any]:
     db = Recommendation._meta.db
     try:
         if rec.rec_type == RecommendationType.DAILY_ACTION:
+            # TODO: health_logs 모델이 병합되면 최근 생활 기록도 추천 입력에 포함한다.
             rows = await db.execute_query_dict(
                 """SELECT is_hypertension_diagnosed, is_diabetes_diagnosed
                    FROM health_profiles WHERE user_id=%s ORDER BY created_at DESC, id DESC LIMIT 1""",
@@ -83,39 +89,31 @@ async def run_recommendation(task: TaskMessage) -> None:
         task_id = UUID(task.task_id)
     except ValueError:
         return
+    async with Redis(
+        host=config.REDIS_HOST, port=config.REDIS_PORT, socket_timeout=2, socket_connect_timeout=2
+    ) as redis:
+        # 호출 제한보다 길고 Stream의 재배달 대기(5분)보다 짧게 둔다.
+        lock = redis.lock(f"ai:recommendation:{task.target_id}:{task_id}", timeout=120, blocking=False)
+        if not await lock.acquire():
+            return
+        try:
+            async with asyncio.timeout(90):
+                await _generate_and_save(task, task_id)
+        finally:
+            with suppress(LockNotOwnedError):
+                await lock.release()
+
+
+async def _generate_and_save(task: TaskMessage, task_id: UUID) -> None:
     query = Recommendation.filter(id=task.target_id, user_id=task.user_id, task_id=task_id)
     await query.filter(status=GenerationStatus.PENDING).update(
         status=GenerationStatus.PROCESSING, updated_at=datetime.now(KST)
     )
+    rec = await query.filter(status=GenerationStatus.PROCESSING).first()
+    if rec is None:
+        return
     try:
-        async with in_transaction(Recommendation._meta.default_connection) as conn:
-            rec = await query.using_db(conn).select_for_update().first()
-            if rec is None or rec.status != GenerationStatus.PROCESSING:
-                return
-
-            # 행 잠금은 중복 호출을 막고, 워커가 종료되면 다른 소비자가 이어서 처리한다.
-            result = await generate_recommendation(rec.rec_type.value, await _gather_facts(rec))
-            rec.content = result.content
-            rec.sources = result.sources
-            rec.model = result.model
-            rec.prompt_version = result.prompt_version
-            rec.status = GenerationStatus.COMPLETED
-            await rec.save(using_db=conn)
-            if result.called_model:
-                await LlmUsageLog.create(
-                    using_db=conn,
-                    user_id=rec.user_id,
-                    recommendation_id=rec.id,
-                    meal_id=rec.meal_id,
-                    feature=rec.rec_type.value,
-                    model=MODEL,
-                    input_tokens=result.input_tokens,
-                    output_tokens=result.output_tokens,
-                    cache_creation_tokens=result.cache_creation_tokens,
-                    cache_read_tokens=result.cache_read_tokens,
-                    estimated_cost_usd=_estimated_cost(result),
-                    is_success=True,
-                )
+        result = await generate_recommendation(rec.rec_type.value, await _gather_facts(rec))
     except ClaudeCallError:
         await LlmUsageLog.create(
             user_id=rec.user_id,
@@ -126,6 +124,32 @@ async def run_recommendation(task: TaskMessage) -> None:
             is_success=False,
         )
         raise
+
+    async with in_transaction(Recommendation._meta.default_connection) as conn:
+        rec = await query.using_db(conn).select_for_update().first()
+        if rec is None or rec.status != GenerationStatus.PROCESSING:
+            return
+        rec.content = result.content
+        rec.sources = result.sources
+        rec.model = result.model
+        rec.prompt_version = result.prompt_version
+        rec.status = GenerationStatus.COMPLETED
+        await rec.save(using_db=conn)
+        if result.called_model:
+            await LlmUsageLog.create(
+                using_db=conn,
+                user_id=rec.user_id,
+                recommendation_id=rec.id,
+                meal_id=rec.meal_id,
+                feature=rec.rec_type.value,
+                model=MODEL,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                cache_creation_tokens=result.cache_creation_tokens,
+                cache_read_tokens=result.cache_read_tokens,
+                estimated_cost_usd=_estimated_cost(result),
+                is_success=True,
+            )
 
 
 async def recommendation_status(task: TaskMessage, *, mark_failed: bool = False) -> GenerationStatus | None:
