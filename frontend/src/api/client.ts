@@ -48,3 +48,32 @@ export async function apiFetch(path: string, options: RequestInit = {}, isRetry 
   }
   return res
 }
+
+// 서버 에러를 화면에서 쓰기 좋게 바꾼 것. code·field는 서버가 줄 때만 값이 있음 (api.md 1장)
+export class ApiError extends Error {
+  status: number
+  code: string | null
+  field: string | null      // 3-1 설문 400에서 어느 문항인지 (현지님 S-06이 씀)
+  constructor(status: number, detail: string, code: string | null = null, field: string | null = null) {
+    super(detail)
+    this.status = status
+    this.code = code
+    this.field = field
+  }
+}
+
+export async function toApiError(res: Response): Promise<ApiError> {
+  let detail = '요청을 처리하지 못했어요.'
+  let code: string | null = null
+  let field: string | null = null
+  try {
+    const body = await res.json()
+    // 422는 detail이 배열이라 문자열일 때만 씀 (meals.ts와 같은 규칙)
+    if (typeof body.detail === 'string') detail = body.detail
+    if (typeof body.code === 'string') code = body.code
+    if (typeof body.field === 'string') field = body.field
+  } catch {
+    // 본문이 JSON이 아니면 기본 문구
+  }
+  return new ApiError(res.status, detail, code, field)
+}
