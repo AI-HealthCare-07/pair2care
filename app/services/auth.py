@@ -63,8 +63,11 @@ class AuthService:
             user = await self.user_repo.get_user_by_email(email)
             # 이메일 없음·비밀번호 틀림·탈퇴 계정 모두 같은 401 (어느 쪽인지 알려 주면 가입 이메일이 드러남)
             if not user or not verify_password(data.password, user.hashed_password) or not user.is_active:
-                fails = await redis.incr(fail_key)
-                await redis.expire(fail_key, LOGIN_LOCK_SECONDS)
+                # incr과 expire를 한 번에 (사이에 끊기면 만료 없는 키가 남아 영구 잠금이 됨)
+                async with redis.pipeline(transaction=True) as pipe:
+                    pipe.incr(fail_key)
+                    pipe.expire(fail_key, LOGIN_LOCK_SECONDS)
+                    fails, _ = await pipe.execute()
                 if fails >= LOGIN_FAIL_LIMIT:
                     raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=LOGIN_LOCKED_DETAIL)
                 raise HTTPException(

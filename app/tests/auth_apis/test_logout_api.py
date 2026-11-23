@@ -20,7 +20,11 @@ class TestLogoutAPI(TestCase):
         set_cookie = next(h for h in response.headers.get_list("set-cookie") if h.startswith("refresh_token="))
         assert "Max-Age=0" in set_cookie
 
-    async def test_logout_unauthorized(self):
+    async def test_logout_without_token(self):
+        # access 토큰이 만료된 뒤에도 쿠키를 지울 수 있게 로그인 없이 항상 204
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(LOGOUT_URL)
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        set_cookie = next(h for h in response.headers.get_list("set-cookie") if h.startswith("refresh_token="))
+        assert "Max-Age=0" in set_cookie

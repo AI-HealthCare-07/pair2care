@@ -7,10 +7,8 @@ from fastapi.responses import JSONResponse as Response
 from app.core import config
 from app.core.config import Env
 from app.core.jwt.tokens import AccessToken, RefreshToken
-from app.dependencies.security import get_request_user
 from app.dtos.auth import LoginRequest, LoginResponse, SignUpRequest, SignUpResponse, TokenRefreshResponse
 from app.dtos.users import UserInfoResponse
-from app.models.users import User
 from app.services.auth import AuthService
 from app.services.jwt import JwtService
 
@@ -74,9 +72,11 @@ async def token_refresh(
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(user: Annotated[User, Depends(get_request_user)]) -> EmptyResponse:
-    # access 토큰은 서버에서 막지 않음(블랙리스트 없음, 만료 30분) → refresh 쿠키만 지움 (api.md 2-4, 정할 것 23번)
-    # shortcut: push_endpoint로 웹 푸시 구독 삭제는 push_subscriptions 모델이 생기면 추가
+async def logout() -> EmptyResponse:
+    # 로그인 없이 항상 204: access 토큰(30분)이 만료된 뒤에도 refresh 쿠키를 지울 수 있어야 함 (api.md 2-4)
+    # access 토큰은 서버에서 막지 않음(블랙리스트 없음) → refresh 쿠키만 지움 (정할 것 23번)
+    # shortcut: push_endpoint 구독 삭제는 push_subscriptions 모델이 생기면 추가.
+    #           그때는 토큰이 있으면 그 사용자의 구독만 지움 (인증 없이 지우면 endpoint만 알면 남의 구독도 지워짐)
     resp = EmptyResponse(status_code=status.HTTP_204_NO_CONTENT)
     # 지우려면 set_refresh_cookie와 domain·secure가 같아야 브라우저가 같은 쿠키로 봄
     resp.delete_cookie(
