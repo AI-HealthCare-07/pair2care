@@ -27,7 +27,7 @@
 | 항목 | 규칙 |
 |---|---|
 | 기본 주소 | `/api/v1` (기존 `v1_routers` 그대로) |
-| 인증 | `Authorization: Bearer <access_token>`. 아래 예외를 빼고 모두 로그인 필요 → 없거나 만료되면 401<br>**예외(로그인 없이)**: 회원가입 2-1, 로그인 2-2, 토큰 갱신 2-3(refresh 쿠키로 판단), 비밀번호 찾기 2-7<br>SSE(12-6)는 헤더 대신 1회용 티켓(`?ticket=`)으로 인증 |
+| 인증 | `Authorization: Bearer <access_token>`. 아래 예외를 빼고 모두 로그인 필요 → 없거나 만료되면 401<br>**예외(로그인 없이)**: 회원가입 2-1, 로그인 2-2, 토큰 갱신 2-3(refresh 쿠키로 판단), 로그아웃 2-4, 비밀번호 찾기 2-7<br>SSE(12-6)는 헤더 대신 1회용 티켓(`?ticket=`)으로 인증 |
 | 내 데이터만 | 경로에 `user_id`를 받지 않음. 토큰의 사용자 기준으로만 읽고 씀. 남의 리소스 id로 접근하면 **404** (존재 여부를 숨김) |
 | 필드 이름 | 요청·응답 JSON은 **ERD 컬럼 이름 그대로** snake_case |
 | enum | ERD와 같은 대문자 (`ONBOARDING`, `HYPERTENSION`, `BLOOD_PRESSURE` …) |
@@ -118,8 +118,9 @@ S-04 · REQ-USER-002 · 로그인 필요 없음
 - 프론트는 API가 401을 주면 한 번 갱신하고 원래 요청을 다시 보냄 (갱신도 401이면 로그아웃 처리)
 
 ### 2-4. 로그아웃 `POST /api/v1/auth/logout` → 204
+- **로그인 필요 없음, 항상 204** (access 토큰이 만료된 뒤에도 refresh 쿠키를 지울 수 있게, 11/23 최현영 리뷰)
 - refresh 토큰 쿠키 삭제
-- 요청에 `push_endpoint`가 있으면 그 기기의 웹 푸시 구독도 삭제 (ERD `push_subscriptions` Note "로그아웃 시 그 기기 구독 삭제", 12-5)
+- 요청에 `push_endpoint`가 있으면 그 기기의 웹 푸시 구독도 삭제 (ERD `push_subscriptions` Note "로그아웃 시 그 기기 구독 삭제", 12-5) → 토큰이 있을 때만 그 사용자의 구독을 삭제 (토큰 없이 지우면 endpoint만 알면 남의 구독도 지워짐)
 ```json
 { "push_endpoint": "https://fcm.googleapis.com/fcm/send/..." }
 ```
