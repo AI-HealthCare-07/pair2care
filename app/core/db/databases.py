@@ -4,7 +4,13 @@ from tortoise.contrib.fastapi import register_tortoise
 
 from app.core import config
 
-TORTOISE_APP_MODELS = ["aerich.models", "app.models.users", "app.models.user_consents"]
+TORTOISE_APP_MODELS = [
+    "aerich.models",
+    "app.models.users",
+    "app.models.user_consents",
+    "app.models.health_profiles",
+    "app.models.checkup_records",
+]
 
 TORTOISE_ORM = {
     "connections": {
