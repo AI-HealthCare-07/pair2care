@@ -251,15 +251,21 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 | is_pregnant | 여성: true / false 필수, 남성: null (보내면 400) — **ERD 추가 요청 중** | 필수(여성) | 필수(여성) |
 
 **건너뛰기 처리 (서버가 채움)**
-- 화면에서 건너뛴 문항은 클라이언트가 `null`로 보내고, **비해당 코드(8 / 888)는 서버가 채움**. 클라이언트는 8·888을 직접 보내지 않음
+- 화면에서 건너뛴 문항은 클라이언트가 `null`로 보내고, **비해당 코드(8 / 888)는 서버가 채움**. 건너뛰기로 생기는 8·888은 클라이언트가 직접 보내지 않음 (11/23 7번 결정)
+  - 건너뛰기로 서버가 채움 (프론트는 null): 11·12·13번 → 8, 15번 → 8, 16번 → 888
+  - 사용자가 고른 보기라 **그대로 보냄**: 6·9번 형제자매 없음 `8`, 17·18번 사용한 적 없음 `8`, 11번 전혀 `1`, 15번 지금은 안 피움 `3`
   - `alcohol_ever = 1` → alcohol_frequency·alcohol_amount·binge_frequency = 8
   - `alcohol_frequency = 1` → alcohol_amount·binge_frequency = 8
   - `smoking_lifetime = 3` → smoking_current = 8, cigarettes_per_day = 888
   - `smoking_current = 3` → cigarettes_per_day = 888
-- 건너뛸 조건인데 값을 보냄(예: `alcohol_ever = 1`인데 `alcohol_frequency = 4`) → **400** `"음주 경험이 없으면 음주 빈도는 보낼 수 없어요."`
+- 건너뛸 조건인데 값을 보냄(예: `alcohol_ever = 1`인데 `alcohol_frequency = 4`) → **400** `"음주 경험이 없으면 음주 빈도는 보낼 수 없어요."` (서버가 조용히 덮어쓰지 않음, 프론트 버그를 드러내기 위함)
 - 해당자인데 값이 빠짐(예: `alcohol_frequency = 5`인데 `alcohol_amount = null`) → **400** `"한 번에 마시는 양을 입력해 주세요."`
 - WEEKLY의 `binge_frequency`·`cigarettes_per_day` (survey-mapping.md 재설문 규칙): 직전에 비해당(8 / 888)이었는데 이번 답으로 해당되면(예: 비흡연 → 매일 흡연) 다시 받음 → 빠지면 400. 이번 답으로 비해당이 되면 8 / 888 자동 저장. 그 외엔 직전 값 복사
+  - 프론트는 직전 값을 따로 조회하지 않고, 3-6 `kind=WEEKLY` 응답의 `ask_when_applicable`로 다시 물을지 앎
 - 나이는 이 행의 `created_at`(KST) 기준 만 나이로 계산 (survey-mapping.md)
+
+**공통 규칙**
+- `survey_version`이 서버의 현재 버전과 다르면 **409** `"설문 문항이 바뀌었어요. 다시 불러올게요."` → 프론트가 3-6을 다시 받아 화면을 새로 그림 (11/23 7번 결정)
 
 **WEEKLY 추가 규칙**
 - ONBOARDING 행이 없으면 **409** `"가입 설문을 먼저 해 주세요."`
@@ -319,18 +325,44 @@ S-11 재설문 기본값 채우기, S-27 마이
 - 응답 200: `health_profile` 형태. 남의 것이면 404
 
 ### 3-6. 설문 문항 정의 `GET /api/v1/health-profiles/questions?kind=ONBOARDING`
-- 문항 문구·보기·코드·건너뛰기 조건을 서버가 내려줌 → 문구를 바꿔도 프론트 배포 없이 반영, `survey_version`과 같이 관리
-- **P2** (처음엔 프론트 상수로 시작해도 됨)
+S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
+- 문항 문구·보기·저장값·건너뛰기 조건의 **기준은 서버 상수 한 곳**, 이 API가 그대로 내려줌 → 학습 코드(survey-mapping.md)와 어긋나지 않게
+- 프론트는 같은 JSON 모양 상수로 먼저 시작하고, **S-11(주간 재설문) 구현 전에 이 API fetch로 바꿈** (그전까지 규칙이 두 곳이라 오래 두지 않음)
+- 대응표 코드가 바뀌면 `survey-mapping.md` + 서버 상수를 **같은 PR**에서 고치고 `survey_version`을 올림
+- 담당: 문항 정의 내용 장성은(대응표 담당) / 서버 상수 위치·3-1 검사·건너뛰기 로직은 3-1 구현 담당과 함께
+
+**문항 타입**
+| type | 쓰는 문항 | 추가 필드 |
+|---|---|---|
+| `SINGLE` | 가족력·음주·흡연 등 보기 고르기 | `options: [{label, value}]` |
+| `NUMBER` | 키·몸무게·허리둘레·하루 흡연량 | `min`, `max`, `unit`, `step`, `required` (범위는 3-1 입력 규칙 표와 같은 값) |
+| `BOOLEAN` | 고혈압·당뇨 진단, 임신 | `options`는 `[{"label": "예", "value": true}, {"label": "아니요", "value": false}]` 고정 |
+
+**공통 필드**
+- `skip`: `[{when, fields}]` — 이 문항 값이 `when`이면 `fields` 문항은 화면에서 건너뛰고 null로 보냄 (3-1 건너뛰기 처리와 같은 규칙)
+- `only_for`: `"FEMALE"` 등 성별 조건. 없으면 모두에게 물음 (예: `is_pregnant`)
+- `text_by_gender`: 성별마다 문구가 다를 때 `{ "MALE": "...", "FEMALE": "..." }`. 있으면 `text` 대신 씀 (예: 13번 폭음 남 7잔 / 여 5잔)
+- `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
+- WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음")
+
 ```json
 {
   "survey_version": "2026-11-18",
+  "kind": "WEEKLY",
   "questions": [
+    { "no": 2, "field": "weight_kg", "text": "몸무게를 알려 주세요.",
+      "type": "NUMBER", "min": 25.0, "max": 250.0, "step": 0.1, "unit": "kg", "required": true },
     { "no": 10, "field": "alcohol_ever", "text": "지금까지 술을 마셔 본 적이 있나요?",
       "type": "SINGLE", "options": [{"label": "없다", "value": 1}, {"label": "있다", "value": 2}],
-      "skip": [{"when": 1, "fields": ["alcohol_frequency", "alcohol_amount", "binge_frequency"]}] }
+      "skip": [{"when": 1, "fields": ["alcohol_frequency", "alcohol_amount", "binge_frequency"]}] },
+    { "no": 13, "field": "binge_frequency",
+      "text_by_gender": { "MALE": "한 번에 7잔 이상 마시는 날이 얼마나 되나요?", "FEMALE": "한 번에 5잔 이상 마시는 날이 얼마나 되나요?" },
+      "type": "SINGLE", "options": [{"label": "전혀 없음", "value": 1}, "..."], "ask_when_applicable": true },
+    { "no": 21, "field": "is_pregnant", "text": "지금 임신 중인가요?", "type": "BOOLEAN", "only_for": "FEMALE" }
   ]
 }
 ```
+- 문구·보기는 예시. 실제 내용은 survey-mapping.md 기준으로 장성은이 채움
 
 ---
 
@@ -1260,7 +1292,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 4 | 건강 기록 수정 허용 여부 | ✅ 11/23 확정: 허용, `health_logs.updated_at` 추가 (6-3) | — |
 | 5 | 주간 재설문 하루·주 몇 번까지 | ✅ 11/19 확정: 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | — |
 | 6 | 예측 실패 시 설문 저장 여부 | ✅ 11/19 확정: 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1) | — |
-| 7 | 설문 문항 정의 API(3-6) 할지 | P2. 처음엔 프론트 상수. 11/23 회의에서 재검토로 남김 | 프론트(김지연·여현지) |
+| 7 | 설문 문항 정의 API(3-6) 할지 | ✅ 11/23 확정: 서버 상수 하나가 기준, 3-6이 그대로 내려줌. 프론트는 같은 모양 상수로 시작해 S-11 전에 fetch로 교체. NUMBER·BOOLEAN 타입, `only_for`·`text_by_gender`, WEEKLY `ask_when_applicable`, 버전 다르면 409 | 문항 내용 장성은 / 3-1 구현 담당 / 프론트 |
 | 8 | 대시보드 챌린지 달성률 계산식 | 8-13: Σ min(체크, 개인 목표) ÷ Σ 개인 목표 | 이지희(8장)·최현영(7장) |
 | 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 확정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 가장 최근 검진 1건·1년 이내만, 정상은 그 질환 항목이 모두 있을 때만 (5-1) | — |
 | 10 | 서비스 방향(보건소·보험사 기관 화면)이 채택되면 계정 역할·권한 | 보험사 역할은 API에서 달성 여부만 내려주도록 막음 (화면이 아니라 서버에서) | 전원 |
