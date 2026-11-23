@@ -142,7 +142,7 @@ Table risk_predictions {
   level risk_level [not null]
   factors json [null]                      // 상위 3개 [{"feature": ..., "direction": "UP"|"DOWN"}]
   model_version varchar(50) [null]         // CHECKUP_CRITERIA 행은 null. MLflow 등록 이름:버전, 예: 'diabetes_risk:v1'
-  input_snapshot json [not null]           // 예측 시점의 실제 모델 입력값 박제. CHECKUP_CRITERIA 행은 판정에 쓴 검진 수치 + checked_on (factors는 null, 11/19 장성은 확인)
+  input_snapshot json [not null]           // MODEL 행: inputs(설문 값, 변환 전) + model_inputs(모델에 넣은 값, 변환 후, api.md 5-0). CHECKUP_CRITERIA 행은 판정에 쓴 검진 수치 + checked_on (factors는 null, 11/19 장성은 확인)
   created_at datetime [not null]           // 예측 시각
 
   indexes {

@@ -406,15 +406,28 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 반올림 정수 0~100 |
 | level | `LOW` / `CAUTION` / `HIGH`. 기준값은 학습 후 점수 분포로 정함 (12/4 전) |
-| factors | 상위 3개 `[{"feature": "weight_kg", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
+| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
 | checkup_record_id | null |
-| input_snapshot | 모델에 실제로 넣은 값 (변환 후). 예측 이력·"바뀐 입력값" 비교용 |
+| input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
 
 **입력 변환**
-- 모델 입력 13개: sex, age, 키, 몸무게, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
+- 모델 입력 12개: sex, age, bmi(키·몸무게로 계산), 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
 - 변환은 학습 전처리와 같은 함수를 씀 (학습·서빙 따로 짜지 않음)
-- 키·몸무게를 그대로 넣을지 BMI로 넣을지, 가족력 9(모름)·8(형제 없음) 처리, 음주·흡연 8 처리 → **S2 학습 때 정하고 이 표에 채움** (variables.md 1-5)
+- 변환 규칙 (11/23 확정, 근거: 입력 변환 실험)
+
+| 입력 | 저장값 | 모델 입력 |
+|---|---|---|
+| sex | 1 남 / 2 여 (users.gender에서 변환, 대응표) | 그대로 |
+| age | 만 나이 | 그대로 |
+| 키·몸무게 | cm / kg | bmi = 몸무게 ÷ (키/100)² (키·몸무게는 따로 안 넣음) |
+| 가족력 6개 | 0 / 1 / 9 / 8 | 1만 1, 0·9·8은 0. 두 모델 모두 6개 |
+| alcohol_frequency | 1~6 / 8 | 8 → 1, 숫자 그대로 |
+| alcohol_amount | 1~5 / 8 | 8 → 0, 숫자 그대로 |
+| smoking_current | 1·2·3 / 8 | 1·2 → 1, 3·8 → 0 |
+
+- 원칙: 계수 방향이 진료지침과 반대로 나오면 원인을 확인하고, 데이터 특성(한 시점 조사의 상관관계 등)으로 설명되면 그 변환은 쓰지 않음 (예: 음주 빈도를 범주로 넣으면 금주 시 고혈압 점수가 올라가서 제외)
+- 체중 요인은 factors에 `bmi`로 나옴 (화면 문구 "체중")
 
 ### 5-1. 기준표 판정 (`method = CHECKUP_CRITERIA`)
 검진 수치는 모델 입력에 넣지 않고, 기준표로만 판정
@@ -476,7 +489,7 @@ S-09 상세
 {
   "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
   "factors": [
-    { "feature": "weight_kg", "direction": "UP" },
+    { "feature": "bmi", "direction": "UP" },
     { "feature": "father_diabetes_history", "direction": "UP" },
     { "feature": "alcohol_frequency", "direction": "DOWN" }
   ],
@@ -486,9 +499,9 @@ S-09 상세
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
-- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot`과 비교한 값. "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
-- `factors`의 feature → 화면 문구(예: `weight_kg` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
+- `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
 - 남의 것이면 404
 
