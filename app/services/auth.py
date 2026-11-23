@@ -3,11 +3,13 @@ from pydantic import EmailStr
 from starlette import status
 from tortoise.transactions import in_transaction
 
+from app.core import config
 from app.core.jwt.tokens import AccessToken, RefreshToken
-from app.core.utils.common import normalize_phone_number
 from app.core.utils.security import hash_password, verify_password
-from app.dtos.auth import LoginRequest, SignUpRequest
+from app.dtos.auth import ConsentItem, LoginRequest, SignUpRequest
+from app.models.user_consents import Agreement
 from app.models.users import User
+from app.repositories.user_consent_repository import UserConsentRepository
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
 
@@ -15,30 +17,28 @@ from app.services.jwt import JwtService
 class AuthService:
     def __init__(self):
         self.user_repo = UserRepository()
+        self.consent_repo = UserConsentRepository()
         self.jwt_service = JwtService()
 
     async def signup(self, data: SignUpRequest) -> User:
         # 이메일 중복 체크
         await self.check_email_exists(data.email)
 
-        # 입력받은 휴대폰 번호를 노말라이즈
-        normalized_phone_number = normalize_phone_number(data.phone_number)
+        # 필수 약관 3종 동의·버전 확인 (api.md 2-1)
+        self.check_required_consents(data.consents)
 
-        # 휴대폰 번호 중복 체크
-        await self.check_phone_number_exists(normalized_phone_number)
-
-        # 유저 생성
+        # 회원 + 동의 기록을 한 트랜잭션으로 저장 (동의 없이 가입만 된 계정이 생기지 않게)
         async with in_transaction():
             user = await self.user_repo.create_user(
                 email=data.email,
                 hashed_password=hash_password(data.password),  # 해시화된 비밀번호를 사용
-                name=data.name,
-                phone_number=normalized_phone_number,
+                nickname=data.nickname,
                 gender=data.gender,
-                birthday=data.birth_date,
+                birthday=data.birthday,
             )
+            await self.consent_repo.create_many(user_id=user.id, consents=data.consents)
 
-            return user
+        return user
 
     async def authenticate(self, data: LoginRequest) -> User:
         # 이메일로 사용자 조회
@@ -67,8 +67,10 @@ class AuthService:
 
     async def check_email_exists(self, email: str | EmailStr) -> None:
         if await self.user_repo.exists_by_email(email):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 이메일입니다.")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 가입된 이메일이에요.")
 
-    async def check_phone_number_exists(self, phone_number: str) -> None:
-        if await self.user_repo.exists_by_phone_number(phone_number):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 휴대폰 번호입니다.")
+    @staticmethod
+    def check_required_consents(consents: list[ConsentItem]) -> None:
+        agreed = {c.agreement for c in consents if c.is_agreed and c.version == config.TERMS_VERSION}
+        if agreed != set(Agreement):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="필수 약관에 모두 동의해 주세요.")
