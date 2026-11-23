@@ -1,0 +1,475 @@
+/* frontend/src/components/meal/meal.css
+   식단 화면(S-21~S-23) 공통 스타일. 클래스는 모두 meal- 로 시작해서 다른 화면과 겹치지 않음.
+   색은 index.css의 토큰(--color-*)을 쓰고, 토큰에 없는 색(경고 노랑 등)만 아래 .meal-page 안에 둠.
+   → 다른 화면에서도 쓰게 되면 index.css 토큰으로 옮기는 걸 팀에 제안. */
+
+.meal-page,
+.meal-screen {
+  --meal-track: #e3e6f8;      /* 진행 막대 바탕 */
+  --meal-select-bg: #eef0ff;  /* 선택된 후보·칩 바탕 */
+  --meal-warn-bg: #fff6d6;    /* 의료 안내 박스 */
+  --meal-warn-line: #f1dd90;
+  --meal-warn-text: #6b4a00;
+  --meal-error: #b3261e;
+}
+
+.meal-page {
+  padding: 56px 24px 24px;    /* 위쪽은 Figma의 상단 여백 */
+  color: var(--color-text);
+}
+
+.meal-page__title {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ───── 카드 ───── */
+.meal-card {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.meal-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.meal-card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.meal-card__hint {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+/* ───── 총 열량 ───── */
+.meal-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.meal-total__value {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.meal-total__unit {
+  margin-left: 6px;
+  font-size: 16px;
+  color: var(--color-muted);
+}
+
+.meal-total__ref {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.meal-bar {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: var(--meal-track);
+  overflow: hidden;
+}
+
+.meal-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+/* ───── 끼니 행 ───── */
+.meal-list {
+  margin: 20px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--color-line);
+  list-style: none;
+}
+
+.meal-list > li + li {
+  margin-top: 4px;
+}
+
+.meal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meal-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meal-row__slot {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.meal-row__title {
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.meal-row__side {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.meal-row__kcal {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.meal-row__chevron {
+  margin-left: 4px;
+  font-size: 18px;
+  color: var(--color-muted);
+}
+
+/* ───── 비어 있는 끼니 (점선) ───── */
+.meal-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px dashed var(--color-primary);
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meal-empty__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meal-empty__slot {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.meal-empty__msg {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.meal-empty__add {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* ───── 버튼 ───── */
+
+.meal-empty:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.meal-page button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ───── 상태 문구 ───── */
+.meal-status {
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.meal-status--error {
+  color: var(--meal-error);
+}
+
+.meal-retry {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ───── 의료 안내 (C-01) ───── */
+.meal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--meal-warn-line);
+  border-radius: 12px;
+  background: var(--meal-warn-bg);
+  color: var(--meal-warn-text);
+}
+
+.meal-notice__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meal-notice__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ═════════ S-22·S-23 (하단 탭 없는 전체 화면) ═════════ */
+.meal-screen {
+  max-width: 375px;
+  min-height: 100vh;
+  margin: 0 auto;
+  color: var(--color-text);
+}
+
+.meal-screen__body {
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.meal-screen button:focus-visible,
+.meal-screen input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 사진 */
+.meal-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 327 / 190;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.meal-photo--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #dfe1f4;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* 제목 */
+.meal-section {
+  margin: 28px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.meal-section__desc {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+/* 분석 중·실패 안내 */
+.meal-wait {
+  margin-top: 20px;
+  padding: 18px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.meal-wait__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.meal-wait__desc {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+/* 후보 */
+.meal-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.meal-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meal-candidate.is-selected {
+  padding: 14px 15px; /* 테두리가 2px이 되는 만큼 줄여서 높이 유지 */
+  border: 2px solid var(--color-primary);
+  background: var(--meal-select-bg);
+}
+
+.meal-candidate__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.meal-candidate.is-selected .meal-candidate__name {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.meal-candidate__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.meal-candidate__detail {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+/* 직접 검색 */
+.meal-link {
+  display: block;
+  margin: 16px 0 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.meal-search {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.meal-search__list {
+  max-height: 280px;
+  margin: 12px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.meal-search__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meal-search__name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.meal-search__detail {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.meal-search .meal-retry {
+  display: block;
+  margin: 12px 0 0;
+}
+
+/* 인분 칩 */
+.meal-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 큰 버튼 */
+
+/* 공통 Button 위쪽 간격 */
+.meal-mt-16 { margin-top: 16px; }
+.meal-mt-24 { margin-top: 24px; }

@@ -7,6 +7,8 @@ import HomePage from './pages/HomePage'
 import ChallengesPage from './pages/ChallengesPage'
 import PairsPage from './pages/PairsPage'
 import RecordsPage from './pages/RecordsPage'
+import MealsPage from './pages/MealsPage'
+import MealPickPage from './pages/MealPickPage'
 import MyPage from './pages/MyPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -22,8 +24,10 @@ export const router = createBrowserRouter([
       { path: '/challenges', element: <ChallengesPage /> },
       { path: '/pairs', element: <PairsPage /> },
       { path: '/records', element: <RecordsPage /> },
+      { path: '/records/meals', element: <MealsPage /> },
       { path: '/my', element: <MyPage /> },
     ],
   },
+  { path: '/records/meals/:id', element: <MealPickPage /> },
   { path: '*', element: <NotFoundPage /> },   // 위에 없는 "모든 주소"
 ])
