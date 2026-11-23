@@ -179,8 +179,8 @@ Table recommendations {
   status generation_status [not null, default: 'PENDING']
   content text [null]                              // LLM 답변 본문 (생성 완료 전엔 null)
   sources json [null]                              // RAG 근거 출처 배열 (문서명, URL 등)
-  risk_prediction_id bigint [null, ref: > risk_predictions.id]  // LLM-004 기준 예측
-  meal_id bigint [null, ref: > meals.id]           // LLM-002 기준 식단
+  risk_prediction_id bigint [null, ref: - risk_predictions.id]  // LLM-004 기준 예측
+  meal_id bigint [null, ref: - meals.id]           // LLM-002 기준 식단
   model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
   prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
   retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)

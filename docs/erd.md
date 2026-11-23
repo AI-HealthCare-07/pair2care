@@ -118,6 +118,7 @@ erDiagram
   checkup_records |o--o{ risk_predictions : "입력(선택)"
   users ||--o{ pairs : "초대"
   users |o--o{ pairs : "수락"
+  users ||--o{ challenges : "호스트"
   pairs |o--o{ challenges : "짝꿍 챌린지"
   challenge_templates |o--o{ challenges : "기본 목록"
   challenges ||--o{ challenge_participants : "참여"
