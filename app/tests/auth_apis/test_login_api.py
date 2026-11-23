@@ -1,9 +1,11 @@
 from httpx import ASGITransport, AsyncClient
+from redis.asyncio import Redis
 from starlette import status
 from tortoise.contrib.test import TestCase
 
 from app.core import config
 from app.main import app
+from app.services.auth import LOGIN_FAIL_KEY_PREFIX, LOGIN_LOCK_SECONDS
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
 
 
@@ -84,3 +86,13 @@ class TestLoginAPI(TestCase):
 
         assert ok.status_code == status.HTTP_200_OK
         assert again.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_login_failure_key_has_ttl(self):
+        # 실패 횟수 키에 항상 만료가 걸려 있어야 함 (만료 없는 키가 남으면 영구 잠금)
+        wrong = {"email": "ttl@example.com", "password": "WrongPassword123!"}
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/login", json=wrong)
+
+        async with Redis(host=config.REDIS_HOST, port=config.REDIS_PORT) as redis:
+            ttl = await redis.ttl(f"{LOGIN_FAIL_KEY_PREFIX}ttl@example.com")
+        assert 0 < ttl <= LOGIN_LOCK_SECONDS
