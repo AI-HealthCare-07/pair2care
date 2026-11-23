@@ -35,7 +35,7 @@
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열)<br>**프론트가 종류로 갈라 처리해야 하는 에러에만** `code`를 붙임: `{ "detail": "한국어 메시지", "code": "SURVEY_VERSION_MISMATCH" }` → 프론트는 문구 글자가 아니라 `code`로 분기 (문구는 바뀔 수 있음)<br>구현: `app/core/exceptions.py`의 `AppError` + 전용 핸들러 (`HTTPException(detail={...})`는 `detail`이 한 번 더 감싸져서 쓰지 않음). `code` 목록은 아래 표와 `ErrorCode`를 같이 고침 |
-| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) |
+| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
@@ -252,7 +252,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 
 **건너뛰기 처리 (서버가 채움)**
 - 화면에서 건너뛴 문항은 클라이언트가 `null`로 보내고, **비해당 코드(8 / 888)는 서버가 채움**. 건너뛰기로 생기는 8·888은 클라이언트가 직접 보내지 않음 (11/23 7번 결정)
-  - 건너뛰기로 서버가 채움 (프론트는 null): 11·12·13번 → 8, 15번 → 8, 16번 → 888
+  - 건너뛰기로 서버가 채움 (프론트는 null): 11·12·13번 → 8, 15번 → 8, 16번 → 888. 프론트가 이 8·888을 직접 보내면 모두 보기 범위 밖이라 **422**
   - 사용자가 고른 보기라 **그대로 보냄**: 6·9번 형제자매 없음 `8`, 17·18번 사용한 적 없음 `8`, 11번 전혀 `1`, 15번 지금은 안 피움 `3`
   - `alcohol_ever = 1` → alcohol_frequency·alcohol_amount·binge_frequency = 8
   - `alcohol_frequency = 1` → alcohol_amount·binge_frequency = 8
@@ -261,16 +261,23 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 - 건너뛸 조건인데 값을 보냄(예: `alcohol_ever = 1`인데 `alcohol_frequency = 4`) → **400** `"술을 마셔 본 적이 없으면 음주 횟수는 보낼 수 없어요."` (서버가 조용히 덮어쓰지 않음, 프론트 버그를 드러내기 위함)
 - 해당자인데 값이 빠짐(예: `alcohol_frequency = 5`인데 `alcohol_amount = null`) → **400** `"한 번에 마시는 양을 골라 주세요."`
 - 문항별 전체 문구·검사 순서(형식 422 → 버전·순서 409 → 성별 400 → 문항 번호 순 400, 첫 에러 하나만)는 3-1 구현 PR에서 코드 상수와 같이 정리 (11/23 최현영 목록)
+- **400에는 어느 문항인지 `field`를 같이 줌** → 프론트가 문구를 해석하지 않고 그 문항으로 이동 (11/23 여현지 리뷰)
+  ```json
+  { "detail": "한 번에 마시는 양을 골라 주세요.", "code": "SURVEY_FIELD_INVALID", "field": "alcohol_amount" }
+  ```
+  - 성별 조건(21번) 400도 같은 모양, `field: "is_pregnant"`. `code`·`field`는 1장 `AppError` 규칙으로 내려줌 (3-1 구현 때 `field` 추가)
 - WEEKLY의 `binge_frequency`·`cigarettes_per_day` (survey-mapping.md 재설문 규칙): 직전에 비해당(8 / 888)이었는데 이번 답으로 해당되면(예: 비흡연 → 매일 흡연) 다시 받음 → 빠지면 400. 이번 답으로 비해당이 되면 8 / 888 자동 저장. 그 외엔 직전 값 복사
   - 프론트는 직전 값을 따로 조회하지 않고, 3-6 `kind=WEEKLY` 응답의 `ask_when_applicable`로 다시 물을지 앎
+  - `ask_when_applicable: false`인 문항에 값이 오면: 이번 답으로 해당이면 **무시하고 직전 값 복사**(안 묻는 문항과 같음), 이번 답으로 비해당이면 건너뛰기 위반이라 **400**
 - 나이는 이 행의 `created_at`(KST) 기준 만 나이로 계산 (survey-mapping.md)
 
 **공통 규칙**
-- `survey_version`이 서버의 현재 버전과 다르면 **409** `"설문 문항이 바뀌었어요. 다시 불러올게요."` → 프론트가 3-6을 다시 받아 화면을 새로 그림 (11/23 7번 결정)
+- `survey_version`이 서버의 현재 버전과 다르면 **409** `code: SURVEY_VERSION_MISMATCH` `"설문 문항이 바뀌었어요. 다시 불러올게요."` → 프론트가 3-6을 다시 받아 화면을 새로 그림 (11/23 7번 결정)
+- 409 세 가지는 프론트 처리가 달라서 문구가 아니라 `code`로 가름 (1장 에러 code 목록)
 
 **WEEKLY 추가 규칙**
-- ONBOARDING 행이 없으면 **409** `"가입 설문을 먼저 해 주세요."`
-- ONBOARDING을 두 번 보내면 **409** `"가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."` (수정은 3-4 참고)
+- ONBOARDING 행이 없으면 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` → S-06으로
+- ONBOARDING을 두 번 보내면 **409** `code: ONBOARDING_ALREADY_DONE` → 홈으로 `"가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."` (수정은 3-4 참고)
 - 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표)
 
 **처리 순서 (한 트랜잭션)**
@@ -337,14 +344,17 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 |---|---|---|
 | `SINGLE` | 가족력·음주·흡연 등 보기 고르기 | `options: [{label, value}]` |
 | `NUMBER` | 키·몸무게·허리둘레·하루 흡연량 | `min`, `max`, `unit`, `step`, `required` (범위는 3-1 입력 규칙 표와 같은 값) |
-| `BOOLEAN` | 고혈압·당뇨 진단, 임신 | `options`는 `[{"label": "예", "value": true}, {"label": "아니요", "value": false}]` 고정 |
+| `BOOLEAN` | 고혈압·당뇨 진단, 임신 | `options: [{"label": "예", "value": true}, {"label": "아니요", "value": false}]` — 다른 타입처럼 **서버가 내려줌** (프론트 고정값 없음) |
 
 **공통 필드**
 - `skip`: `[{when, fields}]` — 이 문항 값이 `when`이면 `fields` 문항은 화면에서 건너뛰고 null로 보냄 (3-1 건너뛰기 처리와 같은 규칙)
 - `only_for`: `"FEMALE"` 등 성별 조건. 없으면 모두에게 물음 (예: `is_pregnant`)
-- `text_by_gender`: 성별마다 문구가 다를 때 `{ "MALE": "...", "FEMALE": "..." }`. 있으면 `text` 대신 씀 (예: 13번 폭음 남 7잔 / 여 5잔)
+- `text`: 기본 문구 (모든 문항에 있음). `text_by_gender`: 성별마다 문구가 다를 때 `{ "MALE": "...", "FEMALE": "..." }` → 사용자 성별 값이 있으면 이걸, 없으면 `text`를 씀 (예: 13번 폭음 남 7잔 / 여 5잔)
+- **사용자 성별은 `users.gender`** (`"MALE"` / `"FEMALE"`): 가입 응답(2-1)의 `user.gender` 또는 내 정보 `GET /api/v1/users/me`(2-5)의 `gender`로 받음. `only_for`·`text_by_gender`의 키와 같은 값
 - `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
-- WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음")
+- WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음"). 응답이 사용자마다 달라서(`ask_when_applicable`) **캐시하지 않음**, ONBOARDING은 `survey_version`이 같으면 캐시해도 됨
+- `questions` 배열 순서 = 화면 순서, `options` 배열 순서 = 보기 순서
+- 필수 여부: 11·12·13·15·16번은 상위 답에 따라 묻는 조건부 문항이라 `skip`으로 정해짐 (`required`는 NUMBER에만)
 
 ```json
 {
@@ -357,9 +367,11 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
       "type": "SINGLE", "options": [{"label": "없다", "value": 1}, {"label": "있다", "value": 2}],
       "skip": [{"when": 1, "fields": ["alcohol_frequency", "alcohol_amount", "binge_frequency"]}] },
     { "no": 13, "field": "binge_frequency",
+      "text": "한 번에 많이 마시는 날이 얼마나 되나요?",
       "text_by_gender": { "MALE": "한 번에 7잔 이상 마시는 날이 얼마나 되나요?", "FEMALE": "한 번에 5잔 이상 마시는 날이 얼마나 되나요?" },
       "type": "SINGLE", "options": [{"label": "전혀 없음", "value": 1}, "..."], "ask_when_applicable": true },
-    { "no": 21, "field": "is_pregnant", "text": "지금 임신 중인가요?", "type": "BOOLEAN", "only_for": "FEMALE" }
+    { "no": 21, "field": "is_pregnant", "text": "지금 임신 중인가요?", "type": "BOOLEAN", "only_for": "FEMALE",
+      "options": [{"label": "예", "value": true}, {"label": "아니요", "value": false}] }
   ]
 }
 ```
@@ -1293,7 +1305,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 4 | 건강 기록 수정 허용 여부 | ✅ 11/23 확정: 허용, `health_logs.updated_at` 추가 (6-3) | — |
 | 5 | 주간 재설문 하루·주 몇 번까지 | ✅ 11/19 확정: 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | — |
 | 6 | 예측 실패 시 설문 저장 여부 | ✅ 11/19 확정: 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1) | — |
-| 7 | 설문 문항 정의 API(3-6) 할지 | ✅ 11/23 확정: 서버 상수 하나가 기준, 3-6이 그대로 내려줌. 프론트는 같은 모양 상수로 시작해 S-11 전에 fetch로 교체. NUMBER·BOOLEAN 타입, `only_for`·`text_by_gender`, WEEKLY `ask_when_applicable`, 버전 다르면 409 | 문항 내용 장성은 / 3-1 구현 담당 / 프론트 |
+| 7 | 설문 문항 정의 API(3-6) 할지 | ✅ 11/23 확정 (S-11 fetch 교체는 S-11 담당, S-06 뒤 결정): 서버 상수 하나가 기준, 3-6이 그대로 내려줌. 프론트는 같은 모양 상수로 시작해 S-11 전에 fetch로 교체. NUMBER·BOOLEAN 타입, `only_for`·`text_by_gender`, WEEKLY `ask_when_applicable`, 버전 다르면 409 | 문항 내용 장성은 / 3-1 구현 담당 / 프론트 |
 | 8 | 대시보드 챌린지 달성률 계산식 | 8-13: Σ min(체크, 개인 목표) ÷ Σ 개인 목표 | 이지희(8장)·최현영(7장) |
 | 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 확정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 가장 최근 검진 1건·1년 이내만, 정상은 그 질환 항목이 모두 있을 때만 (5-1) | — |
 | 10 | 서비스 방향(보건소·보험사 기관 화면)이 채택되면 계정 역할·권한 | 보험사 역할은 API에서 달성 여부만 내려주도록 막음 (화면이 아니라 서버에서) | 전원 |
