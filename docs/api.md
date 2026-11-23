@@ -411,7 +411,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 | input_snapshot | `inputs`(설문 값, 변환 전: 키·몸무게·가족력·음주·흡연 등) + `model_inputs`(모델에 넣은 값, 변환 후: bmi 등). `changed_inputs`는 `inputs`로 비교해 몸무게 등 사용자가 입력한 단위로 보여 줌 |
 
 **입력 변환**
-- 모델 입력 13개: sex, age, 키, 몸무게, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
+- 모델 입력 12개: sex, age, bmi(키·몸무게로 계산), 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
 - 변환은 학습 전처리와 같은 함수를 씀 (학습·서빙 따로 짜지 않음)
 - 변환 규칙 (11/23 확정, 근거: 입력 변환 실험)
 
@@ -498,7 +498,7 @@ S-09 상세
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
-- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot`과 비교한 값. "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (변환 전 설문 값, 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
 - `factors`의 feature → 화면 문구(예: `weight_kg` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
