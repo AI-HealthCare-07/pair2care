@@ -258,8 +258,9 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
   - `alcohol_frequency = 1` → alcohol_amount·binge_frequency = 8
   - `smoking_lifetime = 3` → smoking_current = 8, cigarettes_per_day = 888
   - `smoking_current = 3` → cigarettes_per_day = 888
-- 건너뛸 조건인데 값을 보냄(예: `alcohol_ever = 1`인데 `alcohol_frequency = 4`) → **400** `"음주 경험이 없으면 음주 빈도는 보낼 수 없어요."` (서버가 조용히 덮어쓰지 않음, 프론트 버그를 드러내기 위함)
-- 해당자인데 값이 빠짐(예: `alcohol_frequency = 5`인데 `alcohol_amount = null`) → **400** `"한 번에 마시는 양을 입력해 주세요."`
+- 건너뛸 조건인데 값을 보냄(예: `alcohol_ever = 1`인데 `alcohol_frequency = 4`) → **400** `"술을 마셔 본 적이 없으면 음주 횟수는 보낼 수 없어요."` (서버가 조용히 덮어쓰지 않음, 프론트 버그를 드러내기 위함)
+- 해당자인데 값이 빠짐(예: `alcohol_frequency = 5`인데 `alcohol_amount = null`) → **400** `"한 번에 마시는 양을 골라 주세요."`
+- 문항별 전체 문구·검사 순서(형식 422 → 버전·순서 409 → 성별 400 → 문항 번호 순 400, 첫 에러 하나만)는 3-1 구현 PR에서 코드 상수와 같이 정리 (11/23 최현영 목록)
 - WEEKLY의 `binge_frequency`·`cigarettes_per_day` (survey-mapping.md 재설문 규칙): 직전에 비해당(8 / 888)이었는데 이번 답으로 해당되면(예: 비흡연 → 매일 흡연) 다시 받음 → 빠지면 400. 이번 답으로 비해당이 되면 8 / 888 자동 저장. 그 외엔 직전 값 복사
   - 프론트는 직전 값을 따로 조회하지 않고, 3-6 `kind=WEEKLY` 응답의 `ask_when_applicable`로 다시 물을지 앎
 - 나이는 이 행의 `created_at`(KST) 기준 만 나이로 계산 (survey-mapping.md)
@@ -269,7 +270,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 
 **WEEKLY 추가 규칙**
 - ONBOARDING 행이 없으면 **409** `"가입 설문을 먼저 해 주세요."`
-- ONBOARDING을 두 번 보내면 **409** (수정은 3-4 참고)
+- ONBOARDING을 두 번 보내면 **409** `"가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."` (수정은 3-4 참고)
 - 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표)
 
 **처리 순서 (한 트랜잭션)**
