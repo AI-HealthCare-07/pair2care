@@ -93,7 +93,7 @@
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count | LLM-001~005, NFR-002 |
+| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, task_id(UUID, null 가능, 현재 Redis 작업 ID), content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count | LLM-001~005, NFR-002 |
 | `llm_usage_logs` | 기능별 토큰 사용량 | user_id(null 가능), recommendation_id(null 가능), meal_id(null 가능), feature(rec_type 5종 + MEAL_VISION·RAG_EMBEDDING), model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, estimated_cost_usd, is_success | NFR-012 |
 
 ### 알림 — 김지연
