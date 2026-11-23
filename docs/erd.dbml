@@ -436,6 +436,7 @@ Table health_logs {
   measured_at datetime [not null]
   memo varchar(500) [null]
   created_at datetime [not null]
+  updated_at datetime [not null]             // 수정 허용 (api.md 정할 것 4번, 11/23)
 
   indexes {
     (user_id, log_type, measured_at)
