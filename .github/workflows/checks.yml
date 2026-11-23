@@ -57,6 +57,16 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
+      # 로그인 실패 잠금(api.md 2-2)이 Redis에 횟수를 저장해서 테스트에도 필요함
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
