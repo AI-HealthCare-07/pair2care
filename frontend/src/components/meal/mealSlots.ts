@@ -37,9 +37,20 @@ export function formatMonthDay(date: string): string {
   return `${Number(m)}월 ${Number(d)}일`
 }
 
-/** 행을 눌렀을 때 이동할 곳: 음식을 골랐으면 결과(S-23), 아니면 고르기(S-22) */
+/**
+ * S-23(영양 결과, /records/meals/:id/result)이 아직 없음 → false인 동안은 결과 화면 대신
+ * 목록·고르기 화면으로 보냄 (404 방지). S-23 PR에서 true로 바꾸면 결과 화면으로 이동.
+ */
+export const RESULT_PAGE_READY = false
+
+/** 음식을 저장한 직후 이동할 곳: S-23이 있으면 결과, 없으면 목록 */
+export function afterSavePath(mealId: number): string {
+  return RESULT_PAGE_READY ? `/records/meals/${mealId}/result` : '/records/meals'
+}
+
+/** 행을 눌렀을 때 이동할 곳: 음식을 골랐고 S-23이 있으면 결과, 아니면 고르기(S-22, 고른 음식이 선택된 채 열림) */
 export function mealRoute(item: MealListItem): string {
-  return item.status === 'COMPLETED' && item.food
+  return RESULT_PAGE_READY && item.status === 'COMPLETED' && item.food
     ? `/records/meals/${item.id}/result`
     : `/records/meals/${item.id}`
 }

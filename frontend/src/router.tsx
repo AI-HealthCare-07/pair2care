@@ -9,14 +9,7 @@ import PairsPage from './pages/PairsPage'
 import RecordsPage from './pages/RecordsPage'
 import MyPage from './pages/MyPage'
 import NotFoundPage from './pages/NotFoundPage'
-import MealsPage from './pages/MealsPage'
-import MealPickPage from './pages/MealPickPage'
 
-// TabLayout children 안, '/records' 아래에 추가
-{ path: '/records/meals', element: <MealsPage /> },
-
-// TabLayout 밖, '*' 바로 위에 추가
-{ path: '/records/meals/:id', element: <MealPickPage /> },
 
 export const router = createBrowserRouter([
   { path: '/', element: <StartPage /> },

@@ -15,6 +15,7 @@ export default function CandidateCard({ label, detail, selected, onSelect, tag }
       type="button"
       role="radio"
       aria-checked={selected}
+      aria-label={`${label}${tag ? `, ${tag}` : ''}, ${detail}`}
       className={`meal-candidate${selected ? ' is-selected' : ''}`}
       onClick={onSelect}
     >

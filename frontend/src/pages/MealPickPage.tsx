@@ -14,6 +14,7 @@ import MealPhoto from '../components/meal/MealPhoto'
 import MedicalNotice from '../components/meal/MedicalNotice'
 import PortionChips from '../components/meal/PortionChips'
 import { servingText } from '../components/meal/mealFormat'
+import { afterSavePath } from '../components/meal/mealSlots'
 import '../components/meal/meal.css'
 
 /** 화면에서 고른 음식 (후보·직접 검색·이미 저장된 음식 모두 이 모양으로 맞춤) */
@@ -124,7 +125,7 @@ export default function MealPickPage() {
     setActionError(null)
     try {
       await mealsApi.updateMeal(mealId, { food_id: choice.food_id, portion: portion as Portion })
-      navigate(`/records/meals/${mealId}/result`)
+      navigate(afterSavePath(mealId))
     } catch (err) {
       setActionError(err instanceof MealApiError ? err.message : '저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
       if (err instanceof MealApiError && err.status === 409) void load() // 아직 분석 중
