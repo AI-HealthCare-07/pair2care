@@ -405,10 +405,10 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 반올림 정수 0~100 |
 | level | `LOW` / `CAUTION` / `HIGH`. 기준값은 학습 후 점수 분포로 정함 (12/4 전) |
-| factors | 상위 3개 `[{"feature": "weight_kg", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
+| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
 | checkup_record_id | null |
-| input_snapshot | `inputs`(설문 값, 변환 전: 키·몸무게·가족력·음주·흡연 등) + `model_inputs`(모델에 넣은 값, 변환 후: bmi 등). `changed_inputs`는 `inputs`로 비교해 몸무게 등 사용자가 입력한 단위로 보여 줌 |
+| input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
 
 **입력 변환**
 - 모델 입력 12개: sex, age, bmi(키·몸무게로 계산), 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
@@ -498,9 +498,9 @@ S-09 상세
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
-- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (변환 전 설문 값, 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
-- `factors`의 feature → 화면 문구(예: `weight_kg` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
+- `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
 - 남의 것이면 404
 
