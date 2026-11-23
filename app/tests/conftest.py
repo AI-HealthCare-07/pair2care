@@ -6,15 +6,26 @@ from unittest.mock import Mock, patch
 import pytest
 import pytest_asyncio
 from _pytest.fixtures import FixtureRequest
+from redis import Redis
 from tortoise import generate_config
 from tortoise.contrib.test import finalizer, initializer
 
 from app.core import config
 from app.core.db.databases import TORTOISE_APP_MODELS
+from app.services.auth import LOGIN_FAIL_KEY_PREFIX
 
 TEST_BASE_URL = "http://test"
 TEST_DB_LABEL = "models"
 TEST_DB_TZ = "Asia/Seoul"
+
+
+@pytest.fixture(autouse=True)
+def clear_login_failures() -> Generator[None, None]:
+    # 로그인 실패 횟수는 Redis에 10분 남음 → 테스트를 다시 돌려도 잠기지 않게 매 테스트 전에 지움
+    with Redis(host=config.REDIS_HOST, port=config.REDIS_PORT) as redis:
+        for key in redis.scan_iter(f"{LOGIN_FAIL_KEY_PREFIX}*"):
+            redis.delete(key)
+    yield
 
 
 def get_test_db_config() -> dict[str, Any]:

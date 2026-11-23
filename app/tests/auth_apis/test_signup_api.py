@@ -1,9 +1,12 @@
+from unittest.mock import AsyncMock, patch
+
 from httpx import ASGITransport, AsyncClient
 from starlette import status
 from tortoise.contrib.test import TestCase
 
 from app.main import app
 from app.models.user_consents import UserConsent
+from app.services.auth import AuthService
 from app.tests.factories import make_consents, make_signup_data
 
 SIGNUP_URL = "/api/v1/auth/signup"
@@ -29,6 +32,16 @@ class TestSignupAPI(TestCase):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post(SIGNUP_URL, json=make_signup_data("dup@example.com"))
             response = await client.post(SIGNUP_URL, json=make_signup_data("dup@example.com"))
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.json()["detail"] == "이미 가입된 이메일이에요."
+
+    async def test_signup_race_duplicate_email(self):
+        # 동시 가입 재현: 두 요청이 모두 중복 체크를 통과한 상황 → DB unique에서 막혀도 500이 아니라 409
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post(SIGNUP_URL, json=make_signup_data("race@example.com"))
+            with patch.object(AuthService, "check_email_exists", AsyncMock()):
+                response = await client.post(SIGNUP_URL, json=make_signup_data("race@example.com"))
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert response.json()["detail"] == "이미 가입된 이메일이에요."

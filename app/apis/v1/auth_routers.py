@@ -1,13 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, status
+from fastapi import Response as EmptyResponse
 from fastapi.responses import JSONResponse as Response
 
 from app.core import config
 from app.core.config import Env
 from app.core.jwt.tokens import AccessToken, RefreshToken
+from app.dependencies.security import get_request_user
 from app.dtos.auth import LoginRequest, LoginResponse, SignUpRequest, SignUpResponse, TokenRefreshResponse
 from app.dtos.users import UserInfoResponse
+from app.models.users import User
 from app.services.auth import AuthService
 from app.services.jwt import JwtService
 
@@ -21,7 +24,7 @@ def set_refresh_cookie(resp: Response, tokens: dict[str, AccessToken | RefreshTo
         httponly=True,
         secure=True if config.ENV == Env.PROD else False,
         domain=config.COOKIE_DOMAIN or None,
-        expires=tokens["access_token"].payload["exp"],
+        max_age=config.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
     )
 
 
@@ -68,3 +71,18 @@ async def token_refresh(
     return Response(
         content=TokenRefreshResponse(access_token=str(access_token)).model_dump(), status_code=status.HTTP_200_OK
     )
+
+
+@auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(user: Annotated[User, Depends(get_request_user)]) -> EmptyResponse:
+    # access 토큰은 서버에서 막지 않음(블랙리스트 없음, 만료 30분) → refresh 쿠키만 지움 (api.md 2-4, 정할 것 23번)
+    # shortcut: push_endpoint로 웹 푸시 구독 삭제는 push_subscriptions 모델이 생기면 추가
+    resp = EmptyResponse(status_code=status.HTTP_204_NO_CONTENT)
+    # 지우려면 set_refresh_cookie와 domain·secure가 같아야 브라우저가 같은 쿠키로 봄
+    resp.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=True if config.ENV == Env.PROD else False,
+        domain=config.COOKIE_DOMAIN or None,
+    )
+    return resp

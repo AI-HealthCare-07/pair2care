@@ -30,10 +30,13 @@ class Config(BaseSettings):
     DB_CONNECT_TIMEOUT: int = 5
     DB_CONNECTION_POOL_MAXSIZE: int = 10
 
+    REDIS_HOST: str = "localhost"  # compose 컨테이너 안에서는 environment로 redis를 넣어줌
+    REDIS_PORT: int = 6379
+
     COOKIE_DOMAIN: str = "localhost"
 
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
 
