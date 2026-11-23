@@ -268,7 +268,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
   - 성별 조건(21번) 400도 같은 모양, `field: "is_pregnant"`. `code`·`field`는 1장 `AppError` 규칙으로 내려줌 (3-1 구현 때 `field` 추가)
 - WEEKLY의 `binge_frequency`·`cigarettes_per_day` (survey-mapping.md 재설문 규칙): 직전에 비해당(8 / 888)이었는데 이번 답으로 해당되면(예: 비흡연 → 매일 흡연) 다시 받음 → 빠지면 400. 이번 답으로 비해당이 되면 8 / 888 자동 저장. 그 외엔 직전 값 복사
   - 프론트는 직전 값을 따로 조회하지 않고, 3-6 `kind=WEEKLY` 응답의 `ask_when_applicable`로 다시 물을지 앎
-  - `ask_when_applicable: false`인 문항에 값이 오면: 이번 답으로 해당이면 **무시하고 직전 값 복사**(안 묻는 문항과 같음), 이번 답으로 비해당이면 건너뛰기 위반이라 **400**
+  - `ask_when_applicable: false`인 문항에 값이 오면: 이번 답으로 해당이면 **무시하고 직전 값 복사**(안 묻는 문항과 같음), 이번 답으로 비해당이면 건너뛰기 위반이라 **400**. 판단은 요청에 온 플래그가 아니라 **서버가 직전 행으로 다시** 함 (11/23 최현영 리뷰)
 - 나이는 이 행의 `created_at`(KST) 기준 만 나이로 계산 (survey-mapping.md)
 
 **공통 규칙**
@@ -352,6 +352,7 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 - `text`: 기본 문구 (모든 문항에 있음). `text_by_gender`: 성별마다 문구가 다를 때 `{ "MALE": "...", "FEMALE": "..." }` → 사용자 성별 값이 있으면 이걸, 없으면 `text`를 씀 (예: 13번 폭음 남 7잔 / 여 5잔)
 - **사용자 성별은 `users.gender`** (`"MALE"` / `"FEMALE"`): 가입 응답(2-1)의 `user.gender` 또는 내 정보 `GET /api/v1/users/me`(2-5)의 `gender`로 받음. `only_for`·`text_by_gender`의 키와 같은 값
 - `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
+- 가입 설문(ONBOARDING) 없이 `kind=WEEKLY`를 부르면 직전 행이 없어 `ask_when_applicable`을 못 채움 → 3-1과 같은 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` (프론트는 같은 code로 S-06 이동)
 - WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음"). 응답이 사용자마다 달라서(`ask_when_applicable`) **캐시하지 않음**, ONBOARDING은 `survey_version`이 같으면 캐시해도 됨
 - `questions` 배열 순서 = 화면 순서, `options` 배열 순서 = 보기 순서
 - 필수 여부: 11·12·13·15·16번은 상위 답에 따라 묻는 조건부 문항이라 `skip`으로 정해짐 (`required`는 NUMBER에만)
