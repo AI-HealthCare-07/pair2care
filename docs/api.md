@@ -34,7 +34,8 @@
 | 시간 | ISO 8601 + KST 오프셋. datetime `2026-11-19T09:30:00+09:00`, date `2026-11-19`, 하루 중 시각(알림·리마인더·방해 금지) `HH:MM` 24시간제 `19:00` |
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
-| 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열) |
+| 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열)<br>**프론트가 종류로 갈라 처리해야 하는 에러에만** `code`를 붙임: `{ "detail": "한국어 메시지", "code": "SURVEY_VERSION_MISMATCH" }` → 프론트는 문구 글자가 아니라 `code`로 분기 (문구는 바뀔 수 있음)<br>구현: `app/core/exceptions.py`의 `AppError` + 전용 핸들러 (`HTTPException(detail={...})`는 `detail`이 한 번 더 감싸져서 쓰지 않음). `code` 목록은 아래 표와 `ErrorCode`를 같이 고침 |
+| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
