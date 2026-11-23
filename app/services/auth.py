@@ -1,5 +1,6 @@
 from fastapi.exceptions import HTTPException
 from pydantic import EmailStr
+from redis.asyncio import Redis
 from starlette import status
 from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
@@ -13,6 +14,11 @@ from app.models.users import User
 from app.repositories.user_consent_repository import UserConsentRepository
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
+
+LOGIN_FAIL_KEY_PREFIX = "login_fail:"
+LOGIN_FAIL_LIMIT = 5
+LOGIN_LOCK_SECONDS = 10 * 60
+LOGIN_LOCKED_DETAIL = "로그인을 5번 틀려서 10분 뒤에 다시 시도할 수 있어요."
 
 
 class AuthService:
@@ -46,24 +52,26 @@ class AuthService:
         return user
 
     async def authenticate(self, data: LoginRequest) -> User:
-        # 이메일로 사용자 조회
         email = str(data.email)
-        user = await self.user_repo.get_user_by_email(email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="이메일 또는 비밀번호가 올바르지 않습니다."
-            )
+        # 이메일별 실패 횟수 (api.md 2-2). 가입 안 된 이메일도 똑같이 세서 잠금으로 가입 여부를 알 수 없게
+        fail_key = f"{LOGIN_FAIL_KEY_PREFIX}{email.lower()}"
+        # 요청마다 새로 연결 (테스트·워커마다 이벤트 루프가 달라서 전역 커넥션 풀을 쓰지 않음)
+        async with Redis(host=config.REDIS_HOST, port=config.REDIS_PORT) as redis:
+            if int(await redis.get(fail_key) or 0) >= LOGIN_FAIL_LIMIT:
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=LOGIN_LOCKED_DETAIL)
 
-        # 비밀번호 검증
-        if not verify_password(data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="이메일 또는 비밀번호가 올바르지 않습니다."
-            )
+            user = await self.user_repo.get_user_by_email(email)
+            # 이메일 없음·비밀번호 틀림·탈퇴 계정 모두 같은 401 (어느 쪽인지 알려 주면 가입 이메일이 드러남)
+            if not user or not verify_password(data.password, user.hashed_password) or not user.is_active:
+                fails = await redis.incr(fail_key)
+                await redis.expire(fail_key, LOGIN_LOCK_SECONDS)
+                if fails >= LOGIN_FAIL_LIMIT:
+                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=LOGIN_LOCKED_DETAIL)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="이메일 또는 비밀번호가 맞지 않아요."
+                )
 
-        # 활성 사용자 체크
-        if not user.is_active:
-            raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="비활성화된 계정입니다.")
-
+            await redis.delete(fail_key)  # 성공하면 횟수 초기화
         return user
 
     async def login(self, user: User) -> dict[str, AccessToken | RefreshToken]:
