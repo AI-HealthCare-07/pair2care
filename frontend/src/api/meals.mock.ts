@@ -1,8 +1,8 @@
 // frontend/src/api/meals.mock.ts
 // 백엔드가 없을 때 쓰는 가짜 식단 API. meals.ts와 함수 이름·시그니처가 같음.
-// ⚠️ 영양값은 화면 확인용 임시 값입니다. 육개장·잔치국수는 api.md 10장 예시 값,
-//    닭개장은 탄수화물·지방 null(실제와 같음), 나머지는 1인분·kcal·나트륨만 실제 값(1인분 근거 표)이고
-//    탄수화물·당류·단백질·지방은 가짜 숫자입니다.
+// 음식 18행과 영양값은 foods_seed.csv(식약처 식품영양성분DB 1인분 값) 그대로입니다.
+// 닭개장은 간편조리세트 행이라 탄수화물·지방이 null (실제와 같음 → 화면 "정보 없음" 확인용).
+// 식단 기록(5건)·분류 후보 점수는 화면 확인용 가짜입니다.
 
 import {
   MealApiError,
@@ -21,13 +21,13 @@ import {
   type Portion,
   type UpdateMealBody,
 } from './meals'
+import { MOCK_DATE } from './meals.mockDate'
 
 // ─────────────────────────────────────────────
 // 설정 · 유틸
 // ─────────────────────────────────────────────
 
-/** 가짜 데이터가 들어 있는 날짜. 다른 날짜로 listMeals를 부르면 빈 목록 */
-export const MOCK_DATE = '2026-11-19'
+// 가짜 데이터가 들어 있는 날짜는 meals.mockDate.ts (다른 날짜로 listMeals를 부르면 빈 목록)
 
 const NUTRIENT_KEYS = ['kcal', 'carbs_g', 'sugar_g', 'sodium_mg', 'protein_g', 'fat_g'] as const
 const FEEDBACK_KEYS: FeedbackKey[] = ['sodium_mg', 'sugar_g', 'carbs_g']
@@ -49,16 +49,28 @@ export function setMockProfile(p: Partial<typeof mockProfile>) {
 }
 
 // ─────────────────────────────────────────────
-// foods (가짜 6행, id는 api.md 예시와 같음)
+// foods (실제 18행: foods_seed.csv, id는 행 순서 = 서버 foods.id)
 // ─────────────────────────────────────────────
 
 const FOODS: Food[] = [
-  { id: 14, name: '육개장', model_label: '육개장', serving_size: 420, serving_unit: 'G', kcal: 132.0, carbs_g: 6.6, sugar_g: 3.3, sodium_mg: 884.4, protein_g: 16.2, fat_g: 4.4 },
-  { id: 6, name: '육개장_간편조리세트_닭개장', model_label: '닭개장', serving_size: 420, serving_unit: 'G', kcal: 172.2, carbs_g: null, sugar_g: 2.1, sodium_mg: 1503.6, protein_g: 15.0, fat_g: null },
-  { id: 4, name: '김치찌개', model_label: '김치찌개', serving_size: 400, serving_unit: 'G', kcal: 244.0, carbs_g: 12.0, sugar_g: 4.0, sodium_mg: 1964.0, protein_g: 14.0, fat_g: 15.0 },
-  { id: 13, name: '순두부찌개_해물', model_label: '순두부찌개', serving_size: 270, serving_unit: 'ML', kcal: 94.5, carbs_g: 6.0, sugar_g: 1.5, sodium_mg: 515.7, protein_g: 8.0, fat_g: 5.0 },
-  { id: 3, name: '감자탕', model_label: '감자탕', serving_size: 650, serving_unit: 'ML', kcal: 175.5, carbs_g: 10.0, sugar_g: 2.0, sodium_mg: 708.5, protein_g: 12.0, fat_g: 9.0 },
-  { id: 15, name: '잔치국수', model_label: '잔치국수', serving_size: 800, serving_unit: 'ML', kcal: 488.0, carbs_g: 84.6, sugar_g: 6.6, sodium_mg: 2176.0, protein_g: 19.2, fat_g: 6.7 },
+  { id: 1, name: '게장_간장', model_label: '간장게장', serving_size: 250.0, serving_unit: 'G', kcal: 220.0, carbs_g: 11.2, sugar_g: 7.3, sodium_mg: 2275.0, protein_g: 30.6, fat_g: 5.8 },
+  { id: 2, name: '갈비탕', model_label: '갈비탕', serving_size: 797.0, serving_unit: 'ML', kcal: 390.5, carbs_g: 18.0, sugar_g: 1.0, sodium_mg: 518.0, protein_g: 19.9, fat_g: 24.9 },
+  { id: 3, name: '감자탕', model_label: '감자탕', serving_size: 650.0, serving_unit: 'ML', kcal: 175.5, carbs_g: 15.3, sugar_g: 2.3, sodium_mg: 708.5, protein_g: 18.8, fat_g: 4.1 },
+  { id: 4, name: '김치찌개', model_label: '김치찌개', serving_size: 400.0, serving_unit: 'G', kcal: 244.0, carbs_g: 11.9, sugar_g: 3.0, sodium_mg: 1964.0, protein_g: 15.1, fat_g: 15.0 },
+  { id: 5, name: '냉면_물냉면', model_label: '냉면', serving_size: 780.0, serving_unit: 'ML', kcal: 748.8, carbs_g: 142.7, sugar_g: 3.3, sodium_mg: 1536.6, protein_g: 28.4, fat_g: 5.3 },
+  { id: 6, name: '육개장_간편조리세트_닭개장', model_label: '닭개장', serving_size: 420.0, serving_unit: 'G', kcal: 172.2, carbs_g: null, sugar_g: 2.9, sodium_mg: 1503.6, protein_g: 2.5, fat_g: null },
+  { id: 7, name: '닭볶음탕', model_label: '닭볶음탕', serving_size: 300.0, serving_unit: 'G', kcal: 333.0, carbs_g: 25.6, sugar_g: 1.3, sodium_mg: 1128.0, protein_g: 35.7, fat_g: 9.7 },
+  { id: 8, name: '된장찌개', model_label: '된장찌개', serving_size: 380.0, serving_unit: 'G', kcal: 174.8, carbs_g: 16.9, sugar_g: 0.0, sodium_mg: 1208.4, protein_g: 12.8, fat_g: 6.2 },
+  { id: 9, name: '떡만두국', model_label: '떡만두국', serving_size: 700.0, serving_unit: 'G', kcal: 623.0, carbs_g: 110.7, sugar_g: 0.1, sodium_mg: 1981.0, protein_g: 20.1, fat_g: 11.3 },
+  { id: 10, name: '삼계탕', model_label: '삼계탕', serving_size: 900.0, serving_unit: 'ML', kcal: 792.0, carbs_g: 50.8, sugar_g: 4.3, sodium_mg: 522.0, protein_g: 66.8, fat_g: 33.8 },
+  { id: 11, name: '설렁탕', model_label: '설렁탕', serving_size: 550.0, serving_unit: 'ML', kcal: 203.5, carbs_g: 22.4, sugar_g: 0.7, sodium_mg: 731.5, protein_g: 11.6, fat_g: 6.8 },
+  { id: 12, name: '수제비', model_label: '수제비', serving_size: 650.0, serving_unit: 'G', kcal: 377.0, carbs_g: 72.0, sugar_g: 0.0, sodium_mg: 923.0, protein_g: 15.0, fat_g: 3.4 },
+  { id: 13, name: '김치순두부_해물', model_label: '순두부찌개', serving_size: 270.0, serving_unit: 'ML', kcal: 94.5, carbs_g: 4.5, sugar_g: 1.9, sodium_mg: 515.7, protein_g: 10.8, fat_g: 3.7 },
+  { id: 14, name: '육개장', model_label: '육개장', serving_size: 420.0, serving_unit: 'G', kcal: 126.0, carbs_g: 6.3, sugar_g: 3.2, sodium_mg: 844.2, protein_g: 15.5, fat_g: 4.2 },
+  { id: 15, name: '잔치국수', model_label: '잔치국수', serving_size: 800.0, serving_unit: 'ML', kcal: 488.0, carbs_g: 84.6, sugar_g: 6.6, sodium_mg: 2176.0, protein_g: 19.2, fat_g: 6.7 },
+  { id: 16, name: '짬뽕', model_label: '짬뽕', serving_size: 1000.0, serving_unit: 'ML', kcal: 860.0, carbs_g: 149.2, sugar_g: 9.6, sodium_mg: 1950.0, protein_g: 43.0, fat_g: 12.9 },
+  { id: 17, name: '칼국수', model_label: '칼국수', serving_size: 514.8, serving_unit: 'ML', kcal: 499.4, carbs_g: 103.1, sugar_g: 1.1, sodium_mg: 947.2, protein_g: 13.9, fat_g: 1.5 },
+  { id: 18, name: '콩나물국', model_label: '콩나물국', serving_size: 250.0, serving_unit: 'ML', kcal: 12.5, carbs_g: 1.2, sugar_g: 0.2, sodium_mg: 230.0, protein_g: 1.8, fat_g: 0.4 },
 ]
 
 const CANDIDATE_ORDER = [14, 6, 4, 13, 3] // 육개장 후보 5개 (api.md 10-4 예시)
