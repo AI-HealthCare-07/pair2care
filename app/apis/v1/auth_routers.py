@@ -21,7 +21,7 @@ def set_refresh_cookie(resp: Response, tokens: dict[str, AccessToken | RefreshTo
         httponly=True,
         secure=True if config.ENV == Env.PROD else False,
         domain=config.COOKIE_DOMAIN or None,
-        expires=tokens["access_token"].payload["exp"],
+        max_age=config.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
     )
 
 
