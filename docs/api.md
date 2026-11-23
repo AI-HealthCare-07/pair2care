@@ -204,7 +204,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 ```json
 {
   "kind": "ONBOARDING",
-  "survey_version": "2026-11-18",
+  "survey_version": "v1.0",
   "height_cm": 172.5,
   "weight_kg": 78.2,
   "waist_cm": null,
@@ -234,7 +234,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 | 필드 | 허용 값 | ONBOARDING | WEEKLY |
 |---|---|---|---|
 | height_cm | 100.0~230.0 | 필수 | 보내지 않음 → 직전 값 복사 |
-| weight_kg | 25.0~250.0 | 필수 | 필수 |
+| weight_kg | 25.0~300.0 (일일 기록 체중과 같게, 11/23) | 필수 | 필수 |
 | waist_cm | 40.0~200.0 또는 null | 선택 | 선택 (**복사 안 함**, 안 보내면 null) |
 | father/mother_*_history | 1 / 0 / 9 | 필수 | 보내지 않음 → 복사 |
 | sibling_*_history | 1 / 0 / 9 / 8 | 필수 | 보내지 않음 → 복사 |
@@ -248,7 +248,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 | heated_tobacco | 8 / 1 / 2 / 3 | 필수 | 보내지 않음 → 복사 |
 | liquid_ecig | 8 / 1 / 2 | 필수 | 보내지 않음 → 복사 |
 | is_hypertension_diagnosed / is_diabetes_diagnosed | true / false | 필수 | 필수 |
-| is_pregnant | 여성: true / false 필수, 남성: null (보내면 400) — **ERD 추가 요청 중** | 필수(여성) | 필수(여성) |
+| is_pregnant | 여성: true / false 필수, 남성: null (보내면 400) | 필수(여성) | 필수(여성) |
 
 **건너뛰기 처리 (서버가 채움)**
 - 화면에서 건너뛴 문항은 클라이언트가 `null`로 보내고, **비해당 코드(8 / 888)는 서버가 채움**. 건너뛰기로 생기는 8·888은 클라이언트가 직접 보내지 않음 (11/23 7번 결정)
@@ -286,7 +286,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
   "health_profile": {
     "id": 31,
     "kind": "ONBOARDING",
-    "survey_version": "2026-11-18",
+    "survey_version": "v1.0",
     "height_cm": 172.5,
     "weight_kg": 78.2,
     "waist_cm": null,
@@ -328,7 +328,7 @@ S-11 재설문 기본값 채우기, S-27 마이
 S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 - 문항 문구·보기·저장값·건너뛰기 조건의 **기준은 서버 상수 한 곳**, 이 API가 그대로 내려줌 → 학습 코드(survey-mapping.md)와 어긋나지 않게
 - 프론트는 같은 JSON 모양 상수로 먼저 시작하고, **S-11(주간 재설문) 구현 전에 이 API fetch로 바꿈** (그전까지 규칙이 두 곳이라 오래 두지 않음)
-- 대응표 코드가 바뀌면 `survey-mapping.md` + 서버 상수를 **같은 PR**에서 고치고 `survey_version`을 올림
+- 대응표 코드가 바뀌면 `survey-mapping.md` + 서버 상수를 **같은 PR**에서 고치고 `survey_version`을 올림 (형식은 ERD와 같은 `v1.0` → `v1.1`, 409 비교는 문자열 그대로)
 - 담당: 문항 정의 내용 장성은(대응표 담당) / 서버 상수 위치·3-1 검사·건너뛰기 로직은 3-1 구현 담당과 함께
 
 **문항 타입**
@@ -347,11 +347,11 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 
 ```json
 {
-  "survey_version": "2026-11-18",
+  "survey_version": "v1.0",
   "kind": "WEEKLY",
   "questions": [
     { "no": 2, "field": "weight_kg", "text": "몸무게를 알려 주세요.",
-      "type": "NUMBER", "min": 25.0, "max": 250.0, "step": 0.1, "unit": "kg", "required": true },
+      "type": "NUMBER", "min": 25.0, "max": 300.0, "step": 0.1, "unit": "kg", "required": true },
     { "no": 10, "field": "alcohol_ever", "text": "지금까지 술을 마셔 본 적이 있나요?",
       "type": "SINGLE", "options": [{"label": "없다", "value": 1}, {"label": "있다", "value": 2}],
       "skip": [{"when": 1, "fields": ["alcohol_frequency", "alcohol_amount", "binge_frequency"]}] },
