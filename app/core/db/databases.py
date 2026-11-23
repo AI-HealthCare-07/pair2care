@@ -10,6 +10,8 @@ TORTOISE_APP_MODELS = [
     "app.models.user_consents",
     "app.models.health_profiles",
     "app.models.checkup_records",
+    "app.models.recommendations",
+    "app.models.llm_usage_logs",
 ]
 
 TORTOISE_ORM = {

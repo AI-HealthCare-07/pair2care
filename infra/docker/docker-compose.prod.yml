@@ -49,6 +49,8 @@ services:
     env_file: .env
     environment:
       REDIS_HOST: redis  # 컨테이너 안에서는 localhost가 아니라 redis 컨테이너 이름으로 접속
+      REDIS_PORT: 6379
+      DB_HOST: mysql
     volumes:
       - static_volume:/app/templates
       - media_volume:/app/media
@@ -70,6 +72,8 @@ services:
     env_file: .env
     environment:
       REDIS_HOST: redis  # 컨테이너 안에서는 localhost가 아니라 redis 컨테이너 이름으로 접속
+      REDIS_PORT: 6379
+      DB_HOST: mysql
     restart: always
     mem_limit: 4G
     networks:

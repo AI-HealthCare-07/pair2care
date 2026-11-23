@@ -74,6 +74,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
       mysql:
         image: mysql:8.0
         env:
@@ -114,6 +123,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --group app --frozen
 
+      - name: Apply Aerich migrations
+        run: uv run --group app aerich upgrade
+
       - name: Check if tests exist
         id: check_tests
         # tests 폴더나 test_*.py 파일이 있는지 확인
@@ -127,5 +139,5 @@ jobs:
       - name: Run Tests with Coverage
         if: steps.check_tests.outputs.has_tests == 'true'
         run: |
-          uv run coverage run -m pytest app
+          uv run coverage run -m pytest app ai_worker/tests
           uv run coverage report -m
