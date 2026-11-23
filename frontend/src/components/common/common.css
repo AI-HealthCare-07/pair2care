@@ -2,10 +2,9 @@
    공통 컴포넌트(Button·Chip·TopBar·Input·ChallengeRow) 스타일. 클래스는 모두 ui- 로 시작.
    수치는 Figma 컴포넌트 시트 기준: Button 56px · Input 56px · Chip 48px · TopBar 56px · 화면 좌우 여백 24px.
    (시트의 '반경 5px·패딩 16px'은 변형 묶음 프레임의 기본값이라 쓰지 않음)
-   모서리: Button 14px · Chip 24px / 버튼 좌우 패딩 24px / Accent 색 #5B5BE8(color/accent)
-   index.css 토큰에 --color-accent: #5b5be8; --color-surface: #ffffff; 추가를 제안 (아래 var 기본값과 같은 값) */
-   색은 index.css 토큰(--color-*)을 쓰고, 토큰에 없는 연한 파랑 등은 var(--x, 기본값)로 둠.
-   → 팀에서 토큰으로 정하면 index.css에 추가하고 기본값만 지우면 됨. */
+   모서리: Button 14px · Chip 24px · Input 12px / 버튼 좌우 패딩 24px
+   색: index.css 토큰(--color-*) 사용. --color-accent(#5B5BE8)·--color-surface(#FFFFFF)는 index.css에 있음.
+   토큰에 없는 연한 파랑·오류 색은 var(--x, 기본값)로 둠. */
 
 /* ───── Button ───── */
 .ui-btn {
@@ -24,10 +23,10 @@
 
 .ui-btn--primary { border: 0; background: var(--color-primary); color: #fff; }
 .ui-btn--secondary { border: 1.5px solid var(--color-primary); background: #fff; color: var(--color-primary); }
-.ui-btn--accent { border: 0; background: var(--color-accent, #5b5be8); color: #fff; } /* 짝꿍 관련 */
+.ui-btn--accent { border: 0; background: var(--color-accent); color: #fff; } /* 짝꿍 관련 */
 .ui-btn--ghost { border: 0; background: none; color: var(--color-muted); }
 
-.ui-btn:disabled { opacity: 0.5; cursor: default; }
+.ui-btn:disabled { opacity: 0.4; cursor: default; } /* 비활성 투명도 40% */
 
 /* ───── Chip ───── */
 .ui-chip {
@@ -65,7 +64,7 @@
   box-sizing: content-box; /* 높이 56px은 그대로 두고, 노치 영역만큼 위로 늘어남 */
   height: 56px;
   padding: env(safe-area-inset-top, 0px) 12px 0;
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
   color: var(--color-text);
 }
 
@@ -100,17 +99,18 @@
   width: 100%;
   height: 56px; /* 시트: 라벨 + 56px 입력칸, 간격 8px */
   padding: 0 16px;
-  border: 1px solid var(--color-line);
-  border-radius: 10px;
+  border: 1.5px solid var(--color-line);
+  border-radius: 12px;
   background: #fff;
   color: var(--color-text);
   font: inherit;
-  font-size: 16px; /* 16px 미만이면 iOS에서 입력 때 화면이 확대됨 */
+  font-size: 18px; /* 16px 이상이라 iOS 입력 확대 없음 */
+  line-height: 27px;
 }
 
-.ui-field__input::placeholder { color: var(--color-muted); opacity: 0.7; }
+.ui-field__input::placeholder { color: var(--color-muted); }
 .ui-field__input.has-error { border-color: var(--ui-error, #b3261e); }
-.ui-field__note { margin: 6px 0 0; font-size: 13px; color: var(--color-muted); }
+.ui-field__note { margin: 6px 0 0; font-size: 15px; line-height: 22px; color: var(--color-muted); }
 .ui-field__note.is-error { color: var(--ui-error, #b3261e); }
 
 /* ───── ChallengeRow ───── */
