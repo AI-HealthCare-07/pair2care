@@ -193,7 +193,7 @@ Table recommendations {
     (user_id, rec_type, target_on)                 // 조회용, 유니크 아님
   }
 
-  Note: 'REQ-LLM-001~005, NFR-002 · 대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개(유니크) · 나머지는 하루 1번(API에서 검사) · 화면은 저장본 표시 · 에러 메시지는 저장하지 않음'
+  Note: 'REQ-LLM-001~005, NFR-002 · 대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개(유니크) · 나머지는 하루 1번(API에서 검사) · 화면은 저장본 표시 · 에러 메시지는 저장하지 않음 · FAILED 후 재시도는 새 행을 만들지 않고 같은 행을 PENDING으로 되돌려 갱신(retry_count + 1, 1:1 유지)'
 }
 
 Enum llm_feature {
