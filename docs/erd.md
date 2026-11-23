@@ -7,6 +7,8 @@
 
 ![ERD 전체 (11/18 기준)](images/erd.png)
 
+> 그림은 11/18 기준이라 지금 컬럼과 다를 수 있음. 최신 컬럼은 [erd.dbml](erd.dbml)이 기준
+
 ## 1. 공통 규칙
 - 테이블명은 snake_case 복수형 (`users`, `health_logs`)
 - PK는 `id` (BigInt), FK는 `<대상>_id` (예: `user_id`)
@@ -24,15 +26,15 @@
 ### 회원·건강 프로필 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday | USER-001~004 |
+| `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday, quiet_start·quiet_end(방해 금지 시간, null이면 안 씀), is_active, is_admin, last_login | USER-001~004, NOTI-001 |
 | `user_consents` | 약관·개인정보·민감정보 동의 기록. 동의·철회할 때마다 행을 쌓고, 현재 상태는 종류별 최신 행 | user_id, agreement(TERMS/PRIVACY/SENSITIVE_HEALTH), version, is_agreed, created_at | USER-005 |
 | `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, kind, 신체·가족력·음주·흡연·진단 여부 20문항 (코드는 `survey-mapping.md`), is_pregnant(여성만, 예면 예측 안 함), created_at. 재설문에서 안 묻는 항목은 직전 값 복사(허리둘레는 빈칸), 상위 답이 바뀌면 하위 문항만 다시 물음 | PROF-001, PRED-004 |
-| `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic, diastolic, fasting_glucose, waist_cm, triglyceride, hdl_cholesterol, hba1c(선택), checked_on, source(manual/ocr) | PROF-002, PROF-003 |
+| `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic_bp, diastolic_bp, fasting_glucose, waist_cm, triglyceride, hdl_cholesterol, hba1c(선택), checked_on, source(MANUAL/OCR) | PROF-002, PROF-003 |
 
 ### 예측 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease(HYPERTENSION/DIABETES), method(MODEL/CHECKUP_CRITERIA), score(0~100 정수, 기준표 행은 null), level(LOW/CAUTION/HIGH), factors(JSON 상위 3개), model_version(`diabetes_risk:v1`, 기준표 행은 null) | PRED-001~004, DASH-003 |
+| `risk_predictions` | 위험도 계산 결과. 추이 그래프의 원천 | user_id, health_profile_id, checkup_record_id(null 가능), disease(HYPERTENSION/DIABETES), method(MODEL/CHECKUP_CRITERIA), score(0~100 정수, 기준표 행은 null), level(LOW/CAUTION/HIGH), factors(JSON 상위 3개), model_version(`diabetes_risk:v1`, 기준표 행은 null), input_snapshot(JSON, 예측 시점 입력값) | PRED-001~004, DASH-003 |
 
 ### 챌린지·짝꿍 — 이지희
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
@@ -91,16 +93,16 @@
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 | user_id, rec_type(daily/menu/weather/explain/weekly), target_date, content, sources(JSON), status, model | LLM-001~005, NFR-002 |
-| `llm_usage_logs` | 기능별 토큰 사용량 | user_id(null 가능), feature, model, input_tokens, output_tokens, cache_read_tokens | NFR-012 |
+| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count | LLM-001~005, NFR-002 |
+| `llm_usage_logs` | 기능별 토큰 사용량 | user_id(null 가능), recommendation_id(null 가능), meal_id(null 가능), feature(rec_type 5종 + MEAL_VISION·RAG_EMBEDDING), model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, estimated_cost_usd, is_success | NFR-012 |
 
 ### 알림 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `notification_settings` | 알림 종류별 켜기·요일·시간, 방해 금지 시간 | user_id, noti_type, is_enabled, days(JSON), notify_at, quiet_start, quiet_end | NOTI-001 |
-| `push_subscriptions` | 웹 푸시 구독 정보 (기기마다 1행) | user_id, endpoint, p256dh, auth, user_agent | NOTI-003 |
-| `custom_reminders` | 사용자가 직접 만든 리마인더 (영양제·혈압 재기 등). 약 정보는 저장 안 함, `title`은 짝꿍에게 비공개 | user_id, title, days(JSON), remind_at, is_enabled | NOTI-009 |
-| `notifications` | 보낸 알림 기록 (앱 안 알림 목록·읽음 표시) | user_id, noti_type, title, body, link(바로 이동할 화면), is_read, sent_at | NOTI-002, NOTI-004~007 |
+| `notification_settings` | 알림 종류별 켜기·요일·시간. 방해 금지 시간은 `users`에 둠 | user_id, noti_type, is_enabled, days(쉼표 구분 문자열, API는 배열), notify_at ((user_id, noti_type) 유니크) | NOTI-001 |
+| `push_subscriptions` | 웹 푸시 구독 정보 (기기마다 1행) | user_id, endpoint(unique), p256dh, auth, user_agent, last_used_at | NOTI-003 |
+| `custom_reminders` | 사용자가 직접 만든 리마인더 (영양제·혈압 재기 등). 약 정보는 저장 안 함, `title`은 짝꿍에게 비공개 | user_id, title, days(쉼표 구분 문자열, API는 배열), remind_at, is_enabled | NOTI-009 |
+| `notifications` | 보낸 알림 기록 (앱 안 알림 목록·읽음 표시) | user_id, noti_type, title, body, link(바로 이동할 화면), is_read, read_at, is_push_sent, created_at(보낸 시각) | NOTI-002, NOTI-004~007 |
 
 > 총 20개 (김지연 11 · 이지희 9, 김지연은 공통 규칙·합치기 추가). 비동기 작업 상태는 별도 테이블 없이 `meals.status`, `recommendations.status`로 관리하는 안
 
@@ -115,18 +117,26 @@ erDiagram
   health_profiles ||--o{ risk_predictions : "입력"
   checkup_records |o--o{ risk_predictions : "입력(선택)"
   users ||--o{ pairs : "초대"
+  users |o--o{ pairs : "수락"
+  users ||--o{ challenges : "호스트"
   pairs |o--o{ challenges : "짝꿍 챌린지"
   challenge_templates |o--o{ challenges : "기본 목록"
   challenges ||--o{ challenge_participants : "참여"
   users ||--o{ challenge_participants : "참여"
   challenges ||--o{ challenge_checks : "완료"
   users ||--o{ challenge_checks : "완료"
-  users ||--o{ cheers : "응원"
+  users ||--o{ cheers : "보낸 응원"
+  users ||--o{ cheers : "받은 응원"
+  challenges |o--o{ cheers : "응원한 챌린지"
   users ||--o{ health_logs : "기록"
   users ||--o{ meals : "식단"
   foods |o--o{ meals : "선택한 음식"
   users ||--o{ recommendations : "LLM 추천"
+  risk_predictions |o--o| recommendations : "요인 설명"
+  meals |o--o| recommendations : "대체 메뉴"
   users |o--o{ llm_usage_logs : "사용량"
+  recommendations |o--o{ llm_usage_logs : "호출"
+  meals |o--o{ llm_usage_logs : "사진 분석"
   users ||--o{ notification_settings : "설정"
   users ||--o{ push_subscriptions : "구독"
   users ||--o{ custom_reminders : "직접 리마인더"

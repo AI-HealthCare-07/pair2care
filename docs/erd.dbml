@@ -1,6 +1,6 @@
 // Pair 2 Care ERD (DBML) — dbdiagram.io에 통째로 붙여넣으면 그림으로 보임
 // 뼈대: PK·FK·created_at만 넣어 둠. 나머지 컬럼은 담당자가 채움 (목록·후보 컬럼은 docs/erd.md)
-// 타입 표기: bigint, varchar(n), int, decimal(5,1), date, datetime, bool, json, enum
+// 타입 표기: bigint, int, smallint, tinyint, varchar(n), text, decimal(5,1), date, time, datetime, bool, json, enum
 // 담당: 김지연 = 회원·프로필·예측·LLM·알림 / 이지희 = 챌린지·짝꿍·건강 기록·식단
 
 Project pair2care {
@@ -135,7 +135,7 @@ Table risk_predictions {
   id bigint [pk, increment]
   user_id bigint [not null, ref: > users.id]
   health_profile_id bigint [not null, ref: > health_profiles.id]
-  checkup_record_id bigint [null, ref: > checkup_records.id]   // 검진 기록 삭제 시 null (ON DELETE SET NULL, 이력은 input_snapshot에 남음)
+  checkup_record_id bigint [null]   // 검진 기록 삭제 시 null (ON DELETE SET NULL, 아래 Ref, 이력은 input_snapshot에 남음)
   disease disease_type [not null]          // 대사증후군은 행을 만들지 않음 (checkup_records로 매번 계산)
   method prediction_method [not null, default: 'MODEL']
   score tinyint [null]                     // 모델 확률 ×100 → 0~100 정수. CHECKUP_CRITERIA 행은 null
@@ -151,6 +151,9 @@ Table risk_predictions {
 
   Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음 · 검진 수치가 있으면 한 질환에 MODEL 행 + CHECKUP_CRITERIA 행 2개(11/19 데이터팀), 위험도 추이는 MODEL 행만'
 }
+
+// 인라인 ref는 delete 옵션을 못 달아서 따로 둠
+Ref: risk_predictions.checkup_record_id > checkup_records.id [delete: set null]
 
 Enum recommendation_type {
   DAILY_ACTION        // LLM-001 오늘의 한 가지
@@ -176,8 +179,8 @@ Table recommendations {
   status generation_status [not null, default: 'PENDING']
   content text [null]                              // LLM 답변 본문 (생성 완료 전엔 null)
   sources json [null]                              // RAG 근거 출처 배열 (문서명, URL 등)
-  risk_prediction_id bigint [null, ref: > risk_predictions.id]  // LLM-004 기준 예측
-  meal_id bigint [null, ref: > meals.id]           // LLM-002 기준 식단
+  risk_prediction_id bigint [null, ref: - risk_predictions.id]  // LLM-004 기준 예측
+  meal_id bigint [null, ref: - meals.id]           // LLM-002 기준 식단
   model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
   prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
   retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)
@@ -190,7 +193,7 @@ Table recommendations {
     (user_id, rec_type, target_on)                 // 조회용, 유니크 아님
   }
 
-  Note: 'REQ-LLM-001~005, NFR-002 · 대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개(유니크) · 나머지는 하루 1번(API에서 검사) · 화면은 저장본 표시 · 에러 메시지는 저장하지 않음'
+  Note: 'REQ-LLM-001~005, NFR-002 · 대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개(유니크) · 나머지는 하루 1번(API에서 검사) · 화면은 저장본 표시 · 에러 메시지는 저장하지 않음 · FAILED 후 재시도는 새 행을 만들지 않고 같은 행을 PENDING으로 되돌려 갱신(retry_count + 1, 1:1 유지)'
 }
 
 Enum llm_feature {
