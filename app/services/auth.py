@@ -1,6 +1,7 @@
 from fastapi.exceptions import HTTPException
 from pydantic import EmailStr
 from starlette import status
+from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
 
 from app.core import config
@@ -28,15 +29,19 @@ class AuthService:
         self.check_required_consents(data.consents)
 
         # 회원 + 동의 기록을 한 트랜잭션으로 저장 (동의 없이 가입만 된 계정이 생기지 않게)
-        async with in_transaction():
-            user = await self.user_repo.create_user(
-                email=data.email,
-                hashed_password=hash_password(data.password),  # 해시화된 비밀번호를 사용
-                nickname=data.nickname,
-                gender=data.gender,
-                birthday=data.birthday,
-            )
-            await self.consent_repo.create_many(user_id=user.id, consents=data.consents)
+        # 같은 이메일로 동시에 가입하면 둘 다 위 중복 체크를 통과할 수 있음 → DB unique 위반을 409로
+        try:
+            async with in_transaction():
+                user = await self.user_repo.create_user(
+                    email=data.email,
+                    hashed_password=hash_password(data.password),  # 해시화된 비밀번호를 사용
+                    nickname=data.nickname,
+                    gender=data.gender,
+                    birthday=data.birthday,
+                )
+                await self.consent_repo.create_many(user_id=user.id, consents=data.consents)
+        except IntegrityError:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 가입된 이메일이에요.") from None
 
         return user
 
