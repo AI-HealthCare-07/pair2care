@@ -1,8 +1,5 @@
 // frontend/src/api/meals.ts
 // api.md 10장 (식단 — meals, foods) 기준. 필드명은 서버 응답 그대로 snake_case.
-//
-// apiFetch는 #66 클라이언트 (API_BASE '/api/v1'이 이미 붙으므로 path는 '/meals'부터).
-// ⚠️ import 경로('./client')는 실제 파일명에 맞춰 확인해 주세요.
 import { apiFetch } from './client'
 
 // ─────────────────────────────────────────────
@@ -32,7 +29,6 @@ export interface ApiErrorBody {
 /**
  * apiFetch는 4xx/5xx여도 throw하지 않고 Response를 돌려줌 → 여기서 에러로 바꿈.
  * 화면은 status로 분기 (503 큐 실패 · 429 3번 초과 · 409 분석 중/상태 아님 · 413 크기 초과 등)
- * ⚠️ 클라이언트나 auth.ts에 이미 공통 에러 클래스가 있으면 그걸 쓰고 이 부분은 지워 주세요.
  */
 export class MealApiError extends Error {
   status: number
@@ -111,7 +107,7 @@ export interface MealListItem {
   eaten_at: string // ISO 8601, +09:00
   status: MealStatus
   food: FoodRef | null
-  portion: number
+  portion: Portion
   nutrients: Nutrients | null
 }
 
@@ -181,7 +177,7 @@ export interface MealDetail {
   model_version: string | null
   candidates: MealCandidate[] | null // COMPLETED일 때만 5개, 그 전·FAILED면 null
   food: MealFood | null
-  portion: number
+  portion: Portion
   nutrients: Nutrients | null
   feedback: MealFeedback | null // 음식을 고른 뒤에만
   created_at: string
