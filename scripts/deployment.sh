@@ -131,7 +131,8 @@ fi
 
 # ---------- 프론트 빌드 결과 복사 (3번 선택 시) ----------
 if [[ "$DEPLOY_FRONTEND" == "true" ]] ; then
-  ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} "rm -rf ~/project/frontend && mkdir -p ~/project/frontend"
+  # 폴더째 지우면 nginx 바인드 마운트가 지워진 옛 폴더를 계속 붙잡음 → 폴더는 두고 안의 파일만 비움
+  ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} "mkdir -p ~/project/frontend && find ~/project/frontend -mindepth 1 -delete"
   scp -i ~/.ssh/${ssh_key_file} -r frontend/dist/. ubuntu@${ec2_ip}:~/project/frontend/
 fi
 
@@ -154,9 +155,8 @@ ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} \
     docker compose up -d --pull always --no-deps $DEPLOY_SERVICES
   fi
 
-  # 새 nginx 설정·프론트 마운트를 반영 (compose가 바뀌었으면 다시 만들고, 아니면 설정만 다시 읽음)
-  docker compose up -d --no-deps nginx
-  docker compose exec -T nginx nginx -s reload
+  # 새 nginx 설정·프론트 마운트를 반영하려고 nginx 컨테이너를 항상 다시 만듦 (몇 초 끊김)
+  docker compose up -d --no-deps --force-recreate nginx
 
   docker image prune -af
 EOF
