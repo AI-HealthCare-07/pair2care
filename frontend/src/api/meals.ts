@@ -98,7 +98,8 @@ export interface MealTaskEvent {
 
 export interface FoodRef {
   id: number
-  name: string
+  name: string // DB 이름 (예: 순두부찌개_해물)
+  model_label: string // 화면에 보여 줄 이름 (예: 순두부찌개)
 }
 
 export interface MealListItem {
