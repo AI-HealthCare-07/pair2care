@@ -1,117 +1,108 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { checkChallenge, isChallengeDemo, listChallenges, RequestError } from '../api/challenges'
+import type { Challenge } from '../api/challenges'
 import Button from '../components/common/Button'
-import { apiFetch } from '../api/client'
-import { dateInSeoul, readDaily, requireSuccess, RequestError } from '../api/recommendations'
-import type { DailyRecommendation } from '../api/recommendations'
+import ChallengeRow from '../components/common/ChallengeRow'
 import '../components/recommendation/recommendation.css'
 
-const isDemo = import.meta.env.VITE_USE_MOCK === 'true'
+const remaining = (challenge: Challenge) => challenge.this_week.target - challenge.this_week.checked
 
 export default function HomePage() {
-  const [recommendation, setRecommendation] = useState<DailyRecommendation | null>(null)
-  const [queryDate, setQueryDate] = useState<string>()
-  const [reading, setReading] = useState(!isDemo)
+  const navigate = useNavigate()
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [loading, setLoading] = useState(true)
   const [refresh, setRefresh] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<Error>()
-  const request = useRef<AbortController | null>(null)
-  const isPending = recommendation?.status === 'PENDING' || recommendation?.status === 'PROCESSING'
-
-  useEffect(() => () => request.current?.abort(), [])
+  const [checking, setChecking] = useState<number>()
+  const [error, setError] = useState<unknown>(null)
+  const checkInFlight = useRef(false)
 
   useEffect(() => {
-    if (isDemo) return
     const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout>
-    async function load() {
-      try {
-        const result = await readDaily(controller.signal, queryDate)
-        if (controller.signal.aborted) return
-        setRecommendation(result)
-        if (result?.status === 'PENDING' || result?.status === 'PROCESSING') {
-          timer = setTimeout(load, 2500)
-        }
-      } catch (problem) {
-        if (!controller.signal.aborted) setError(problem instanceof Error ? problem : new Error('조회에 실패했어요.'))
-      } finally {
-        if (!controller.signal.aborted) setReading(false)
-      }
-    }
-    void load()
-    return () => {
-      controller.abort()
-      clearTimeout(timer)
-    }
-  }, [queryDate, refresh])
+    void listChallenges(controller.signal).then((items) => {
+      if (!controller.signal.aborted) setChallenges(items)
+    }).catch((problem: unknown) => {
+      if (!controller.signal.aborted) setError(problem)
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
+  }, [refresh])
 
-  async function generate() {
-    if (request.current) return
-    const controller = new AbortController()
-    request.current = controller
-    setSubmitting(true)
-    setError(undefined)
+  const recommended = challenges
+    .filter((challenge) => !challenge.checked_today && !challenge.decision_required && remaining(challenge) > 0)
+    .sort((first, second) => remaining(first) - remaining(second))[0]
+  const completed = challenges.filter(({ checked_today }) => checked_today).length
+
+  async function markDone(challenge: Challenge) {
+    if (checkInFlight.current || challenge.checked_today) return
+    checkInFlight.current = true
+    setChecking(challenge.id)
+    setError(null)
     try {
-      const today = dateInSeoul()
-      const response = await apiFetch('/recommendations/daily', { method: 'POST', signal: controller.signal })
-      await requireSuccess(response, '추천을 시작하지 못했어요.')
-      setQueryDate(today)
-      setRefresh((value) => value + 1)
-      setReading(true)
+      const progress = await checkChallenge(challenge.id)
+      setChallenges((items) => items.map((item) => item.id === challenge.id
+        ? { ...item, checked_today: true, this_week: progress }
+        : item))
     } catch (problem) {
-      if (!controller.signal.aborted) setError(problem instanceof Error ? problem : new Error('요청에 실패했어요.'))
+      setError(problem)
     } finally {
-      request.current = null
-      if (!controller.signal.aborted) setSubmitting(false)
+      checkInFlight.current = false
+      setChecking(undefined)
     }
   }
 
-  const completed = recommendation?.status === 'COMPLETED'
-  const hasEvidence = completed && Boolean(recommendation.sources?.length)
-  const failed = recommendation?.status === 'FAILED'
-  const limitReached = failed && recommendation.retry_count >= 3
+  function reload() {
+    setError(null)
+    setLoading(true)
+    setRefresh((value) => value + 1)
+  }
 
   return (
-    <section className="daily-page" aria-labelledby="daily-title">
-      <h1 id="daily-title">오늘의 한 가지</h1>
-      <div className="daily-card">
-        {isDemo ? (
+    <section className="daily-page" aria-labelledby="home-title">
+      <h1 id="home-title">홈</h1>
+      {isChallengeDemo && <p className="daily-context">체험 모드 · 예시 챌린지</p>}
+      <div className="daily-card daily-card--next" aria-live="polite">
+        <h2>💡 오늘의 한 가지</h2>
+        {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : recommended ? (
           <>
-            <p className="daily-context">체험 모드 · 예시 기록</p>
-            <h2>오늘 점심 후, 짝꿍과 10분 걸어볼까요?</h2>
-            <p>최근 7일 동안 점심 후 걷기 2회</p>
-            <Link className="ui-btn ui-btn--accent ui-btn--full" to="/challenges/new">짝꿍과 챌린지 만들기</Link>
+            <strong>{isChallengeDemo && recommended.id === 3
+              ? '다음 음료는 무가당으로 골라볼까요?'
+              : `오늘은 ‘${recommended.title}’을 해볼까요?`}</strong>
+            <p className="daily-context">이번 주 {recommended.this_week.checked}/{recommended.this_week.target}회</p>
+            <Link className="ui-btn ui-btn--secondary" to={`/challenges/${recommended.id}`}>이 챌린지 보기</Link>
           </>
-        ) : (
-          <>
-            {reading || (isPending && !error) ? <p role="status">{isPending ? '추천을 준비하고 있어요.' : '추천을 불러오고 있어요.'}</p> : null}
-            {error && <p role="alert">{error.message}</p>}
-            {error instanceof RequestError && error.status === 401 ? <Link to="/login">로그인하기</Link> : error && (
-              <Button variant="secondary" onClick={() => { setError(undefined); setReading(true); setRefresh((value) => value + 1) }}>다시 확인</Button>
-            )}
-            {!reading && !error && !recommendation && <Button fullWidth loading={submitting} onClick={generate}>오늘의 추천 받기</Button>}
-            {!reading && !error && failed && (
-              <>
-                <p>{limitReached ? '오늘의 추천을 다시 요청할 수 있는 횟수를 모두 사용했어요.' : '추천을 만들지 못했어요.'}</p>
-                {!limitReached && <Button fullWidth loading={submitting} onClick={generate}>다시 요청하기</Button>}
-              </>
-            )}
-            {completed && (
-              <>
-                <h2>{recommendation.content}</h2>
-                {recommendation.sources?.length ? (
-                  <ul className="daily-sources">
-                    {recommendation.sources.filter(({ url }) => /^https:\/\//i.test(url)).map((source) => (
-                      <li key={source.number}><a href={source.url} target="_blank" rel="noreferrer">[{source.number}] {source.title}</a></li>
-                    ))}
-                  </ul>
-                ) : null}
-                {hasEvidence && <Link className="ui-btn ui-btn--accent ui-btn--full" to="/challenges/new">짝꿍과 챌린지 만들기</Link>}
-              </>
-            )}
-          </>
+        ) : error ? null : (
+          <p>{challenges.length ? '오늘 추천할 남은 챌린지가 없어요.' : '참여 중인 챌린지가 없어요.'}</p>
         )}
       </div>
+      {error != null && (
+        <div className="daily-card">
+          <p role="alert">{error instanceof RequestError && error.status === 404
+            ? '챌린지 서비스를 준비하고 있어요.'
+            : error instanceof Error ? error.message : '챌린지 상태를 확인하지 못했어요.'}</p>
+          {error instanceof RequestError && error.status === 401
+            ? <Link to="/login">로그인하기</Link>
+            : <Button variant="secondary" onClick={reload}>다시 확인</Button>}
+        </div>
+      )}
+      {challenges.length > 0 && (
+        <section className="daily-challenges" aria-label="오늘 할 챌린지">
+          <h2>오늘 할 챌린지 {completed}/{challenges.length}</h2>
+          {challenges.map((challenge) => (
+            <ChallengeRow
+              key={challenge.id}
+              title={challenge.title}
+              sub={`이번 주 ${challenge.this_week.checked}/${challenge.this_week.target}회`}
+              checked={challenge.checked_today}
+              meta={checking === challenge.id ? '저장 중' : undefined}
+              onToggle={!challenge.checked_today && !challenge.decision_required && checking === undefined
+                ? () => { void markDone(challenge) } : undefined}
+              onOpen={() => navigate(`/challenges/${challenge.id}`)}
+            />
+          ))}
+        </section>
+      )}
     </section>
   )
 }
