@@ -40,19 +40,9 @@ export default function HomePage() {
     setChecking(challenge.id)
     setError(null)
     try {
-      if (challenge.checked_today) {
-        await undoChallengeCheck(challenge.id)
-        setChallenges((items) => items.map((item) => item.id === challenge.id
-          ? { ...item, checked_today: false, this_week: { ...item.this_week, checked: Math.max(0, item.this_week.checked - 1) } }
-          : item))
-        setLoading(true)
-        setRefresh((value) => value + 1)
-        return
-      }
-      const progress = await checkChallenge(challenge.id)
-      setChallenges((items) => items.map((item) => item.id === challenge.id
-        ? { ...item, checked_today: true, this_week: progress }
-        : item))
+      if (challenge.checked_today) await undoChallengeCheck(challenge.id)
+      else await checkChallenge(challenge.id)
+      reload()
     } catch (problem) {
       setError(problem)
     } finally {
@@ -73,7 +63,7 @@ export default function HomePage() {
       {isChallengeDemo && <p className="daily-context">체험 모드 · 예시 챌린지</p>}
       <div className="daily-card daily-card--next" aria-live="polite">
         <h2>💡 오늘의 한 가지</h2>
-        {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : recommended ? (
+        {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : error ? null : recommended ? (
           <>
             <strong>{isChallengeDemo && recommended.id === 3
               ? '다음 음료는 무가당으로 골라볼까요?'
@@ -82,7 +72,7 @@ export default function HomePage() {
             <Link className="ui-btn ui-btn--secondary" to={`/challenges/${recommended.id}`}>이 챌린지 보기</Link>
             <p className="daily-context">의료 진단이 아니며 전문가 상담이 필요해요.</p>
           </>
-        ) : error ? null : (
+        ) : (
           <p>{challenges.length ? '오늘 추천할 남은 챌린지가 없어요.' : '참여 중인 챌린지가 없어요.'}</p>
         )}
       </div>
@@ -106,7 +96,7 @@ export default function HomePage() {
               sub={`이번 주 ${challenge.this_week.checked}/${challenge.this_week.target}회`}
               checked={challenge.checked_today}
               meta={checking === challenge.id ? '저장 중' : undefined}
-              onToggle={!loading && !challenge.decision_required && checking === undefined
+              onToggle={!loading && !error && !challenge.decision_required && checking === undefined
                 ? () => { void toggleCheck(challenge) } : undefined}
               onOpen={() => navigate(`/challenges/${challenge.id}`)}
             />
