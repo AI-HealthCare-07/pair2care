@@ -965,9 +965,9 @@ S-21 · REQ-FOOD-001
       "image_url": "https://.../meals/101.jpg",
       "eaten_at": "2026-11-19T12:30:00+09:00",
       "status": "COMPLETED",
-      "food": { "id": 14, "name": "육개장" },
+      "food": { "id": 14, "name": "육개장", "model_label": "육개장" },
       "portion": 1.0,
-      "nutrients": { "kcal": 132.0, "carbs_g": 6.6, "sugar_g": 3.3, "sodium_mg": 884.4, "protein_g": 16.2, "fat_g": 4.4 }
+      "nutrients": { "kcal": 126.0, "carbs_g": 6.3, "sugar_g": 3.2, "sodium_mg": 844.2, "protein_g": 15.5, "fat_g": 4.2 }
     },
     {
       "id": 102,
@@ -979,7 +979,7 @@ S-21 · REQ-FOOD-001
       "nutrients": null
     }
   ],
-  "daily_total": { "kcal": 132.0, "carbs_g": 6.6, "sugar_g": 3.3, "sodium_mg": 884.4, "protein_g": 16.2, "fat_g": 4.4 }
+  "daily_total": { "kcal": 126.0, "carbs_g": 6.3, "sugar_g": 3.2, "sodium_mg": 844.2, "protein_g": 15.5, "fat_g": 4.2 }
 }
 ```
 
@@ -1031,11 +1031,11 @@ S-22 · REQ-FOOD-001·002
 
 - `status`가 `PENDING`·`PROCESSING`이면 **409** `"사진을 분석하고 있어요. 잠시 후 골라 주세요."`
 - `FAILED`여도 직접 골라 저장 가능 (C-02 "직접 고르기")
-- 저장할 때 `nutrients` = `foods` 1인분 값 × `portion` (소수 첫째 자리 반올림) 스냅샷. 나중에 `foods` 값이 바뀌어도 이 기록은 그대로
+- 저장할 때 `nutrients` = `foods` 1인분 값 × `portion` (소수 첫째 자리 반올림, 0.05는 올림 — 예: 23.25 → 23.3) 스냅샷. 나중에 `foods` 값이 바뀌어도 이 기록은 그대로
 - `foods` 영양값이 null인 항목(예: 닭개장 탄수화물·지방)은 `nutrients`에서도 null → 화면은 "정보 없음"
 - 응답 200: 10-4와 같은 형식 (`food`·`nutrients`·`feedback` 채워짐)
 ```json
-"nutrients": { "kcal": 198.0, "carbs_g": 9.9, "sugar_g": 5.0, "sodium_mg": 1326.6, "protein_g": 24.3, "fat_g": 6.6 }
+"nutrients": { "kcal": 189.0, "carbs_g": 9.5, "sugar_g": 4.8, "sodium_mg": 1266.3, "protein_g": 23.3, "fat_g": 6.3 }
 ```
 
 ### 10-6. 다시 분류 `POST /api/v1/meals/{id}/retry` → 202 / 503
@@ -1118,13 +1118,13 @@ S-23 · REQ-FOOD-003 · 11/20 확정 (정할 것 17번)
   "focus": ["sodium_mg"],
   "notice": null,
   "items": [
-    { "key": "sodium_mg", "meal_value": 1326.6, "meal_percent": 66.3, "running_total": 2211.0, "daily_reference": 2000, "percent": 110.5, "level": "DAILY_OVER" },
-    { "key": "sugar_g", "meal_value": 5.0, "meal_percent": 5.0, "running_total": 8.3, "daily_reference": 100, "percent": 8.3, "level": "OK" },
-    { "key": "carbs_g", "meal_value": 9.9, "meal_percent": 3.1, "running_total": 16.5, "daily_reference": 324, "percent": 5.1, "level": "OK" }
+    { "key": "sodium_mg", "meal_value": 1266.3, "meal_percent": 63.3, "running_total": 2110.5, "daily_reference": 2000, "percent": 105.5, "level": "DAILY_OVER" },
+    { "key": "sugar_g", "meal_value": 4.8, "meal_percent": 4.8, "running_total": 8.0, "daily_reference": 100, "percent": 8.0, "level": "OK" },
+    { "key": "carbs_g", "meal_value": 9.5, "meal_percent": 2.9, "running_total": 15.8, "daily_reference": 324, "percent": 4.9, "level": "OK" }
   ]
 }
 ```
-- 예시: 아침 육개장 1인분(나트륨 884.4) 다음 저녁 육개장 1.5인분(1326.6)을 연 경우. 아침 식단을 열면 누적 884.4 → 44.2%, `MEAL_HIGH`
+- 예시: 아침 육개장 1인분(나트륨 844.2) 다음 저녁 육개장 1.5인분(1266.3)을 연 경우. 아침 식단을 열면 누적 844.2 → 42.2%, `MEAL_HIGH`
 - `meal_percent` = 이 끼니 값 ÷ 하루 기준치 × 100, `percent` = `running_total` ÷ 하루 기준치 × 100 (소수 첫째 자리)
 - 화면 하단 의료 안내 문구(C-01) 고정
 - "다음 끼니에 바꿀 한 가지"(S-23 아래쪽)는 11장 LLM 추천(REQ-LLM-002, 김민준)
