@@ -30,13 +30,13 @@ class LoginRequest(BaseModel):
     password: Annotated[str, Field(min_length=8)]
 
 
-class LoginResponse(BaseModel):
+class TokenRefreshResponse(BaseModel):
     access_token: str
 
 
-class TokenRefreshResponse(LoginResponse): ...
+class LoginResponse(TokenRefreshResponse):
+    has_health_profile: bool  # 가입 설문(ONBOARDING)을 했는지 → false면 프론트가 S-06으로 보냄 (api.md 2-2)
 
 
 class SignUpResponse(LoginResponse):
-    user: UserInfoResponse
-    has_health_profile: bool  # 가입 설문(ONBOARDING)을 했는지 → 프론트가 S-06으로 보낼지 정함
+    user: UserInfoResponse  # 가입 설문(ONBOARDING)을 했는지 → 프론트가 S-06으로 보낼지 정함

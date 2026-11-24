@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import EmailStr
 
 from app.core import config
+from app.models.health_profiles import HealthProfile, SurveyKind
 from app.models.users import Gender, User
 
 ALLOWED_UPDATE_FIELDS = ["nickname"]
@@ -60,3 +61,7 @@ class UserRepository:
             user.updated_at = datetime.now(config.TIMEZONE)
             update_fields.append(UPDATED_AT_FIELD)
             await user.save(update_fields=update_fields)
+
+    async def has_onboarding_profile(self, user_id: int) -> bool:
+        # 가입 설문(ONBOARDING)을 한 번이라도 했는지 → 로그인 후 S-06으로 보낼지 정함 (api.md 2-2)
+        return await HealthProfile.filter(user_id=user_id, kind=SurveyKind.ONBOARDING).exists()

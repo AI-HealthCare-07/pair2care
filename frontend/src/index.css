@@ -6,6 +6,7 @@
   --color-line: #dcdff3;      /* 테두리 */
   --color-accent: #5b5be8;    /* 짝꿍 관련 (Figma color/accent) */
   --color-surface: #ffffff;   /* 상단 바 등 바탕 (Figma color/surface) */
+  --color-warn: #b45309;      /* 로그인 실패 안내 등 주의 글자 (Figma color/warn) */
 
   font-family: 'Noto Sans KR', system-ui, sans-serif;
   color: var(--color-text);

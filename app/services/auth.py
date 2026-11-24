@@ -77,6 +77,9 @@ class AuthService:
             await redis.delete(fail_key)  # 성공하면 횟수 초기화
         return user
 
+    async def has_health_profile(self, user: User) -> bool:
+        return await self.user_repo.has_onboarding_profile(user.id)
+
     async def login(self, user: User) -> dict[str, AccessToken | RefreshToken]:
         await self.user_repo.update_last_login(user.id)
         return self.jwt_service.issue_jwt_pair(user)
