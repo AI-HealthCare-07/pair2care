@@ -456,7 +456,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 | 필드 | 규칙 |
 |---|---|
 | score | 모델 확률 × 100, 반올림 정수 0~100 |
-| level | `LOW` / `CAUTION` / `HIGH`. 기준값은 학습 후 점수 분포로 정함 (12/4 전) |
+| level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함) |
 | factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
 | checkup_record_id | null |
