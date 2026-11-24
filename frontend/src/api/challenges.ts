@@ -87,3 +87,17 @@ export async function checkChallenge(id: number) {
   const payload: { this_week: Challenge['this_week'] } = await response.json()
   return payload.this_week
 }
+
+export async function undoChallengeCheck(id: number) {
+  if (isChallengeDemo) {
+    const challenge = demoChallenges.find((item) => item.id === id)
+    if (!challenge) throw new RequestError(404, '챌린지를 찾을 수 없어요.')
+    if (challenge.checked_today) {
+      challenge.checked_today = false
+      challenge.this_week = { ...challenge.this_week, checked: Math.max(0, challenge.this_week.checked - 1) }
+    }
+    return
+  }
+  const response = await apiFetch('/challenges/' + id + '/checks/' + dateInSeoul(), { method: 'DELETE' })
+  await requireSuccess(response, '완료 체크를 취소하지 못했어요.')
+}

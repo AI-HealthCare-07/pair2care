@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { checkChallenge, isChallengeDemo, listChallenges, RequestError } from '../api/challenges'
+import { checkChallenge, isChallengeDemo, listChallenges, RequestError, undoChallengeCheck } from '../api/challenges'
 import type { Challenge } from '../api/challenges'
 import Button from '../components/common/Button'
 import ChallengeRow from '../components/common/ChallengeRow'
@@ -34,12 +34,21 @@ export default function HomePage() {
     .sort((first, second) => remaining(first) - remaining(second))[0]
   const completed = challenges.filter(({ checked_today }) => checked_today).length
 
-  async function markDone(challenge: Challenge) {
-    if (checkInFlight.current || challenge.checked_today) return
+  async function toggleCheck(challenge: Challenge) {
+    if (checkInFlight.current) return
     checkInFlight.current = true
     setChecking(challenge.id)
     setError(null)
     try {
+      if (challenge.checked_today) {
+        await undoChallengeCheck(challenge.id)
+        setChallenges((items) => items.map((item) => item.id === challenge.id
+          ? { ...item, checked_today: false, this_week: { ...item.this_week, checked: Math.max(0, item.this_week.checked - 1) } }
+          : item))
+        setLoading(true)
+        setRefresh((value) => value + 1)
+        return
+      }
       const progress = await checkChallenge(challenge.id)
       setChallenges((items) => items.map((item) => item.id === challenge.id
         ? { ...item, checked_today: true, this_week: progress }
@@ -69,7 +78,7 @@ export default function HomePage() {
             <strong>{isChallengeDemo && recommended.id === 3
               ? '다음 음료는 무가당으로 골라볼까요?'
               : `오늘은 ‘${recommended.title}’을 해볼까요?`}</strong>
-            <p className="daily-context">이번 주 {recommended.this_week.checked}/{recommended.this_week.target}회</p>
+            <p className="daily-context">이번 주 목표까지 {remaining(recommended)}회 남았어요.</p>
             <Link className="ui-btn ui-btn--secondary" to={`/challenges/${recommended.id}`}>이 챌린지 보기</Link>
           </>
         ) : error ? null : (
@@ -96,8 +105,8 @@ export default function HomePage() {
               sub={`이번 주 ${challenge.this_week.checked}/${challenge.this_week.target}회`}
               checked={challenge.checked_today}
               meta={checking === challenge.id ? '저장 중' : undefined}
-              onToggle={!challenge.checked_today && !challenge.decision_required && checking === undefined
-                ? () => { void markDone(challenge) } : undefined}
+              onToggle={!loading && !challenge.decision_required && checking === undefined
+                ? () => { void toggleCheck(challenge) } : undefined}
               onOpen={() => navigate(`/challenges/${challenge.id}`)}
             />
           ))}

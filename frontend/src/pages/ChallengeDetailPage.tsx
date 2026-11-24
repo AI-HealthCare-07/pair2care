@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/common/Button'
-import { checkChallenge, readChallenge } from '../api/challenges'
+import { checkChallenge, readChallenge, undoChallengeCheck } from '../api/challenges'
 import '../components/recommendation/recommendation.css'
 
 export default function ChallengeDetailPage() {
@@ -23,13 +23,15 @@ export default function ChallengeDetailPage() {
     return () => controller.abort()
   }, [challengeId])
 
-  async function markDone() {
-    if (!result?.canCheck || result.checkedToday || saving) return
+  async function toggleCheck() {
+    if (!result?.canCheck || saving) return
+    const checkedToday = result.checkedToday
     setSaving(true)
     setSaveError('')
     try {
-      await checkChallenge(challengeId)
-      setResult((current) => current?.id === challengeId ? { ...current, checkedToday: true } : current)
+      if (checkedToday) await undoChallengeCheck(challengeId)
+      else await checkChallenge(challengeId)
+      setResult((current) => current?.id === challengeId ? { ...current, checkedToday: !checkedToday } : current)
     } catch (problem) {
       setSaveError(problem instanceof Error ? problem.message : '완료 체크를 저장하지 못했어요.')
     } finally {
@@ -48,8 +50,12 @@ export default function ChallengeDetailPage() {
             <>
               <h2>{result.title}</h2>
               <p>기본 목표 주 {result.timesPerWeek}회</p>
-              {result.checkedToday ? <p role="status">오늘 완료했어요.</p>
-                : result.canCheck && <Button loading={saving} onClick={() => { void markDone() }}>오늘 완료 체크</Button>}
+              {result.checkedToday && <p role="status">오늘 완료했어요.</p>}
+              {result.canCheck && (
+                <Button variant={result.checkedToday ? 'secondary' : 'primary'} loading={saving} onClick={() => { void toggleCheck() }}>
+                  {result.checkedToday ? '완료 체크 취소' : '오늘 완료 체크'}
+                </Button>
+              )}
               {saveError && <p role="alert">{saveError}</p>}
             </>
           ) : <p role="status">챌린지를 불러오고 있어요.</p>}
