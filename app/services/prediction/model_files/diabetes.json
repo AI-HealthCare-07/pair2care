@@ -1,0 +1,49 @@
+{
+  "_note": "가짜 모델 (장성은 학습 전). 계수 0, 절편만으로 고정 점수 34를 냄. 진짜 JSON이 오면 이 파일을 바꿈",
+  "model_version": "diabetes_risk:dummy",
+  "mlflow_run_id": null,
+  "disease": "DIABETES",
+  "features": [
+    "sex",
+    "age",
+    "bmi",
+    "father_diabetes_history",
+    "mother_diabetes_history",
+    "sibling_diabetes_history",
+    "father_hypertension_history",
+    "mother_hypertension_history",
+    "sibling_hypertension_history",
+    "alcohol_frequency",
+    "alcohol_amount",
+    "smoking_current"
+  ],
+  "intercept": -0.663294,
+  "coefficients": {
+    "sex": 0.0,
+    "age": 0.0,
+    "bmi": 0.0,
+    "father_diabetes_history": 0.0,
+    "mother_diabetes_history": 0.0,
+    "sibling_diabetes_history": 0.0,
+    "father_hypertension_history": 0.0,
+    "mother_hypertension_history": 0.0,
+    "sibling_hypertension_history": 0.0,
+    "alcohol_frequency": 0.0,
+    "alcohol_amount": 0.0,
+    "smoking_current": 0.0
+  },
+  "means": {
+    "sex": 0.0,
+    "age": 0.0,
+    "bmi": 0.0,
+    "father_diabetes_history": 0.0,
+    "mother_diabetes_history": 0.0,
+    "sibling_diabetes_history": 0.0,
+    "father_hypertension_history": 0.0,
+    "mother_hypertension_history": 0.0,
+    "sibling_hypertension_history": 0.0,
+    "alcohol_frequency": 0.0,
+    "alcohol_amount": 0.0,
+    "smoking_current": 0.0
+  }
+}

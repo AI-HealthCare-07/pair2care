@@ -15,6 +15,7 @@ from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
+from app.models.risk_predictions import Disease, RiskLevel
 from app.models.users import Gender
 
 # 기준표가 바뀌면 올림 → 판정 행의 input_snapshot에 같이 남겨 어느 기준으로 판정했는지 추적
@@ -24,17 +25,6 @@ CRITERIA_VERSION = "2026-11-19"
 CHECKUP_VALID_PERIOD = relativedelta(years=1)
 
 Number = int | float | Decimal
-
-
-class Disease(StrEnum):
-    HYPERTENSION = "HYPERTENSION"
-    DIABETES = "DIABETES"
-
-
-class RiskLevel(StrEnum):
-    LOW = "LOW"
-    CAUTION = "CAUTION"
-    HIGH = "HIGH"
 
 
 class MetabolicSyndromeStatus(StrEnum):
