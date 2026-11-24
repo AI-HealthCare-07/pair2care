@@ -457,8 +457,8 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 반올림 정수 0~100 |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`. 학습 평균은 모델과 같이 MLflow에 저장. 최종 모델이 로지스틱이 아니면(HistGB 등) SHAP 값 상위 3개로 바꿈 (응답 형식은 같음) |
-| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`) |
+| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별과 다른 질환 가족력은 뺌 (바꿀 수 없는 값, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임. 계산에는 그대로 씀). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
+| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, `mlflow_run_id`와 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
 
