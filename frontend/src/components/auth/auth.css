@@ -1,0 +1,50 @@
+/* frontend/src/components/auth/auth.css
+   가입(M01)·로그인(M14) 화면. 수치는 Figma 기준, 색은 index.css 토큰 */
+
+.auth { min-height: 100dvh; background: var(--color-bg); }
+.auth__form { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; }
+
+.auth__content { display: flex; flex-direction: column; gap: 20px; padding: 24px; }
+
+/* 로고 + 서비스명 (간격 10px) */
+.auth__brand { display: flex; align-items: center; gap: 10px; }
+.auth__logo { position: relative; flex-shrink: 0; width: 56px; height: 32px; overflow: hidden; }
+.auth__logo img { position: absolute; top: -69.51%; left: -19.44%; width: 138.89%; height: 243.9%; max-width: none; }
+.auth__name { font-size: 22px; font-weight: 700; color: var(--color-text); }
+.auth__name-2 { color: var(--color-primary); }
+
+/* P2C/title: Bold 28px / 행간 38px */
+.auth__greeting { margin: 0; font-size: 28px; font-weight: 700; line-height: 38px; color: var(--color-text); }
+
+/* 입력칸 아래 안내 (비밀번호 규칙): 칸과 6px */
+.auth__group { display: flex; flex-direction: column; gap: 6px; }
+.auth__hint { margin: 0; font-size: 15px; line-height: 22px; color: var(--color-muted); }
+.auth__hint.is-error { color: var(--ui-error, #b3261e); }
+
+/* 성별·생년월일처럼 라벨 아래 여러 칸 */
+.auth__fieldset { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.auth__legend { padding: 0; margin-bottom: 8px; font-size: 15px; font-weight: 500; line-height: 22px; color: var(--color-text); }
+.auth__row { display: flex; gap: 8px; }
+.auth__row > .ui-chip { flex: 1; min-width: 0; justify-content: flex-start; font-size: 18px; } /* 성별 칩: 반씩 */
+.auth__birth > :first-child { flex: 1; }
+.auth__birth > :not(:first-child) { flex: 0 0 92px; }
+
+/* 약관 동의 카드: 반경 16px, 패딩 18px, 간격 14px */
+.auth__terms { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); }
+.auth__terms hr { width: 100%; height: 1px; margin: 0; border: 0; background: var(--color-line); }
+.auth__term { display: flex; align-items: center; gap: 12px; }
+.auth__term .ui-check { flex: 1; }
+.auth__view { flex-shrink: 0; padding: 0; border: 0; background: none; color: var(--color-muted); font: inherit; font-size: 15px; line-height: 22px; cursor: pointer; }
+.auth__view:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.auth__term-body { margin: -6px 0 0 38px; font-size: 15px; line-height: 22px; color: var(--color-muted); }
+
+/* 서버 오류 안내: color/warn, 가운데 정렬 15px */
+.auth__alert { margin: 0; font-size: 15px; line-height: 22px; color: var(--color-warn); text-align: center; }
+
+/* 아래 버튼 영역 */
+.auth__actions { display: flex; flex-direction: column; gap: 8px; padding: 12px 24px calc(34px + env(safe-area-inset-bottom, 0px)); }
+.auth__links { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 15px; line-height: 22px; color: var(--color-muted); }
+.auth__links--spread { gap: 14px; }
+.auth__links a { color: var(--color-primary); font-weight: 500; text-decoration: none; }
+.auth__links a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 2px; }
+.auth .is-invalid .ui-field__input { border-color: var(--ui-error, #b3261e); } /* 비밀번호 규칙이 안 맞을 때 칸 테두리도 빨갛게 */

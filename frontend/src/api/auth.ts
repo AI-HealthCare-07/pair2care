@@ -52,10 +52,16 @@ export async function signup(body: SignupBody): Promise<SignupResult> {
   return data
 }
 
+export interface LoginResult {
+  access_token: string
+  has_health_profile: boolean   // false면 가입 설문(S-06)부터, true면 홈으로
+}
+
 /** 로그인 (api.md 2-2): 틀리면 401, 5번 틀리면 10분 동안 429 (문구는 ApiError.message) */
-export async function login(email: string, password: string): Promise<void> {
-  const data = await postJson<{ access_token: string }>('/auth/login', { email, password })
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const data = await postJson<LoginResult>('/auth/login', { email, password })
   setAccessToken(data.access_token)
+  return data
 }
 
 /** 로그아웃 (api.md 2-4): 로그인 없이 항상 204, 서버가 refresh 쿠키를 지움 */
