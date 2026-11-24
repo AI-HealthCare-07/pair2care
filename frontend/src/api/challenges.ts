@@ -33,14 +33,10 @@ export interface Challenge {
   decision_required: boolean
 }
 
-const demoChallenges: Challenge[] = isChallengeDemo ? [
-  { id: 1, title: '점심 후 10분 걷기', status: 'ACTIVE', my_status: 'JOINED', this_week: { checked: 2, target: 3 }, checked_today: false, decision_required: false },
-  { id: 2, title: '물 6잔 마시기', status: 'ACTIVE', my_status: 'JOINED', this_week: { checked: 3, target: 7 }, checked_today: false, decision_required: false },
-  { id: 3, title: '단 음료 대신 아메리카노', status: 'ACTIVE', my_status: 'JOINED', this_week: { checked: 1, target: 3 }, checked_today: false, decision_required: false },
-] : []
+const loadMock = () => import('./challenges.mock')
 
 export async function listChallenges(signal: AbortSignal): Promise<Challenge[]> {
-  if (isChallengeDemo) return [...demoChallenges]
+  if (isChallengeDemo) return (await loadMock()).listChallenges()
   const response = await apiFetch('/challenges?status=ACTIVE', { signal })
   await requireSuccess(response, '오늘의 챌린지를 불러오지 못했어요.')
   const payload: { items: Challenge[] } = await response.json()
@@ -48,11 +44,7 @@ export async function listChallenges(signal: AbortSignal): Promise<Challenge[]> 
 }
 
 export async function readChallenge(id: number, signal: AbortSignal) {
-  if (isChallengeDemo) {
-    const challenge = demoChallenges.find((item) => item.id === id)
-    if (!challenge) throw new RequestError(404, '챌린지를 찾을 수 없어요.')
-    return { id, title: challenge.title, timesPerWeek: challenge.this_week.target, canCheck: !challenge.decision_required, checkedToday: challenge.checked_today }
-  }
+  if (isChallengeDemo) return (await loadMock()).readChallenge(id)
   const response = await apiFetch('/challenges/' + id, { signal })
   await requireSuccess(response, '챌린지를 불러오지 못했어요.')
   const challenge: {
@@ -70,15 +62,7 @@ export async function readChallenge(id: number, signal: AbortSignal) {
 }
 
 export async function checkChallenge(id: number) {
-  if (isChallengeDemo) {
-    const challenge = demoChallenges.find((item) => item.id === id)
-    if (!challenge) throw new RequestError(404, '챌린지를 찾을 수 없어요.')
-    if (!challenge.checked_today) {
-      challenge.checked_today = true
-      challenge.this_week = { ...challenge.this_week, checked: challenge.this_week.checked + 1 }
-    }
-    return challenge.this_week
-  }
+  if (isChallengeDemo) return (await loadMock()).checkChallenge(id)
   const response = await apiFetch('/challenges/' + id + '/checks', {
     method: 'POST',
     body: JSON.stringify({ checked_on: dateInSeoul() }),
@@ -89,15 +73,7 @@ export async function checkChallenge(id: number) {
 }
 
 export async function undoChallengeCheck(id: number) {
-  if (isChallengeDemo) {
-    const challenge = demoChallenges.find((item) => item.id === id)
-    if (!challenge) throw new RequestError(404, '챌린지를 찾을 수 없어요.')
-    if (challenge.checked_today) {
-      challenge.checked_today = false
-      challenge.this_week = { ...challenge.this_week, checked: Math.max(0, challenge.this_week.checked - 1) }
-    }
-    return
-  }
+  if (isChallengeDemo) return (await loadMock()).undoChallengeCheck(id)
   const response = await apiFetch('/challenges/' + id + '/checks/' + dateInSeoul(), { method: 'DELETE' })
   await requireSuccess(response, '완료 체크를 취소하지 못했어요.')
 }
@@ -105,11 +81,12 @@ export async function undoChallengeCheck(id: number) {
 export interface NextChallenge {
   challenge_id: number
   message: string
-  source_title: string
-  source_url: string
+  source_title: string | null
+  source_url: string | null
 }
 
 export async function readNextChallenge(signal: AbortSignal): Promise<NextChallenge | null> {
+  if (isChallengeDemo) return (await loadMock()).readNextChallenge()
   const response = await apiFetch('/recommendations/challenges/next', { signal, cache: 'no-store' })
   await requireSuccess(response, '다음 챌린지 추천을 불러오지 못했어요.')
   return response.json()

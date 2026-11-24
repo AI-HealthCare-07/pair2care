@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from tortoise.exceptions import OperationalError
 
-from ai_worker.schemas.task import KST
+from app.core import config
 from app.models.users import User
 
 WALK_SOURCE = "질병관리청 국가건강정보포털 - 고혈압"
@@ -29,7 +29,7 @@ class ChallengeRecommendation(BaseModel):
 
 
 async def _walking_candidates(user_id: int) -> list[tuple[int, int]]:
-    today = datetime.now(KST).date()
+    today = datetime.now(config.TIMEZONE).date()
     week_start = today - timedelta(days=today.weekday())
     try:
         rows = await User._meta.db.execute_query_dict(

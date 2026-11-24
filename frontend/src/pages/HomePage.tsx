@@ -13,7 +13,7 @@ export default function HomePage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [loading, setLoading] = useState(true)
   const [next, setNext] = useState<NextChallenge | null>(null)
-  const [recommending, setRecommending] = useState(!isChallengeDemo)
+  const [recommending, setRecommending] = useState(true)
   const [refresh, setRefresh] = useState(0)
   const [checking, setChecking] = useState<number>()
   const [error, setError] = useState<unknown>(null)
@@ -28,22 +28,18 @@ export default function HomePage() {
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
-    if (!isChallengeDemo) {
-      void readNextChallenge(controller.signal).then((recommendation) => {
-        if (!controller.signal.aborted) setNext(recommendation)
-      }).catch(() => {
-        if (!controller.signal.aborted) setNext(null)
-      }).finally(() => {
-        if (!controller.signal.aborted) setRecommending(false)
-      })
-    }
+    void readNextChallenge(controller.signal).then((recommendation) => {
+      if (!controller.signal.aborted) setNext(recommendation)
+    }).catch(() => {
+      if (!controller.signal.aborted) setNext(null)
+    }).finally(() => {
+      if (!controller.signal.aborted) setRecommending(false)
+    })
     return () => controller.abort()
   }, [refresh])
 
   const eligible = challenges.filter((challenge) => !challenge.checked_today && !challenge.decision_required && remaining(challenge) > 0)
-  const recommended = isChallengeDemo
-    ? eligible.sort((first, second) => remaining(first) - remaining(second))[0]
-    : eligible.find((challenge) => challenge.id === next?.challenge_id)
+  const recommended = eligible.find((challenge) => challenge.id === next?.challenge_id)
   const completed = challenges.filter(({ checked_today }) => checked_today).length
 
   async function toggleCheck(challenge: Challenge) {
@@ -67,7 +63,7 @@ export default function HomePage() {
   function reload() {
     setError(null)
     setLoading(true)
-    setRecommending(!isChallengeDemo)
+    setRecommending(true)
     setNext(null)
     setRefresh((value) => value + 1)
   }
@@ -80,10 +76,8 @@ export default function HomePage() {
         <h2>💡 오늘의 한 가지</h2>
         {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : error ? null : recommending || checking !== undefined ? <p role="status">다음 추천을 확인하고 있어요.</p> : recommended ? (
           <>
-            <strong>{next?.message ?? (recommended.id === 3
-              ? '다음 음료는 무가당으로 골라볼까요?'
-              : `오늘은 ‘${recommended.title}’을 해볼까요?`)}</strong>
-            {next && /^https:\/\//.test(next.source_url) && (
+            <strong>{next?.message}</strong>
+            {next?.source_url && /^https:\/\//.test(next.source_url) && (
               <a className="daily-context" href={next.source_url} target="_blank" rel="noreferrer">{next.source_title}</a>
             )}
             <p className="daily-context">이번 주 목표까지 {remaining(recommended)}회 남았어요.</p>

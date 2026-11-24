@@ -1210,7 +1210,7 @@ data: {"task_id": "712d9c48-4fd2-4da0-8aed-53044372477e", "task_type": "RECOMMEN
 - 결과 일관성(REQ-NFR-017)을 위해 모델별 `temperature` 등 생성 설정을 고정하고, 설정 변경 시 `prompt_version`을 올려 어떤 설정으로 생성했는지 추적함.
 - 추천은 진단·처방 또는 위험도 재계산 결과가 아님. 화면에는 C-01 의료 안내를 표시함.
 
-### 11-7. 다음 챌린지 추천 `GET /api/v1/recommendations/challenges/next`
+### 11-8. 다음 챌린지 추천 `GET /api/v1/recommendations/challenges/next`
 
 로그인한 사용자의 진행 중인 챌린지에서 오늘 완료하지 않았고 주간 목표가 남은 항목을 확인한다. 공식 근거와 연결된 기본 걷기 챌린지만 첫 버전에서 추천한다. 직접 작성한 제목으로 행동을 추정하지 않는다.
 
