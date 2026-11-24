@@ -16,11 +16,11 @@ from tortoise.exceptions import OperationalError
 from tortoise.transactions import in_transaction
 
 from ai_worker.core import config
-from ai_worker.schemas.task import KST, TaskMessage
 from ai_worker.tasks.llm_recommendation import MODEL, ClaudeCallError, RecommendationResult, generate_recommendation
 from app.core.db.databases import TORTOISE_ORM
 from app.models.llm_usage_logs import LlmUsageLog
 from app.models.recommendations import GenerationStatus, Recommendation, RecommendationType
+from shared.tasks import KST, TaskMessage
 
 
 async def _init_db() -> None:

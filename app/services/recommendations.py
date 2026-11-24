@@ -12,11 +12,11 @@ from redis.exceptions import RedisError
 from tortoise.exceptions import OperationalError
 from tortoise.transactions import in_transaction
 
-from ai_worker.core import config as worker_config
-from ai_worker.schemas.task import STREAM_KEY, TaskMessage, TaskType
+from app.core import config
 from app.dtos.recommendations import RecommendationQueued, RecommendationRead
 from app.models.recommendations import GenerationStatus, Recommendation, RecommendationType
 from app.repositories.recommendation_repository import RecommendationRepository
+from shared.tasks import STREAM_KEY, TaskMessage, TaskType
 
 KST = ZoneInfo("Asia/Seoul")
 QUEUE_ERROR = "작업을 시작하지 못했어요. 잠시 후 다시 시도해 주세요."
@@ -88,8 +88,8 @@ class RecommendationService:
             )
             try:
                 async with Redis(
-                    host=worker_config.REDIS_HOST,
-                    port=worker_config.REDIS_PORT,
+                    host=config.REDIS_HOST,
+                    port=config.REDIS_PORT,
                     socket_connect_timeout=2,
                     socket_timeout=2,
                     retry=Retry(NoBackoff(), 0),

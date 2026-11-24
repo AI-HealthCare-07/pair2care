@@ -17,8 +17,10 @@ RUN uv sync --group ai --group app --no-dev --frozen
 
 # 4. 로컬 소스 코드를 컨테이너 내부로 복사합니다.
 # 패키지 이름(ai_worker)대로 복사해야 `from ai_worker...` import가 됨
+# app은 DB 모델(app.models)을 쓰려고, shared는 API와 같이 쓰는 작업 양식
 COPY ./ai_worker ./ai_worker
 COPY ./app ./app
+COPY ./shared ./shared
 
 # 5. 해당 이미지를 활용하여 도커컨테이너 실행시 실행되는 명령어입니다.
 # Redis Stream 소비자(ai_worker/main.py)를 실행합니다. --no-sync는 app Dockerfile과 같은 이유
