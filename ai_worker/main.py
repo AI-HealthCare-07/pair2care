@@ -1,5 +1,4 @@
 import asyncio
-import json
 import socket
 
 from pydantic import ValidationError
@@ -8,7 +7,7 @@ from redis.exceptions import ResponseError
 
 from ai_worker.core import config
 from ai_worker.core import default_logger as logger
-from ai_worker.schemas.task import DEAD_LETTER_KEY, GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage, TaskType
+from shared.tasks import DEAD_LETTER_KEY, GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage, TaskResult, TaskType
 
 CONSUMER_NAME = config.WORKER_NAME or socket.gethostname()
 # ↑ Consumer 이름이 워커마다 달라야 "내 Pending"이 안 섞임 (같은 이름이면 두 워커가 서로의 메시지를 재처리)
@@ -112,7 +111,9 @@ async def finish_message(redis: Redis, message_id: str, task: TaskMessage, is_su
         if status not in ("COMPLETED", "FAILED"):
             await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
             return
-    await redis.publish(RESULT_CHANNEL, json.dumps({**task.model_dump(mode="json"), "status": status}))
+    # 결과 양식은 shared/tasks.py의 TaskResult 하나 (작업 필드 + status). model_validate로 status 값도 검사
+    result = TaskResult.model_validate({**task.model_dump(), "status": status})
+    await redis.publish(RESULT_CHANNEL, result.model_dump_json())
     if task.task_type == TaskType.RECOMMEND_LLM:
         await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
 

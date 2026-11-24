@@ -10,11 +10,6 @@ envs/
 .vscode
 nginx/
 ai_worker/*
-!ai_worker/__init__.py
-!ai_worker/core/
-!ai_worker/core/**
-!ai_worker/schemas/
-!ai_worker/schemas/**
 docker-compose.yml
 Dockerfile
 README.md

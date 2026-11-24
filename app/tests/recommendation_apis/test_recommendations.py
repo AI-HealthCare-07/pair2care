@@ -10,7 +10,6 @@ from tortoise.transactions import in_transaction
 
 from ai_worker.core import config
 from ai_worker.main import ensure_group, process_message
-from ai_worker.schemas.task import GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage
 from ai_worker.tasks.llm_recommendation import NO_EVIDENCE, ClaudeCallError
 from ai_worker.tasks.recommendation_runner import run_recommendation
 from app.main import app
@@ -18,6 +17,7 @@ from app.models.llm_usage_logs import LlmUsageLog
 from app.models.recommendations import Recommendation
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from shared.tasks import GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage
 
 DAILY = "/api/v1/recommendations/daily"
 EMAIL = "recommendation@example.com"

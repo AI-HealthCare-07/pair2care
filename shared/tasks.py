@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -29,3 +30,9 @@ class TaskMessage(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(KST)
     )  # datetime 타입 + 한국 시간(KST) 명시적 부여
+
+
+class TaskResult(TaskMessage):
+    """ai:results로 보내는 완료 알림: 작업 필드 그대로 + 결과 상태 (SSE task 이벤트와 같은 모양)."""
+
+    status: Literal["COMPLETED", "FAILED"]  # SSE task 이벤트는 두 값만 알림 (api.md 11-6)
