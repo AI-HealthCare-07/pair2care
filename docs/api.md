@@ -354,6 +354,7 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 - `skip`: `[{when, fields}]` — 이 문항 값이 `when`이면 `fields` 문항은 화면에서 건너뛰고 null로 보냄 (3-1 건너뛰기 처리와 같은 규칙)
 - `only_for`: `"FEMALE"` 등 성별 조건. 없으면 모두에게 물음 (예: `is_pregnant`)
 - `text`: 기본 문구 (모든 문항에 있음). `text_by_gender`: 성별마다 문구가 다를 때 `{ "MALE": "...", "FEMALE": "..." }` → 사용자 성별 값이 있으면 이걸, 없으면 `text`를 씀 (예: 13번 폭음 남 7잔 / 여 5잔)
+- `help`: 질문 아래 보조 설명 (선택). 없으면 안 보여줌. 지금은 12번 `alcohol_amount` 하나만 있음 (캔맥주 환산은 국건영 조사표 기준, 장성은 확정 11/24). 표시용 문구라 바뀌어도 `survey_version`은 그대로
 - **사용자 성별은 `users.gender`** (`"MALE"` / `"FEMALE"`): 가입 응답(2-1)의 `user.gender` 또는 내 정보 `GET /api/v1/users/me`(2-5)의 `gender`로 받음. `only_for`·`text_by_gender`의 키와 같은 값
 - `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
 - `kind=ONBOARDING`은 설문 프로필이 없어도 **정상 200** (S-06 가입 설문이 바로 이 호출, `ask_when_applicable` 없음)

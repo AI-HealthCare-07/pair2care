@@ -126,6 +126,7 @@ QUESTIONS: Final[list[dict[str, Any]]] = [
         "no": 12,
         "field": "alcohol_amount",
         "text": "술 마시는 날 한 번에 몇 잔 정도 마시나요?",
+        "help": "술 종류 상관없이 마신 잔 수로 골라 주세요 (캔맥주 1개는 1.6잔)",
         "type": "SINGLE",
         "options": [
             {"label": "1~2잔", "value": 1},

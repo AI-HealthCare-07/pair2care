@@ -92,3 +92,16 @@ def test_build_questions_does_not_change_constant() -> None:
     build_questions(SurveyKind.WEEKLY, {"binge_frequency": 8, "cigarettes_per_day": 888})
 
     assert all("ask_when_applicable" not in q for q in QUESTIONS)
+
+
+def test_help_only_on_alcohol_amount() -> None:
+    # 질문 아래 보조 설명 (M02). 표시용이라 survey_version과 상관없음
+    helps = {q["field"]: q["help"] for q in QUESTIONS if "help" in q}
+    assert helps == {"alcohol_amount": "술 종류 상관없이 마신 잔 수로 골라 주세요 (캔맥주 1개는 1.6잔)"}
+
+
+def test_weekly_keeps_help() -> None:
+    body = build_questions(SurveyKind.WEEKLY, {"binge_frequency": 8, "cigarettes_per_day": 888})
+
+    amount = next(q for q in body["questions"] if q["field"] == "alcohol_amount")
+    assert amount["help"].startswith("술 종류 상관없이")
