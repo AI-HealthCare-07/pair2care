@@ -26,6 +26,7 @@
 | AI 워커(Redis Stream) | 김지연 | 여현지(식단 분류 함수)·김민준(LLM 함수) | CLAUDE.md, `ai_worker/` |
 | 결과지 OCR (12/4 이후) | 김지연 | — | api.md 4-6, REQ-PROF-003 |
 | 프론트(React + Vite) | 김지연 | 여현지 | wireframe.md, 피그마 |
+| 설문 화면 S-06 가입 설문 (11/27~) | 여현지 | 김지연(가입 후 라우팅·S-09 연결), 최현영(3-1 에러 문구) | api.md 3-1·3-6, survey-mapping.md, Figma M02 |
 | 배포(AWS EC2 + Docker Compose) | 김지연 | — | 00_프로젝트_정리.md 5장 |
 
 ## 2. 기획 문서 담당
