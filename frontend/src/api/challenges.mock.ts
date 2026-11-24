@@ -1,5 +1,5 @@
 import type { Challenge, NextChallenge } from './challenges'
-import { RequestError } from './challenges'
+import { ApiError } from './client'
 
 const demoChallenges: Challenge[] = [
   { id: 1, title: '점심 후 10분 걷기', status: 'ACTIVE', my_status: 'JOINED', this_week: { checked: 2, target: 3 }, checked_today: false, decision_required: false },
@@ -13,7 +13,7 @@ export function listChallenges(): Challenge[] {
 
 function findChallenge(id: number): Challenge {
   const challenge = demoChallenges.find((item) => item.id === id)
-  if (!challenge) throw new RequestError(404, '챌린지를 찾을 수 없어요.')
+  if (!challenge) throw new ApiError(404, '챌린지를 찾을 수 없어요.')
   return challenge
 }
 
@@ -48,7 +48,7 @@ export function undoChallengeCheck(id: number) {
 export function readNextChallenge(): NextChallenge | null {
   const remaining = (item: Challenge) => item.this_week.target - item.this_week.checked
   const [next] = demoChallenges.filter((item) => !item.checked_today && remaining(item) > 0)
-    .sort((first, second) => remaining(first) - remaining(second))
+    .sort((first, second) => remaining(first) - remaining(second) || first.id - second.id)
   if (!next) return null
   return {
     challenge_id: next.id,

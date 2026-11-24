@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { checkChallenge, isChallengeDemo, listChallenges, readNextChallenge, RequestError, undoChallengeCheck } from '../api/challenges'
+import { checkChallenge, isChallengeDemo, listChallenges, readNextChallenge, undoChallengeCheck } from '../api/challenges'
+import { ApiError } from '../api/client'
 import type { Challenge, NextChallenge } from '../api/challenges'
 import Button from '../components/common/Button'
 import ChallengeRow from '../components/common/ChallengeRow'
@@ -73,7 +74,7 @@ export default function HomePage() {
       <h1 id="home-title">홈</h1>
       {isChallengeDemo && <p className="daily-context">체험 모드 · 예시 챌린지</p>}
       <div className="daily-card daily-card--next" aria-live="polite">
-        <h2>💡 오늘의 한 가지</h2>
+        <h2>다음 챌린지</h2>
         {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : error ? null : recommending || checking !== undefined ? <p role="status">다음 추천을 확인하고 있어요.</p> : recommended ? (
           <>
             <strong>{next?.message}</strong>
@@ -90,10 +91,10 @@ export default function HomePage() {
       </div>
       {error != null && (
         <div className="daily-card">
-          <p role="alert">{error instanceof RequestError && error.status === 404
+          <p role="alert">{error instanceof ApiError && error.status === 404
             ? '챌린지 서비스를 준비하고 있어요.'
             : error instanceof Error ? error.message : '챌린지 상태를 확인하지 못했어요.'}</p>
-          {error instanceof RequestError && error.status === 401
+          {error instanceof ApiError && error.status === 401
             ? <Link to="/login">로그인하기</Link>
             : <Button variant="secondary" onClick={reload}>다시 확인</Button>}
         </div>

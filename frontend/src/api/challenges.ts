@@ -1,19 +1,4 @@
-import { apiFetch } from './client'
-
-export class RequestError extends Error {
-  readonly status: number
-
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-  }
-}
-
-export async function requireSuccess(response: Response, fallback: string): Promise<void> {
-  if (response.ok) return
-  const payload = await response.json().catch(() => null)
-  throw new RequestError(response.status, typeof payload?.detail === 'string' ? payload.detail : fallback)
-}
+import { apiFetch, toApiError } from './client'
 
 export function dateInSeoul(offset = 0): string {
   const seoulDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
@@ -38,7 +23,7 @@ const loadMock = () => import('./challenges.mock')
 export async function listChallenges(signal: AbortSignal): Promise<Challenge[]> {
   if (isChallengeDemo) return (await loadMock()).listChallenges()
   const response = await apiFetch('/challenges?status=ACTIVE', { signal })
-  await requireSuccess(response, '오늘의 챌린지를 불러오지 못했어요.')
+  if (!response.ok) throw await toApiError(response)
   const payload: { items: Challenge[] } = await response.json()
   return payload.items.filter(({ status, my_status }) => status === 'ACTIVE' && my_status === 'JOINED')
 }
@@ -46,7 +31,7 @@ export async function listChallenges(signal: AbortSignal): Promise<Challenge[]> 
 export async function readChallenge(id: number, signal: AbortSignal) {
   if (isChallengeDemo) return (await loadMock()).readChallenge(id)
   const response = await apiFetch('/challenges/' + id, { signal })
-  await requireSuccess(response, '챌린지를 불러오지 못했어요.')
+  if (!response.ok) throw await toApiError(response)
   const challenge: {
     id: number; title: string; status: string; times_per_week: number;
     participants: { is_me: boolean; status: string }[];
@@ -67,7 +52,7 @@ export async function checkChallenge(id: number) {
     method: 'POST',
     body: JSON.stringify({ checked_on: dateInSeoul() }),
   })
-  await requireSuccess(response, '완료 체크를 저장하지 못했어요.')
+  if (!response.ok) throw await toApiError(response)
   const payload: { this_week: Challenge['this_week'] } = await response.json()
   return payload.this_week
 }
@@ -75,7 +60,7 @@ export async function checkChallenge(id: number) {
 export async function undoChallengeCheck(id: number) {
   if (isChallengeDemo) return (await loadMock()).undoChallengeCheck(id)
   const response = await apiFetch('/challenges/' + id + '/checks/' + dateInSeoul(), { method: 'DELETE' })
-  await requireSuccess(response, '완료 체크를 취소하지 못했어요.')
+  if (!response.ok) throw await toApiError(response)
 }
 
 export interface NextChallenge {
@@ -88,6 +73,6 @@ export interface NextChallenge {
 export async function readNextChallenge(signal: AbortSignal): Promise<NextChallenge | null> {
   if (isChallengeDemo) return (await loadMock()).readNextChallenge()
   const response = await apiFetch('/recommendations/challenges/next', { signal, cache: 'no-store' })
-  await requireSuccess(response, '다음 챌린지 추천을 불러오지 못했어요.')
+  if (!response.ok) throw await toApiError(response)
   return response.json()
 }

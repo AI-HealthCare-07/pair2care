@@ -1215,7 +1215,7 @@ data: {"task_id": "712d9c48-4fd2-4da0-8aed-53044372477e", "task_type": "RECOMMEN
 
 로그인한 사용자의 진행 중인 챌린지에서 오늘 완료하지 않았고 주간 목표가 남은 항목을 확인한다. 공식 근거와 연결된 기본 걷기 챌린지만 첫 버전에서 추천한다. 직접 작성한 제목으로 행동을 추정하지 않는다.
 
-응답 200은 `{ "challenge_id": 30, "message": "...", "source_title": "...", "source_url": "https://..." }` 또는 추천 후보가 없을 때 `null`이다. 결과는 캐시하지 않는다. 후보가 하나면 모델을 호출하지 않는다. 여러 후보에서는 Claude가 임시 후보 ID를 선택하며, 장애나 키 미설정 시 주간 목표까지 남은 횟수가 가장 적은 후보를 사용한다. 챌린지 테이블이 없는 환경은 503을 반환한다.
+응답 200은 `{ "challenge_id": 30, "message": "...", "source_title": "...", "source_url": "https://..." }` 또는 추천 후보가 없을 때 `null`이다. 결과는 캐시하지 않는다. 주간 목표까지 남은 횟수가 가장 적은 후보를 추천하며, 남은 횟수가 같으면 챌린지 ID가 작은 후보를 사용한다. 챌린지 테이블이 없는 환경은 503을 반환한다.
 
 ## 12. 알림 — `notifications`, `notification_settings`, `push_subscriptions`, `custom_reminders` (김지연)
 S-24~S-26, C-03 · REQ-NOTI-001~007, 009
