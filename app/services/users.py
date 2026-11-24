@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import HTTPException
 from starlette import status
 from tortoise.transactions import in_transaction
@@ -19,6 +21,14 @@ class UserManageService:
                 detail="성별·생년월일은 바꿀 수 없어요. 고치려면 관리자에게 요청해 주세요.",
             )
         async with in_transaction():
-            await self.repo.update_instance(user=user, data=data.model_dump(exclude_none=True))
+            await self.repo.update_instance(user=user, data=self._changes(data))
             await user.refresh_from_db()
         return user
+
+    @staticmethod
+    def _changes(data: UserUpdateRequest) -> dict[str, Any]:
+        # 보낸 필드만 반영. region은 null도 "선택 해제"라 그대로 넘기고, nickname null은 무시(바꾸지 않음)
+        changes = data.model_dump(exclude_unset=True, include={"nickname", "region"})
+        if changes.get("nickname") is None:
+            changes.pop("nickname", None)
+        return changes

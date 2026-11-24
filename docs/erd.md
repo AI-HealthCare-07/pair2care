@@ -26,7 +26,7 @@
 ### 회원·건강 프로필 — 김지연
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday, quiet_start·quiet_end(방해 금지 시간, null이면 안 씀), is_active, is_admin, last_login | USER-001~004, NOTI-001 |
+| `users` | 회원 (템플릿 있음, `phone_number` 제거, 실명 대신 닉네임) | email, hashed_password, nickname, gender, birthday, quiet_start·quiet_end(방해 금지 시간, null이면 안 씀), region(날씨·미세먼지용 시·도 17개 중 하나, null이면 안 씀 — api.md 11-7 초안), is_active, is_admin, last_login | USER-001~004, NOTI-001 |
 | `user_consents` | 약관·개인정보·민감정보 동의 기록. 동의·철회할 때마다 행을 쌓고, 현재 상태는 종류별 최신 행 | user_id, agreement(TERMS/PRIVACY/SENSITIVE_HEALTH), version, is_agreed, created_at | USER-005 |
 | `health_profiles` | 생활습관 설문 응답. 재설문마다 새 행으로 쌓음 | user_id, kind, 신체·가족력·음주·흡연·진단 여부 20문항 (코드는 `survey-mapping.md`), is_pregnant(여성만, 예면 예측 안 함), created_at. 재설문에서 안 묻는 항목은 직전 값 복사(허리둘레는 빈칸), 상위 답이 바뀌면 하위 문항만 다시 물음 | PROF-001, PRED-004 |
 | `checkup_records` | 검진 수치. 집에서 잰 기록과 따로 둠 | user_id, systolic_bp, diastolic_bp, fasting_glucose, waist_cm, triglyceride, hdl_cholesterol, hba1c(선택), checked_on, source(MANUAL/OCR) | PROF-002, PROF-003 |
@@ -93,7 +93,7 @@
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, task_id(UUID, null 가능, 현재 Redis 작업 ID), content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count | LLM-001~005, NFR-002 |
+| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, task_id(UUID, null 가능, 현재 Redis 작업 ID), content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count, weather(JSON, null 가능 — 생성 때 날씨·미세먼지 판정 스냅샷, api.md 11-7 초안) | LLM-001~005, NFR-002 |
 | `llm_usage_logs` | 기능별 토큰 사용량 | user_id(null 가능), recommendation_id(null 가능), meal_id(null 가능), feature(rec_type 5종 + MEAL_VISION·RAG_EMBEDDING), model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, estimated_cost_usd, is_success | NFR-012 |
 
 ### 알림 — 김지연
