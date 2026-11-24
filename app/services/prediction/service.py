@@ -1,20 +1,30 @@
 """예측 흐름 (api.md 5-0): 설문 저장 직후 FastAPI 안에서 바로 추론하고 질환별 risk_predictions 저장."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
 
 from app.models.checkup_records import CheckupRecord
 from app.models.health_profiles import HealthProfile
 from app.models.risk_predictions import PredictionMethod, RiskPrediction
 from app.models.users import User
-from app.repositories.health_profile_repository import to_answer_values
+from app.repositories.health_profile_repository import HealthProfileRepository, to_answer_values
 from app.repositories.risk_prediction_repository import RiskPredictionRepository
-from app.services.prediction.criteria import CheckupValues, judge_checkup
-from app.services.prediction.features import build_input_snapshot
+from app.services.prediction.criteria import CheckupValues, is_checkup_valid, judge_checkup, judge_metabolic_syndrome
+from app.services.prediction.features import build_input_snapshot, calculate_age
 from app.services.prediction.model import load_model, to_level, to_score
-from app.services.prediction.plan import PredictionPlan
+from app.services.prediction.plan import PredictionPlan, plan_predictions
+from app.services.prediction.views import (
+    build_detail,
+    metabolic_to_response,
+    pick_latest_rows,
+    summarize_row,
+)
+
+KST = ZoneInfo("Asia/Seoul")
 
 
 class PredictionService:
@@ -96,3 +106,59 @@ def summarize(prediction: RiskPrediction) -> dict[str, Any]:
         "score": prediction.score,
         "level": prediction.level.value,
     }
+
+
+NO_SURVEY_DETAIL = "아직 설문 기록이 없어요."
+PREDICTION_NOT_FOUND_DETAIL = "예측 결과를 찾을 수 없어요."
+
+
+class PredictionQueryService:
+    """5-2·5-3 조회."""
+
+    def __init__(self) -> None:
+        self.prediction_repo = RiskPredictionRepository()
+        self.health_profile_repo = HealthProfileRepository()
+
+    async def get_latest(self, user: User) -> dict[str, Any]:
+        """5-2. 최근 설문 기준 질환별 최근 예측 + 대사증후군 (유효한 검진이 없으면 null)."""
+        profile = await self.health_profile_repo.get_latest(user.id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
+
+        surveyed_on = profile.created_at.astimezone(KST).date()
+        plan = plan_predictions(
+            age=calculate_age(user.birthday, surveyed_on),
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+        rows = pick_latest_rows(await self.prediction_repo.list_for_profile(profile.id))
+
+        checkup = await self.prediction_repo.get_latest_checkup(user.id)
+        today = datetime.now(KST).date()
+        metabolic = None
+        if checkup is not None and is_checkup_valid(checkup.checked_on, today):
+            metabolic = judge_metabolic_syndrome(
+                to_checkup_values(checkup),
+                user.gender,
+                is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+                is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+            )
+
+        return {
+            "health_profile_id": profile.id,
+            "predictions": [summarize_row(row) for row in rows],
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+            "metabolic_syndrome": metabolic_to_response(metabolic),
+        }
+
+    async def get_detail(self, user: User, prediction_id: int) -> dict[str, Any]:
+        """5-3. 남의 것이면 404."""
+        row = await self.prediction_repo.get_for_user(user.id, prediction_id)
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PREDICTION_NOT_FOUND_DETAIL)
+        previous = None
+        if row.method == PredictionMethod.MODEL:
+            previous = await self.prediction_repo.get_previous_model_row(row)
+        return build_detail(row, previous)

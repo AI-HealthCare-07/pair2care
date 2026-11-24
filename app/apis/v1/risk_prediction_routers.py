@@ -1,0 +1,30 @@
+"""5장 위험 예측 조회 API."""
+
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends
+
+from app.dependencies.security import get_request_user
+from app.models.users import User
+from app.services.prediction.service import PredictionQueryService
+
+risk_prediction_router = APIRouter(prefix="/risk-predictions", tags=["risk-predictions"])
+
+
+@risk_prediction_router.get("/latest")
+async def get_latest_predictions(
+    user: Annotated[User, Depends(get_request_user)],
+    service: Annotated[PredictionQueryService, Depends(PredictionQueryService)],
+) -> dict[str, Any]:
+    """5-2 최근 예측 (S-09·S-12). 설문이 없으면 404."""
+    return await service.get_latest(user)
+
+
+@risk_prediction_router.get("/{prediction_id}")
+async def get_prediction_detail(
+    prediction_id: int,
+    user: Annotated[User, Depends(get_request_user)],
+    service: Annotated[PredictionQueryService, Depends(PredictionQueryService)],
+) -> dict[str, Any]:
+    """5-3 예측 상세. 남의 것이면 404."""
+    return await service.get_detail(user, prediction_id)
