@@ -9,7 +9,6 @@ envs/
 *.env
 .vscode
 nginx/
-app/
 docker-compose.yml
 Dockerfile
 README.md

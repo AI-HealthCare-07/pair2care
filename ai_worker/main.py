@@ -40,12 +40,13 @@ async def ensure_group(redis: Redis) -> None:
 
 
 async def handle(task: TaskMessage) -> None:
-    """작업 종류별로 처리. 지금은 가짜(mock)로 잠깐 기다리기만 함."""
+    """작업 종류별 처리. 식단은 mock이고 LLM은 실제 추천 함수에 연결됨."""
     if task.task_type == TaskType.MEAL_CLASSIFY:
         await asyncio.sleep(1)  # TODO: 현지님 분류 함수로 교체
     elif task.task_type == TaskType.RECOMMEND_LLM:
-        await asyncio.sleep(1)  # TODO: 민준님 LLM 함수로 교체
-        # TODO 6단계: LLM 호출엔 타임아웃(예: 60초) 필수 — CLAIM_IDLE_MS(5분)는 "작업 하나가 5분 안에 끝남"이 전제
+        from ai_worker.tasks.recommendation_runner import run_recommendation
+
+        await run_recommendation(task)
     else:
         logger.warning("처리 함수가 없는 작업 종류: %s (task_id=%s)", task.task_type, task.task_id)
 
@@ -60,7 +61,10 @@ async def run_with_retry(task: TaskMessage) -> bool:
             await handle(task)
             return True
         except Exception:
-            logger.exception("작업 실패 (%s/%s): %s", attempt, MAX_ATTEMPTS, task.task_id)
+            if task.task_type == TaskType.RECOMMEND_LLM:
+                logger.error("LLM 작업 실패 (%s/%s): task_id=%s", attempt, MAX_ATTEMPTS, task.task_id)
+            else:
+                logger.exception("작업 실패 (%s/%s): %s", attempt, MAX_ATTEMPTS, task.task_id)
             if attempt < MAX_ATTEMPTS:
                 # attempt=1 -> 2**0 = 1초 대기, attempt=2 -> 2**1 = 2초 대기
                 await asyncio.sleep(2 ** (attempt - 1))
@@ -94,11 +98,23 @@ async def process_message(redis: Redis, message_id: str, fields: dict[str, str])
             maxlen=DEAD_LETTER_MAXLEN,
             approximate=True,
         )
-        # TODO 5단계: DB status = FAILED
+    await finish_message(redis, message_id, task, is_success)
 
-    await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+
+async def finish_message(redis: Redis, message_id: str, task: TaskMessage, is_success: bool) -> None:
     status = "COMPLETED" if is_success else "FAILED"
+    if task.task_type != TaskType.RECOMMEND_LLM:
+        await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+    else:
+        from ai_worker.tasks.recommendation_runner import recommendation_status
+
+        status = await recommendation_status(task, mark_failed=not is_success)
+        if status not in ("COMPLETED", "FAILED"):
+            await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+            return
     await redis.publish(RESULT_CHANNEL, json.dumps({**task.model_dump(mode="json"), "status": status}))
+    if task.task_type == TaskType.RECOMMEND_LLM:
+        await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
 
 
 async def handle_claimed(redis: Redis, message_id: str, fields: dict[str, str]) -> None:
@@ -124,14 +140,12 @@ async def handle_claimed(redis: Redis, message_id: str, fields: dict[str, str]) 
             maxlen=DEAD_LETTER_MAXLEN,
             approximate=True,
         )
-        await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
-        # 결과를 기다리는 화면이 계속 "분석 중"에 멈추지 않게 FAILED를 알림 (payload가 깨졌으면 알릴 대상이 없어서 생략)
         try:
             task = TaskMessage.model_validate_json(fields.get("payload", ""))
-            await redis.publish(RESULT_CHANNEL, json.dumps({**task.model_dump(mode="json"), "status": "FAILED"}))
         except ValidationError:
-            pass
-        # TODO 5단계: DB status = FAILED
+            await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
+        else:
+            await finish_message(redis, message_id, task, False)
         return
 
     await process_message(redis, message_id, fields)

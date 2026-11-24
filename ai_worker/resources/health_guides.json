@@ -1,0 +1,60 @@
+[
+  {
+    "id": "htn_less_salt",
+    "title": "질병관리청 국가건강정보포털 - 고혈압",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=6765",
+    "topics": [
+      "DAILY_ACTION",
+      "MEAL_ALTERNATIVE"
+    ],
+    "summary": "고혈압 예방·관리에 도움이 되는 생활습관으로 염분 섭취를 줄이고 국물 음식과 가공식품을 덜 먹는 방법이 소개되어 있다.",
+    "action": "다음 식사에서 국물 음식이 있다면 국물을 조금 남겨 보는 건 어때요?",
+    "signals": [
+      "is_hypertension_diagnosed",
+      "sodium_mg"
+    ]
+  },
+  {
+    "id": "htn_movement",
+    "title": "질병관리청 국가건강정보포털 - 고혈압",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=6765",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "고혈압 예방·관리에 규칙적인 걷기 등 유산소 신체활동이 도움이 된다.",
+    "action": "가능한 날에 가벼운 걷기 시간을 조금 만들어 보는 건 어때요?",
+    "signals": [
+      "is_hypertension_diagnosed"
+    ]
+  },
+  {
+    "id": "dm_reduce_added_sugar",
+    "title": "질병관리청 국가건강정보포털 - 당뇨환자의 식이요법",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=3388",
+    "topics": [
+      "DAILY_ACTION",
+      "MEAL_ALTERNATIVE"
+    ],
+    "summary": "당뇨병 식사 관리 자료에서는 단순당이 많이 들어간 식품과 음료의 섭취를 조절하는 것을 권고한다.",
+    "action": "다음에 단 음료를 고를 때는 무가당 음료를 선택해 보는 건 어때요?",
+    "signals": [
+      "is_diabetes_diagnosed",
+      "sugar_g"
+    ]
+  },
+  {
+    "id": "dm_more_fiber",
+    "title": "질병관리청 국가건강정보포털 - 당뇨환자의 식이요법",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=3388",
+    "topics": [
+      "DAILY_ACTION",
+      "MEAL_ALTERNATIVE"
+    ],
+    "summary": "당뇨병 식사 관리 자료에서는 식이섬유가 풍부한 채소·잡곡·콩류 등을 식사에 포함하는 방법을 설명한다.",
+    "action": "다음 식사에 채소 반찬을 한 가지 곁들여 보는 건 어때요?",
+    "signals": [
+      "is_diabetes_diagnosed",
+      "carbs_g"
+    ]
+  }
+]

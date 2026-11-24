@@ -177,6 +177,7 @@ Table recommendations {
   rec_type recommendation_type [not null]
   target_on date [not null]                        // 추천 기준 날짜
   status generation_status [not null, default: 'PENDING']
+  task_id uuid [null]                              // 현재 Redis 작업 ID
   content text [null]                              // LLM 답변 본문 (생성 완료 전엔 null)
   sources json [null]                              // RAG 근거 출처 배열 (문서명, URL 등)
   risk_prediction_id bigint [null, ref: - risk_predictions.id]  // LLM-004 기준 예측
