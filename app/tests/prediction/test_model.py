@@ -80,12 +80,11 @@ def test_factors_direction_down() -> None:
     assert factors[0] == {"feature": "bmi", "direction": "DOWN"}
 
 
-def test_dummy_models_give_fixed_scores() -> None:
-    # 학습 전 가짜 모델: api.md 3-1 예시와 같은 점수, factors 없음
-    diabetes = load_model(Disease.DIABETES)
-    hypertension = load_model(Disease.HYPERTENSION)
+def test_model_files_load_for_each_disease() -> None:
+    # model_files/의 JSON(가짜든 진짜든)이 형식에 맞는지만 봄. 점수는 파일마다 달라서 API 테스트는 fixed_model을 씀
+    for disease in Disease:
+        model = load_model(disease)
 
-    assert to_score(diabetes.probability(make_inputs())) == 34
-    assert to_score(hypertension.probability(make_inputs(bmi=40.0))) == 21
-    assert diabetes.factors(make_inputs()) == []
-    assert diabetes.model_version == "diabetes_risk:dummy"
+        assert model.disease == disease
+        assert model.model_version.startswith(f"{disease.lower()}_risk:")
+        assert 0 < model.probability(make_inputs()) < 1

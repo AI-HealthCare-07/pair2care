@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 from typing import Any
+from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
 from starlette import status
@@ -11,6 +12,7 @@ from app.main import app
 from app.models.checkup_records import CheckupRecord
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from app.tests.prediction.fixed_models import LOAD_MODEL_TARGET, fixed_model
 from app.tests.survey.test_validation import make_answers
 
 LATEST_URL = "/api/v1/risk-predictions/latest"
@@ -45,6 +47,7 @@ def weekly_same_habits(weight_kg: float) -> dict[str, Any]:
     }
 
 
+@patch(LOAD_MODEL_TARGET, new=fixed_model)  # 모델 파일과 상관없이 당뇨 34 / 고혈압 21
 class TestRiskPredictionAPI(TestCase):
     async def login(self, client: AsyncClient, email: str) -> None:
         await client.post("/api/v1/auth/signup", json=make_signup_data(email))
@@ -107,8 +110,8 @@ class TestRiskPredictionAPI(TestCase):
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
         assert body["disease"] == "DIABETES"
-        assert body["model_version"] == "diabetes_risk:dummy"
-        assert body["factors"] == []  # 가짜 모델은 계수가 0
+        assert body["model_version"] == "diabetes_risk:fixed"
+        assert body["factors"] == []  # 고정 모델은 계수가 0
         assert body["changed_inputs"] == [{"feature": "weight_kg", "before": 78.2, "after": 76.0}]
         assert body["previous"]["id"] == first.json()["predictions"][0]["id"]
         assert body["previous"]["score"] == 34

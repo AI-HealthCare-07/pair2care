@@ -14,6 +14,7 @@ from app.models.health_profiles import HealthProfile
 from app.models.risk_predictions import RiskPrediction
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from app.tests.prediction.fixed_models import LOAD_MODEL_TARGET, fixed_model
 from app.tests.survey.test_validation import make_answers, make_weekly_answers
 
 URL = "/api/v1/health-profiles"
@@ -31,6 +32,7 @@ def new_client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
+@patch(LOAD_MODEL_TARGET, new=fixed_model)  # 모델 파일과 상관없이 당뇨 34 / 고혈압 21
 class TestCreateHealthProfileAPI(TestCase):
     async def login(self, client: AsyncClient, email: str, **signup: Any) -> None:
         await client.post("/api/v1/auth/signup", json=make_signup_data(email, **signup))
@@ -54,12 +56,12 @@ class TestCreateHealthProfileAPI(TestCase):
         assert body["skipped_reason"] is None
         assert body["prediction_error"] is False
         assert await HealthProfile.filter(id=profile["id"]).exists()
-        # 학습 전 가짜 모델: 당뇨 34(CAUTION) → 고혈압 21(LOW) 순서
+        # 테스트용 고정 모델: 당뇨 34(CAUTION) → 고혈압 21(LOW) 순서
         summary = [(p["disease"], p["method"], p["score"], p["level"]) for p in body["predictions"]]
         assert summary == [("DIABETES", "MODEL", 34, "CAUTION"), ("HYPERTENSION", "MODEL", 21, "LOW")]
         row = await RiskPrediction.get(id=body["predictions"][0]["id"])
         assert row.health_profile_id == profile["id"]
-        assert row.model_version == "diabetes_risk:dummy"
+        assert row.model_version == "diabetes_risk:fixed"
         assert row.input_snapshot["inputs"]["sex"] == "MALE"
         assert row.input_snapshot["model_inputs"]["bmi"] == 26.3
 
@@ -199,7 +201,7 @@ class TestCreateHealthProfileAPI(TestCase):
         # 예측이 실패해도 설문은 저장하고 prediction_error: true (다시 받게 하지 않음)
         async with new_client() as client:
             await self.login(client, "hp-pred-fail@example.com")
-            with patch("app.services.prediction.service.load_model", side_effect=ValueError("모델 파일 깨짐")):
+            with patch(LOAD_MODEL_TARGET, side_effect=ValueError("모델 파일 깨짐")):
                 response = await client.post(URL, json=onboarding_body())
 
         assert response.status_code == status.HTTP_201_CREATED
