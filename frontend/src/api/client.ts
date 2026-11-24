@@ -56,6 +56,7 @@ export class ApiError extends Error {
   field: string | null      // 3-1 설문 400에서 어느 문항인지 (현지님 S-06이 씀)
   constructor(status: number, detail: string, code: string | null = null, field: string | null = null) {
     super(detail)
+    this.name = 'ApiError'
     this.status = status
     this.code = code
     this.field = field

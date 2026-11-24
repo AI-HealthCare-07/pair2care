@@ -51,7 +51,7 @@ export default function SignupPage() {
 
   const allAgreed = TERMS.every((t) => agreed[t.key])
   // 월을 고르기 전엔 31일까지, 고르면 그 달 마지막 날까지 (윤년 포함)
-  const daysInMonth = month ? new Date(Number(year || 2000), Number(month), 0).getDate() : 31
+  const daysInMonth = month ? lastDay(year, month) : 31
   const days = Array.from({ length: daysInMonth }, (_, i) => String(i + 1))
   const passwordBad = passwordTouched && password !== '' && !PASSWORD_RULE.test(password)
 
@@ -170,7 +170,7 @@ export default function SignupPage() {
           }}
           onBlur={() => setPasswordTouched(true)}
           aria-describedby="password-rule"
-          aria-invalid={passwordBad || undefined}
+          aria-invalid={passwordBad || !!errors.password || undefined}
           className={passwordBad ? 'is-invalid' : undefined}
         />
         <p id="password-rule" className={`auth__hint${passwordBad || errors.password ? ' is-error' : ''}`}>
@@ -221,7 +221,10 @@ export default function SignupPage() {
             placeholder="년"
             value={year}
             onChange={(e) => {
-              setYear(e.target.value)
+              const nextYear = e.target.value
+              setYear(nextYear)
+              // 윤년이 바뀌면 2월 마지막 날도 바뀜 → 고른 일이 그 달에 없으면 비움 (2000-02-29 → 2001년)
+              if (month && day && Number(day) > lastDay(nextYear, month)) setDay('')
               clearError('birthday')
             }}
             options={YEARS.map((y) => ({ value: y, label: `${y}년` }))}
@@ -282,4 +285,9 @@ export default function SignupPage() {
       </div>
     </AuthLayout>
   )
+}
+
+/** 그 달의 마지막 날. 연도를 아직 안 골랐으면 윤년(2000)으로 보고 2월 29일까지 보여 줌 */
+function lastDay(year: string, month: string): number {
+  return new Date(Number(year || 2000), Number(month), 0).getDate()
 }
