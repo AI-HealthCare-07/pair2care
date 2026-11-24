@@ -63,3 +63,51 @@ class TestUserMeApis(TestCase):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/users/me")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_update_region_set_and_clear(self):
+        # 날씨용 시·도: 고르기 → GET에 보임 → null로 해제 (api.md 2-5·11-7)
+        email = "region@example.com"
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email, nickname="지역테스터"))
+            login_response = await client.post(
+                "/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD}
+            )
+            headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+            before = await client.get("/api/v1/users/me", headers=headers)
+            set_response = await client.patch("/api/v1/users/me", json={"region": "경기"}, headers=headers)
+            after_set = await client.get("/api/v1/users/me", headers=headers)
+            clear_response = await client.patch("/api/v1/users/me", json={"region": None}, headers=headers)
+        assert before.json()["region"] is None
+        assert set_response.status_code == status.HTTP_200_OK
+        assert set_response.json()["region"] == "경기"
+        assert after_set.json()["region"] == "경기"
+        assert after_set.json()["nickname"] == "지역테스터"  # region만 보내면 닉네임은 그대로
+        assert clear_response.status_code == status.HTTP_200_OK
+        assert clear_response.json()["region"] is None
+
+    async def test_update_region_invalid_value(self):
+        # 17개 시·도 밖의 값은 422
+        email = "region_invalid@example.com"
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email))
+            login_response = await client.post(
+                "/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD}
+            )
+            headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+            response = await client.patch("/api/v1/users/me", json={"region": "서울특별시"}, headers=headers)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    async def test_update_nickname_keeps_region(self):
+        # 닉네임만 바꾸면 이미 고른 지역은 지워지지 않음
+        email = "region_keep@example.com"
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email))
+            login_response = await client.post(
+                "/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD}
+            )
+            headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+            await client.patch("/api/v1/users/me", json={"region": "부산"}, headers=headers)
+            response = await client.patch("/api/v1/users/me", json={"nickname": "새닉네임"}, headers=headers)
+        assert response.json()["nickname"] == "새닉네임"
+        assert response.json()["region"] == "부산"

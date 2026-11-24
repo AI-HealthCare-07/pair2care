@@ -6,7 +6,7 @@ from pydantic import EmailStr
 from app.core import config
 from app.models.users import Gender, User
 
-ALLOWED_UPDATE_FIELDS = ["nickname"]
+ALLOWED_UPDATE_FIELDS = ["nickname", "region"]
 UPDATED_AT_FIELD = "updated_at"
 
 
@@ -53,9 +53,8 @@ class UserRepository:
     async def update_instance(self, user: User, data: dict[str, Any]) -> None:
         update_fields = []
         for key, value in data.items():
-            if value is not None:
-                setattr(user, key, value)
-                update_fields.append(key)
+            setattr(user, key, value)  # None도 저장 (region 선택 해제). 무엇을 넘길지는 서비스가 정함
+            update_fields.append(key)
         if update_fields:
             user.updated_at = datetime.now(config.TIMEZONE)
             update_fields.append(UPDATED_AT_FIELD)
