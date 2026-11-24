@@ -67,6 +67,10 @@ jobs:
       - name: Type check + build
         run: npm run build
 
+      # 가짜 식단 데이터(meals.mock.ts)가 운영 번들에 섞이면 실패 (VITE_USE_MOCK 없이 빌드했을 때)
+      - name: Check mock data is not in the build
+        run: "! grep -rq '육개장_간편조리세트' dist"
+
   test:
     runs-on: ubuntu-latest
     services:
