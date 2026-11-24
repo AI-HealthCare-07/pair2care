@@ -80,6 +80,7 @@ export default function HomePage() {
               : `오늘은 ‘${recommended.title}’을 해볼까요?`}</strong>
             <p className="daily-context">이번 주 목표까지 {remaining(recommended)}회 남았어요.</p>
             <Link className="ui-btn ui-btn--secondary" to={`/challenges/${recommended.id}`}>이 챌린지 보기</Link>
+            <p className="daily-context">의료 진단이 아니며 전문가 상담이 필요해요.</p>
           </>
         ) : error ? null : (
           <p>{challenges.length ? '오늘 추천할 남은 챌린지가 없어요.' : '참여 중인 챌린지가 없어요.'}</p>
