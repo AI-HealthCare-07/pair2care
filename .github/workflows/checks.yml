@@ -41,6 +41,36 @@ jobs:
       - name: Run Ruff Format Check
         run: uv run ruff format . --check
 
+  # 프론트(React+Vite) 검사: eslint + tsc 타입 검사 + vite 빌드 (빌드가 깨진 PR을 막기 위함)
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check + build
+        run: npm run build
+
+      # 가짜 식단 데이터(meals.mock.ts)가 운영 번들에 섞이면 실패 (VITE_USE_MOCK 없이 빌드했을 때)
+      - name: Check mock data is not in the build
+        run: "! grep -rq '육개장_간편조리세트' dist"
+
   test:
     runs-on: ubuntu-latest
     services:
