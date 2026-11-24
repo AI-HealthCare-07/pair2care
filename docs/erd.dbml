@@ -29,6 +29,7 @@ Table users {
   birthday date [not null]
   quiet_start time [null]        // 방해 금지 시작 (null이면 사용 안 함)
   quiet_end time [null]          // 방해 금지 끝 (시작보다 이르면 다음 날까지)
+  region varchar(10) [null]      // 날씨·미세먼지용 시·도 (서울·경기 등 17개, null이면 안 씀) — api.md 11-7
   is_active bool [not null, default: true]
   is_admin bool [not null, default: false]
   last_login datetime [null]
@@ -185,6 +186,7 @@ Table recommendations {
   model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
   prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
   retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)
+  weather json [null]                              // DAILY_ACTION 생성 때 날씨·미세먼지 판정 스냅샷 (api.md 11-7)
   created_at datetime [not null]
   updated_at datetime [not null]                   // 상태 변경 추적
 
