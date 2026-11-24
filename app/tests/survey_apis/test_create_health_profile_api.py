@@ -1,13 +1,18 @@
 """3-1 설문 저장 API (api.md 3-1, 3-1 에러 목록)."""
 
+from datetime import date
 from typing import Any
+from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
 from starlette import status
 from tortoise.contrib.test import TestCase
 
 from app.main import app
+from app.models.checkup_records import CheckupRecord
 from app.models.health_profiles import HealthProfile
+from app.models.risk_predictions import RiskPrediction
+from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
 from app.tests.survey.test_validation import make_answers, make_weekly_answers
 
@@ -49,6 +54,14 @@ class TestCreateHealthProfileAPI(TestCase):
         assert body["skipped_reason"] is None
         assert body["prediction_error"] is False
         assert await HealthProfile.filter(id=profile["id"]).exists()
+        # 학습 전 가짜 모델: 당뇨 34(CAUTION) → 고혈압 21(LOW) 순서
+        summary = [(p["disease"], p["method"], p["score"], p["level"]) for p in body["predictions"]]
+        assert summary == [("DIABETES", "MODEL", 34, "CAUTION"), ("HYPERTENSION", "MODEL", 21, "LOW")]
+        row = await RiskPrediction.get(id=body["predictions"][0]["id"])
+        assert row.health_profile_id == profile["id"]
+        assert row.model_version == "diabetes_risk:dummy"
+        assert row.input_snapshot["inputs"]["sex"] == "MALE"
+        assert row.input_snapshot["model_inputs"]["bmi"] == 26.3
 
     async def test_version_mismatch_409(self) -> None:
         async with new_client() as client:
@@ -135,6 +148,7 @@ class TestCreateHealthProfileAPI(TestCase):
             response = await client.post(URL, json=onboarding_body(is_hypertension_diagnosed=True))
 
         assert response.json()["managed_diseases"] == ["HYPERTENSION"]
+        assert [p["disease"] for p in response.json()["predictions"]] == ["DIABETES"]  # 진단받은 질환은 예측 행 없음
 
     async def test_pregnant_skips_prediction(self) -> None:
         async with new_client() as client:
@@ -143,6 +157,7 @@ class TestCreateHealthProfileAPI(TestCase):
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["skipped_reason"] == "PREGNANT"
+        assert response.json()["predictions"] == []
 
     async def test_male_with_pregnancy_400(self) -> None:
         async with new_client() as client:
@@ -157,3 +172,39 @@ class TestCreateHealthProfileAPI(TestCase):
             response = await client.post(URL, json=onboarding_body())
 
         assert response.json()["skipped_reason"] == "AGE_OUT_OF_RANGE"
+
+    async def test_checkup_adds_criteria_rows(self) -> None:
+        # 유효한 검진이 있으면 같은 질환에 MODEL + CHECKUP_CRITERIA 두 행
+        email = "hp-checkup@example.com"
+        async with new_client() as client:
+            await self.login(client, email)
+            user = await User.get(email=email)
+            checkup = await CheckupRecord.create(
+                user=user, checked_on=date.today(), systolic_bp=135, diastolic_bp=85, fasting_glucose=90, hba1c=5.2
+            )
+            response = await client.post(URL, json=onboarding_body())
+
+        rows = [(p["disease"], p["method"], p["score"], p["level"]) for p in response.json()["predictions"]]
+        assert rows == [
+            ("DIABETES", "MODEL", 34, "CAUTION"),
+            ("DIABETES", "CHECKUP_CRITERIA", None, "LOW"),
+            ("HYPERTENSION", "MODEL", 21, "LOW"),
+            ("HYPERTENSION", "CHECKUP_CRITERIA", None, "CAUTION"),
+        ]
+        criteria_row = await RiskPrediction.get(id=response.json()["predictions"][3]["id"])
+        assert criteria_row.checkup_record_id == checkup.id
+        assert criteria_row.model_version is None
+
+    async def test_prediction_failure_keeps_survey(self) -> None:
+        # 예측이 실패해도 설문은 저장하고 prediction_error: true (다시 받게 하지 않음)
+        async with new_client() as client:
+            await self.login(client, "hp-pred-fail@example.com")
+            with patch("app.services.prediction.service.load_model", side_effect=ValueError("모델 파일 깨짐")):
+                response = await client.post(URL, json=onboarding_body())
+
+        assert response.status_code == status.HTTP_201_CREATED
+        body = response.json()
+        assert body["prediction_error"] is True
+        assert body["predictions"] == []
+        assert await HealthProfile.filter(id=body["health_profile"]["id"]).exists()
+        assert not await RiskPrediction.all().exists()

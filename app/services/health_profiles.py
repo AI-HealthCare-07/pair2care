@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import status
 from tortoise.transactions import in_transaction
 
+from app.core import default_logger as logger
 from app.core.exceptions import AppError, ErrorCode
 from app.dtos.health_profiles import HealthProfileCreateRequest
 from app.models.health_profiles import HealthProfile, SurveyKind
@@ -15,6 +16,7 @@ from app.models.users import User
 from app.repositories.health_profile_repository import HealthProfileRepository, to_answer_values
 from app.services.prediction.features import calculate_age
 from app.services.prediction.plan import plan_predictions
+from app.services.prediction.service import PredictionService, summarize
 from app.services.survey.questions import QUESTIONS, SURVEY_VERSION, build_questions
 from app.services.survey.validation import resolve_answers
 
@@ -28,6 +30,7 @@ ONBOARDING_ALREADY_DONE_DETAIL = "가입 설문은 이미 했어요. 바뀐 내�
 class HealthProfileService:
     def __init__(self) -> None:
         self.health_profile_repo = HealthProfileRepository()
+        self.prediction_service = PredictionService()
 
     async def get_questions(self, user_id: int, kind: SurveyKind) -> dict[str, Any]:
         """3-6. ONBOARDING은 설문이 없어도 200, WEEKLY는 직전 행으로 ask_when_applicable을 채움."""
@@ -64,20 +67,31 @@ class HealthProfileService:
                 using_db=conn,
             )
 
-        # 예측 행 저장(5-0)은 risk_predictions 모델과 같이 붙임. 지금은 어떤 질환을 예측할지까지만
-        age = calculate_age(user.birthday, profile.created_at.astimezone(KST).date())
+        surveyed_on = profile.created_at.astimezone(KST).date()
+        age = calculate_age(user.birthday, surveyed_on)
         plan = plan_predictions(
             age=age,
             is_pregnant=profile.is_pregnant,
             is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
             is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
         )
+        # 예측이 실패해도 설문은 이미 저장됨 → 다시 받게 하지 않고 prediction_error로 알림 (api.md 3-1 처리 순서 3)
+        predictions: list[dict[str, Any]] = []
+        prediction_error = False
+        try:
+            rows = await self.prediction_service.predict(user, profile, plan, age, surveyed_on)
+            predictions = [summarize(row) for row in rows]
+        except Exception:
+            # 건강정보가 로그에 남지 않게 id만 남김
+            logger.exception("예측 실패 health_profile_id=%s", profile.id)
+            prediction_error = True
+
         return {
             "health_profile": serialize_profile(profile),
-            "predictions": [],
+            "predictions": predictions,
             "managed_diseases": [disease.value for disease in plan.managed_diseases],
             "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
-            "prediction_error": False,
+            "prediction_error": prediction_error,
         }
 
 
