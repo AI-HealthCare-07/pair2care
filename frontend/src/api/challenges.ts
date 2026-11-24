@@ -101,3 +101,16 @@ export async function undoChallengeCheck(id: number) {
   const response = await apiFetch('/challenges/' + id + '/checks/' + dateInSeoul(), { method: 'DELETE' })
   await requireSuccess(response, '완료 체크를 취소하지 못했어요.')
 }
+
+export interface NextChallenge {
+  challenge_id: number
+  message: string
+  source_title: string
+  source_url: string
+}
+
+export async function readNextChallenge(signal: AbortSignal): Promise<NextChallenge | null> {
+  const response = await apiFetch('/recommendations/challenges/next', { signal, cache: 'no-store' })
+  await requireSuccess(response, '다음 챌린지 추천을 불러오지 못했어요.')
+  return response.json()
+}

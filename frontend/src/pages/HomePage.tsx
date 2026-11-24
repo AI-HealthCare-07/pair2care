@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { checkChallenge, isChallengeDemo, listChallenges, RequestError, undoChallengeCheck } from '../api/challenges'
-import type { Challenge } from '../api/challenges'
+import { checkChallenge, isChallengeDemo, listChallenges, readNextChallenge, RequestError, undoChallengeCheck } from '../api/challenges'
+import type { Challenge, NextChallenge } from '../api/challenges'
 import Button from '../components/common/Button'
 import ChallengeRow from '../components/common/ChallengeRow'
 import '../components/recommendation/recommendation.css'
@@ -12,6 +12,8 @@ export default function HomePage() {
   const navigate = useNavigate()
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [loading, setLoading] = useState(true)
+  const [next, setNext] = useState<NextChallenge | null>(null)
+  const [recommending, setRecommending] = useState(!isChallengeDemo)
   const [refresh, setRefresh] = useState(0)
   const [checking, setChecking] = useState<number>()
   const [error, setError] = useState<unknown>(null)
@@ -26,18 +28,29 @@ export default function HomePage() {
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false)
     })
+    if (!isChallengeDemo) {
+      void readNextChallenge(controller.signal).then((recommendation) => {
+        if (!controller.signal.aborted) setNext(recommendation)
+      }).catch(() => {
+        if (!controller.signal.aborted) setNext(null)
+      }).finally(() => {
+        if (!controller.signal.aborted) setRecommending(false)
+      })
+    }
     return () => controller.abort()
   }, [refresh])
 
-  const recommended = challenges
-    .filter((challenge) => !challenge.checked_today && !challenge.decision_required && remaining(challenge) > 0)
-    .sort((first, second) => remaining(first) - remaining(second))[0]
+  const eligible = challenges.filter((challenge) => !challenge.checked_today && !challenge.decision_required && remaining(challenge) > 0)
+  const recommended = isChallengeDemo
+    ? eligible.sort((first, second) => remaining(first) - remaining(second))[0]
+    : eligible.find((challenge) => challenge.id === next?.challenge_id)
   const completed = challenges.filter(({ checked_today }) => checked_today).length
 
   async function toggleCheck(challenge: Challenge) {
     if (checkInFlight.current) return
     checkInFlight.current = true
     setChecking(challenge.id)
+    setNext(null)
     setError(null)
     try {
       if (challenge.checked_today) await undoChallengeCheck(challenge.id)
@@ -54,6 +67,8 @@ export default function HomePage() {
   function reload() {
     setError(null)
     setLoading(true)
+    setRecommending(!isChallengeDemo)
+    setNext(null)
     setRefresh((value) => value + 1)
   }
 
@@ -63,11 +78,14 @@ export default function HomePage() {
       {isChallengeDemo && <p className="daily-context">체험 모드 · 예시 챌린지</p>}
       <div className="daily-card daily-card--next" aria-live="polite">
         <h2>💡 오늘의 한 가지</h2>
-        {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : error ? null : recommended ? (
+        {loading ? <p role="status">챌린지를 불러오고 있어요.</p> : error ? null : recommending || checking !== undefined ? <p role="status">다음 추천을 확인하고 있어요.</p> : recommended ? (
           <>
-            <strong>{isChallengeDemo && recommended.id === 3
+            <strong>{next?.message ?? (recommended.id === 3
               ? '다음 음료는 무가당으로 골라볼까요?'
-              : `오늘은 ‘${recommended.title}’을 해볼까요?`}</strong>
+              : `오늘은 ‘${recommended.title}’을 해볼까요?`)}</strong>
+            {next && /^https:\/\//.test(next.source_url) && (
+              <a className="daily-context" href={next.source_url} target="_blank" rel="noreferrer">{next.source_title}</a>
+            )}
             <p className="daily-context">이번 주 목표까지 {remaining(recommended)}회 남았어요.</p>
             <Link className="ui-btn ui-btn--secondary" to={`/challenges/${recommended.id}`}>이 챌린지 보기</Link>
             <p className="daily-context">의료 진단이 아니며 전문가 상담이 필요해요.</p>
