@@ -1282,6 +1282,12 @@ S-12 · REQ-LLM-003 · 담당 김민준(구현) · 초안 김지연
 - `rec_type = WEATHER_TIP` 별도 생성 → 쓰지 않음. enum 값은 당장 지우지 않고 남김 (정할 것 30번)
 - 위치 권한(GPS) 기반 정확한 위치
 
+### 11-8. 다음 챌린지 추천 `GET /api/v1/recommendations/challenges/next`
+
+로그인한 사용자의 진행 중인 챌린지에서 오늘 완료하지 않았고 주간 목표가 남은 항목을 확인한다. 공식 근거와 연결된 기본 걷기 챌린지만 첫 버전에서 추천한다. 직접 작성한 제목으로 행동을 추정하지 않는다.
+
+응답 200은 `{ "challenge_id": 30, "message": "...", "source_title": "...", "source_url": "https://..." }` 또는 추천 후보가 없을 때 `null`이다. 결과는 캐시하지 않는다. 주간 목표까지 남은 횟수가 가장 적은 후보를 추천하며, 남은 횟수가 같으면 챌린지 ID가 작은 후보를 사용한다. 챌린지 테이블이 없는 환경은 503을 반환한다.
+
 ## 12. 알림 — `notifications`, `notification_settings`, `push_subscriptions`, `custom_reminders` (김지연)
 S-24~S-26, C-03 · REQ-NOTI-001~007, 009
 

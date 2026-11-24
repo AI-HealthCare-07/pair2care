@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import OnboardingPage from './pages/OnboardingPage'
 import HomePage from './pages/HomePage'
 import ChallengesPage from './pages/ChallengesPage'
+import ChallengeDetailPage from './pages/ChallengeDetailPage'
 import PairsPage from './pages/PairsPage'
 import RecordsPage from './pages/RecordsPage'
 import MealsPage from './pages/MealsPage'
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/home', element: <HomePage /> },
       { path: '/challenges', element: <ChallengesPage /> },
+      { path: '/challenges/:id', element: <ChallengeDetailPage /> },
       { path: '/pairs', element: <PairsPage /> },
       { path: '/records', element: <RecordsPage /> },
       { path: '/records/meals', element: <MealsPage /> },

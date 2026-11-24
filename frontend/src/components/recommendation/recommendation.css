@@ -1,0 +1,51 @@
+.daily-page {
+  padding: 24px 16px;
+}
+.daily-page h1 {
+  margin: 0 0 16px;
+  font-size: 1.6rem;
+}
+.daily-page h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.55;
+}
+.daily-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+}
+.daily-card p {
+  margin: 0;
+}
+.daily-context {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+.daily-card a.ui-btn {
+  box-sizing: border-box;
+  justify-self: start;
+  text-decoration: none;
+}
+.daily-card--next {
+  background: #e7eaff;
+}
+.daily-card--next h2 {
+  color: var(--color-primary);
+  font-size: 1rem;
+}
+.daily-card--next strong {
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+.daily-challenges {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.daily-page > a + .daily-card {
+  margin-top: 16px;
+}
