@@ -150,7 +150,7 @@ Table risk_predictions {
     (user_id, disease, created_at)
   }
 
-  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 데이터팀이 12/4 전 확정 · 습관 시뮬레이션(PRED-003)은 저장하지 않음 · 검진 수치가 있으면 한 질환에 MODEL 행 + CHECKUP_CRITERIA 행 2개(11/19 데이터팀), 위험도 추이는 MODEL 행만'
+  Note: 'REQ-PRED-001~004, DASH-003 · 기록용(수정 없음) · 진단 여부가 예인 질환은 행을 만들지 않음 · level 기준값은 11/24 확정: score 30 미만 LOW · 30~59 CAUTION · 60 이상 HIGH (#88, api.md 5-0) · 습관 시뮬레이션(PRED-003)은 저장하지 않음 · 검진 수치가 있으면 한 질환에 MODEL 행 + CHECKUP_CRITERIA 행 2개(11/19 데이터팀), 위험도 추이는 MODEL 행만'
 }
 
 // 인라인 ref는 delete 옵션을 못 달아서 따로 둠
