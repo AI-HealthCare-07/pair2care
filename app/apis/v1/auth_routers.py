@@ -51,9 +51,11 @@ async def login(
 ) -> Response:
     user = await auth_service.authenticate(request)
     tokens = await auth_service.login(user)
-    resp = Response(
-        content=LoginResponse(access_token=str(tokens["access_token"])).model_dump(), status_code=status.HTTP_200_OK
-    )
+    content = LoginResponse(
+        access_token=str(tokens["access_token"]),
+        has_health_profile=await auth_service.has_health_profile(user),
+    ).model_dump()
+    resp = Response(content=content, status_code=status.HTTP_200_OK)
     set_refresh_cookie(resp, tokens)
     return resp
 
