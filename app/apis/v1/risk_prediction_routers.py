@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from app.dependencies.security import get_request_user
 from app.models.users import User
 from app.services.prediction.service import PredictionQueryService
+from app.services.prediction.simulation import SimulationRequest
 
 risk_prediction_router = APIRouter(prefix="/risk-predictions", tags=["risk-predictions"])
 
@@ -18,6 +19,16 @@ async def get_latest_predictions(
 ) -> dict[str, Any]:
     """5-2 최근 예측 (S-09·S-12). 설문이 없으면 404."""
     return await service.get_latest(user)
+
+
+@risk_prediction_router.post("/simulate")
+async def simulate_habits(
+    data: SimulationRequest,
+    user: Annotated[User, Depends(get_request_user)],
+    service: Annotated[PredictionQueryService, Depends(PredictionQueryService)],
+) -> dict[str, Any]:
+    """5-4 습관 시뮬레이션 (S-10). 저장하지 않음."""
+    return await service.simulate(user, data.changes)
 
 
 @risk_prediction_router.get("/{prediction_id}")

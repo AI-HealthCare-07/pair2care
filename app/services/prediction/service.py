@@ -5,6 +5,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from tortoise.transactions import in_transaction
 
 from app.models.checkup_records import CheckupRecord
@@ -17,6 +19,7 @@ from app.services.prediction.criteria import CheckupValues, is_checkup_valid, ju
 from app.services.prediction.features import build_input_snapshot, calculate_age
 from app.services.prediction.model import load_model, to_level, to_score
 from app.services.prediction.plan import PredictionPlan, plan_predictions
+from app.services.prediction.simulation import SimulationChanges, apply_changes, check_simulatable_keys
 from app.services.prediction.views import (
     build_detail,
     metabolic_to_response,
@@ -162,3 +165,61 @@ class PredictionQueryService:
         if row.method == PredictionMethod.MODEL:
             previous = await self.prediction_repo.get_previous_model_row(row)
         return build_detail(row, previous)
+
+    async def simulate(self, user: User, raw_changes: dict[str, Any]) -> dict[str, Any]:
+        """5-4. 최근 설문에 바꾼 습관만 덮어 다시 계산 (저장 안 함). 검사 순서: 필드 400 → 형식 422 → 해당 여부 400."""
+        check_simulatable_keys(raw_changes)
+        try:
+            changes = SimulationChanges.model_validate(raw_changes)
+        except ValidationError as error:
+            raise RequestValidationError(error.errors(include_url=False)) from None
+
+        profile = await self.health_profile_repo.get_latest(user.id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
+
+        survey = to_answer_values(profile)
+        simulated = apply_changes(survey, changes)
+
+        surveyed_on = profile.created_at.astimezone(KST).date()
+        age = calculate_age(user.birthday, surveyed_on)
+        plan = plan_predictions(
+            age=age,
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+
+        saved = {
+            row.disease: row
+            for row in pick_latest_rows(await self.prediction_repo.list_for_profile(profile.id))
+            if row.method == PredictionMethod.MODEL
+        }
+        before_inputs = build_input_snapshot(user.gender.value, age, survey)["model_inputs"]
+        after_inputs = build_input_snapshot(user.gender.value, age, simulated)["model_inputs"]
+
+        results = []
+        for disease in plan.diseases:
+            model = load_model(disease)
+            saved_row = saved.get(disease)
+            # before = 저장된 최근 MODEL 점수. 없거나(예측 실패 등) 지금 모델과 버전이 다르면(가짜 → 진짜 교체)
+            # 같은 모델로 비교해야 하므로 최근 설문으로 그 자리에서 계산
+            before_score = None
+            if saved_row is not None and saved_row.model_version == model.model_version:
+                before_score = saved_row.score
+            if before_score is None:
+                before_score = to_score(model.probability(before_inputs))
+            after_score = to_score(model.probability(after_inputs))
+            results.append(
+                {
+                    "disease": disease.value,
+                    "before": {"score": before_score, "level": to_level(before_score).value},
+                    "after": {"score": after_score, "level": to_level(after_score).value},
+                }
+            )
+
+        return {
+            "results": results,
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+        }
