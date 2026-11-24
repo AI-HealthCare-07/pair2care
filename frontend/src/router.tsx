@@ -5,6 +5,7 @@ import SignupPage from './pages/SignupPage'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
 import ChallengesPage from './pages/ChallengesPage'
+import ChallengeCreatePage from './pages/ChallengeCreatePage'
 import PairsPage from './pages/PairsPage'
 import RecordsPage from './pages/RecordsPage'
 import MealsPage from './pages/MealsPage'
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { path: '/my', element: <MyPage /> },
     ],
   },
+  { path: '/challenges/new', element: <ChallengeCreatePage /> },
   { path: '/records/meals/:id', element: <MealPickPage /> },
   { path: '*', element: <NotFoundPage /> },   // 위에 없는 "모든 주소"
 ])
