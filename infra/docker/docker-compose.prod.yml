@@ -26,8 +26,7 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       TZ: Asia/Seoul
-    ports:
-      - ${DB_EXPOSE_PORT}:${DB_PORT}
+    # 운영에서는 호스트 포트를 열지 않음 (DB가 인터넷에 노출됨). fastapi·ai-worker는 ws 네트워크로 접속
     networks:
       - ws
     volumes:
@@ -55,8 +54,7 @@ services:
       - static_volume:/app/templates
       - media_volume:/app/media
     restart: always
-    ports:
-      - "8000:8000"
+    # 8000 포트는 열지 않음: 바깥 요청은 nginx(80·443)만 거쳐서 들어옴
     networks:
       - ws
     depends_on:
@@ -90,6 +88,7 @@ services:
     image: nginx:latest
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend:/usr/share/nginx/html:ro  # 프론트 빌드 결과(dist). deployment.sh가 복사함
       - static_volume:/vol/web/static
       - media_volume:/vol/web/media
       - certbot-conf:/etc/letsencrypt

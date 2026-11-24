@@ -58,6 +58,7 @@ echo ""
 echo "${COLOR_BLUE}배포 전 빌드 & 푸시할 이미지를 선택하세요(복수선택 가능, 띄어쓰기로 구분)${COLOR_NC}"
 echo "1) fastapi"
 echo "2) ai_worker"
+echo "3) frontend (화면)"
 read -p "선택 (예: 1 2): " selections
 echo ""
 
@@ -78,6 +79,13 @@ for choice in $selections; do
       read -p "AI-worker 앱 버젼: " ai_version
       build_and_push ${docker_user} ${docker_repo} "AI Worker" ${ai_version} "ai_worker/Dockerfile" "."
       DEPLOY_SERVICES+=("ai-worker")
+      ;;
+    3)
+      # 프론트는 이미지 없이 빌드 결과(dist)를 EC2에 복사해서 nginx가 바로 서빙함
+      echo "${COLOR_BLUE}Frontend Build Start.${COLOR_NC}"
+      (cd frontend && npm ci && npm run build)
+      DEPLOY_FRONTEND=true
+      echo "${COLOR_GREEN}Frontend Done.${COLOR_NC}"
       ;;
     *)
       echo "${COLOR_RED}잘못된 선택입니다: $choice${COLOR_NC}"
@@ -121,6 +129,12 @@ else
   scp -i ~/.ssh/${ssh_key_file} infra/nginx/prod_https.conf ubuntu@${ec2_ip}:~/project/nginx/default.conf
 fi
 
+# ---------- 프론트 빌드 결과 복사 (3번 선택 시) ----------
+if [[ "$DEPLOY_FRONTEND" == "true" ]] ; then
+  ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} "rm -rf ~/project/frontend && mkdir -p ~/project/frontend"
+  scp -i ~/.ssh/${ssh_key_file} -r frontend/dist/. ubuntu@${ec2_ip}:~/project/frontend/
+fi
+
 # ---------- EC2 배포 자동화  ----------
 echo "${COLOR_BLUE}EC2 인스턴스에 SSH 접속을 시도합니다.${COLOR_NC}"
 chmod 400 ~/.ssh/${ssh_key_file}
@@ -136,7 +150,13 @@ ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} \
   docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PAT"
 
   echo "Deploying services: $DEPLOY_SERVICES"
-  docker compose up -d --pull always --no-deps $DEPLOY_SERVICES
+  if [[ -n "$DEPLOY_SERVICES" ]]; then
+    docker compose up -d --pull always --no-deps $DEPLOY_SERVICES
+  fi
+
+  # 새 nginx 설정·프론트 마운트를 반영 (compose가 바뀌었으면 다시 만들고, 아니면 설정만 다시 읽음)
+  docker compose up -d --no-deps nginx
+  docker compose exec -T nginx nginx -s reload
 
   docker image prune -af
 EOF
