@@ -16,6 +16,15 @@ def _app() -> FastAPI:
             code=ErrorCode.SURVEY_VERSION_MISMATCH,
         )
 
+    @app.get("/field-error")
+    async def raise_field_error() -> None:
+        raise AppError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="한 번에 마시는 양을 골라 주세요.",
+            code=ErrorCode.SURVEY_FIELD_INVALID,
+            field="alcohol_amount",
+        )
+
     @app.get("/http-error")
     async def raise_http_error() -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="키를 입력해 주세요.")
@@ -39,3 +48,16 @@ async def test_http_exception_keeps_default_shape() -> None:
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json() == {"detail": "키를 입력해 주세요."}
+
+
+async def test_app_error_with_field() -> None:
+    # 문항 규칙 400은 field까지 같은 높이에 (api.md 3-1)
+    async with AsyncClient(transport=ASGITransport(app=_app()), base_url="http://test") as client:
+        response = await client.get("/field-error")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json() == {
+        "detail": "한 번에 마시는 양을 골라 주세요.",
+        "code": "SURVEY_FIELD_INVALID",
+        "field": "alcohol_amount",
+    }

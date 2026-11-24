@@ -5,6 +5,8 @@ from tortoise.contrib.test import TestCase
 
 from app.core import config
 from app.main import app
+from app.models.health_profiles import HealthProfile, SurveyKind
+from app.models.users import User
 from app.services.auth import LOGIN_FAIL_KEY_PREFIX, LOGIN_LOCK_SECONDS
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
 
@@ -24,6 +26,7 @@ class TestLoginAPI(TestCase):
             response = await client.post("/api/v1/auth/login", json=login_data)
         assert response.status_code == status.HTTP_200_OK
         assert "access_token" in response.json()
+        assert response.json()["has_health_profile"] is False  # 가입만 하고 설문 전 → 프론트가 S-06으로 보냄
         # 쿠키 검증 대신 응답 헤더 확인
         assert any("refresh_token" in header for header in response.headers.get_list("set-cookie"))
 
@@ -96,3 +99,38 @@ class TestLoginAPI(TestCase):
         async with Redis(host=config.REDIS_HOST, port=config.REDIS_PORT) as redis:
             ttl = await redis.ttl(f"{LOGIN_FAIL_KEY_PREFIX}ttl@example.com")
         assert 0 < ttl <= LOGIN_LOCK_SECONDS
+
+    async def test_login_has_health_profile_after_onboarding(self):
+        # 가입 설문을 했으면 로그인 응답 has_health_profile = true → 홈으로 (api.md 2-2)
+        email = "onboarded@example.com"
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email))
+            user = await User.get(email=email)
+            await HealthProfile.create(user=user, kind=SurveyKind.ONBOARDING, survey_version="v1.0", **_VIRTUAL_SURVEY)
+            response = await client.post("/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["has_health_profile"] is True
+
+
+# 가상 설문 값 (survey-mapping.md 코드: 2 = 아니요, 3 = 피운 적 없음, 8·888 = 건너뜀)
+_VIRTUAL_SURVEY = {
+    "height_cm": 170,
+    "weight_kg": 70,
+    "father_diabetes_history": 2,
+    "mother_diabetes_history": 2,
+    "sibling_diabetes_history": 2,
+    "father_hypertension_history": 2,
+    "mother_hypertension_history": 2,
+    "sibling_hypertension_history": 2,
+    "alcohol_ever": 1,
+    "alcohol_frequency": 8,
+    "alcohol_amount": 8,
+    "binge_frequency": 8,
+    "smoking_lifetime": 3,
+    "smoking_current": 8,
+    "cigarettes_per_day": 888,
+    "heated_tobacco": 2,
+    "liquid_ecig": 2,
+    "is_hypertension_diagnosed": False,
+    "is_diabetes_diagnosed": False,
+}
