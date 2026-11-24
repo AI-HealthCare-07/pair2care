@@ -8,6 +8,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # 2. 의존성 패키지 관리 파일을 컨테이너 내부에 복사합니다.
 COPY pyproject.toml uv.lock ./
 
+# 2-1. arm64(M칩 Mac)에는 asyncmy 미리 빌드된 휠이 없어서 설치 중 C 컴파일이 필요함 → gcc 설치
+# (amd64인 CI·EC2는 휠이 있어서 없어도 되지만, 로컬 빌드가 깨지지 않게 같이 둠)
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+
 # 3. pyproject.toml에 명시된 의존성 패키지 중에서 'ai'와 'app' 그룹을 설치합니다.
 RUN uv sync --group ai --group app --no-dev --frozen
 
