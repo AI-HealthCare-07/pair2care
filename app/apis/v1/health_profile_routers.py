@@ -2,14 +2,26 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import ORJSONResponse
 
 from app.dependencies.security import get_request_user
+from app.dtos.health_profiles import HealthProfileCreateRequest
 from app.models.health_profiles import SurveyKind
 from app.models.users import User
 from app.services.health_profiles import HealthProfileService
 
 health_profile_router = APIRouter(prefix="/health-profiles", tags=["health-profiles"])
+
+
+@health_profile_router.post("", status_code=status.HTTP_201_CREATED)
+async def create_health_profile(
+    data: HealthProfileCreateRequest,
+    user: Annotated[User, Depends(get_request_user)],
+    service: Annotated[HealthProfileService, Depends(HealthProfileService)],
+) -> ORJSONResponse:
+    """3-1 설문 저장 (가입 설문·주간 재설문)."""
+    return ORJSONResponse(await service.create(user, data), status_code=status.HTTP_201_CREATED)
 
 
 @health_profile_router.get("/questions")
