@@ -65,7 +65,7 @@ export interface RowSummary {
 export function rowSummary(item: MealListItem): RowSummary {
   if (item.food) {
     return {
-      title: `${item.food.name} ${item.portion}인분`,
+      title: `${item.food.model_label ?? item.food.name} ${item.portion}인분`, // model_label이 아직 없는 응답이면 name
       picked: true,
       kcal: item.nutrients?.kcal ?? null,
     }

@@ -265,7 +265,7 @@ export async function listMeals(date: string): Promise<MealListResponse> {
             image_url: m.image_url,
             eaten_at: m.eaten_at,
             status: m.status,
-            food: m.food ? { id: m.food.id, name: m.food.name } : null,
+            food: m.food ? { id: m.food.id, name: m.food.name, model_label: m.food.model_label } : null,
             portion: m.portion,
             nutrients: m.nutrients,
           }))
