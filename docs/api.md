@@ -577,7 +577,15 @@ S-09 상세
 ```
 - `changed_inputs`: 같은 질환, **이전 설문**의 가장 최근 `MODEL` 행 `input_snapshot.inputs`와 비교한 값 (검진 저장으로 같은 설문에 생긴 행은 건너뜀, 4-1) (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `health_age`: 5-2와 같은 값·규칙
-- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
+- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null(`score`·`model_version`도 null), 대신 `input_snapshot`의 판정 수치를 **최상위 키** `used_values`(판정에 쓴 수치만)·`checked_on`(검진 날짜)으로 내려줌. `MODEL` 행에는 두 키가 없음
+```json
+{
+  "id": 52, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION",
+  "factors": null, "model_version": null, "changed_inputs": null, "previous": null, "health_age": null,
+  "used_values": { "fasting_glucose": 108, "hba1c": 5.5 }, "checked_on": "2026-05-10",
+  "created_at": "2026-11-19T10:40:00+09:00"
+}
+```
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
 - 남의 것이면 404
