@@ -23,4 +23,5 @@ class UserInfoResponse(BaseSerializerModel):
     birthday: date
     gender: Gender
     region: Region | None
+    has_health_profile: bool = False  # 가입 설문을 했는지 (api.md 2-5), 라우터에서 채움
     created_at: datetime
