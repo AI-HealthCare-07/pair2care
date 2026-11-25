@@ -167,6 +167,18 @@ class TestHealthLogsAPI(TestCase):
         assert deleted.status_code == status.HTTP_204_NO_CONTENT
         assert not await HealthLog.filter(id=log_id).exists()
 
+    async def test_update_measured_at_null_is_400(self) -> None:
+        # 수정에서 measured_at null은 "지금"으로 바꾸지 않고 400 (조용히 오늘로 옮겨지는 것 방지, #105 리뷰)
+        async with new_client() as client:
+            await self.login(client, "hl-null-time@example.com")
+            created = await self.post(client, log_type="WEIGHT", value=70, measured_at=at(2, 8))
+            response = await client.patch(f"{URL}/{created.json()['id']}", json={"measured_at": None})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json() == {"detail": "측정 시각을 입력해 주세요."}
+        row = await HealthLog.get(id=created.json()["id"])
+        assert row.measured_at.astimezone(KST).isoformat() == at(2, 8)
+
     async def test_steps_cannot_move_onto_another_day_with_steps(self) -> None:
         async with new_client() as client:
             await self.login(client, "hl-move@example.com")

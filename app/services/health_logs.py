@@ -31,6 +31,7 @@ DATE_ORDER_DETAIL: Final = "시작 날짜가 끝 날짜보다 늦어요."
 TOO_LONG_DETAIL: Final = "한 번에 366일까지 조회할 수 있어요."
 TOO_MANY_DETAIL: Final = "기록이 너무 많아요. 기간을 줄여 주세요."
 SLEEP_PAIR_DETAIL: Final = "수면 시간은 주중·주말을 함께 입력해 주세요."
+MISSING_MEASURED_AT_DETAIL: Final = "측정 시각을 입력해 주세요."
 
 MAX_RANGE_DAYS: Final = 366
 MAX_ITEMS: Final = 1000
@@ -104,6 +105,9 @@ class HealthLogService:
             raise bad_request(f"{josa(RULES[record.log_type].value.label, '을', '를')} 입력해 주세요.")
         check_daily_values(record.log_type, value, value2)
         if "measured_at" in changes:
+            # 수정에서 null은 "지금"이 아님: 그대로 두면 기록이 조용히 오늘로 옮겨져 지난 그래프 점이 사라짐 (#105 리뷰)
+            if changes["measured_at"] is None:
+                raise bad_request(MISSING_MEASURED_AT_DETAIL)
             changes["measured_at"] = resolve_measured_at(changes["measured_at"], now_kst())
 
         async with in_transaction() as conn:
