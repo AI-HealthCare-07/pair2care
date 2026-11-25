@@ -1,6 +1,6 @@
 // frontend/src/prediction/labels.ts
 // S-09 화면 문구 상수. 서버는 코드값만 주고 문구는 프론트가 정함 (api.md 5-3 "feature → 화면 문구는 프론트 상수").
-// 확정: LOW 한 줄(성은 님), 요인 14개·ℹ️ 나이 안내(#107 성은 님), 범위 밖 건강 나이(#102 "30세 미만 / 69세 초과")
+// 확정: LOW 한 줄(성은 님), 요인 14개·ℹ️ 나이 안내(#107 성은 님, 술 DOWN 문구 11/25 수정), 범위 밖 건강 나이(#102 "30세 미만 / 69세 초과")
 
 import type { Disease, Factor, RiskLevel } from '../api/predictions'
 
@@ -43,7 +43,8 @@ export const MISSING_MESSAGE = '이번에는 위험도를 계산하지 못했어
 /**
  * 요인 문구 14개 (#107 성은 님 초안). 질환 소제목 아래에 보여서 질환 이름은 뺌.
  * 가족력은 질환 상관없이 "누구의 가족력"만: father_diabetes_history·father_hypertension_history → 'father'
- * TODO(성은 님 답 대기): 술을 안 마시는 분도 alcohol_* DOWN이 나와서 "평균보다 적어요"가 보임 → 문구를 넓힐지
+ * 술: 안 마시는 분은 빈도 1·양 0으로 들어가 둘 다 DOWN이 나올 수 있음 → DOWN은 안 마시는 분에게도 맞는 문장으로
+ *     (양 DOWN은 "한 번에"를 뺌, 빈도 DOWN은 그대로도 맞음. UP은 마시는 분만 나옴, 성은 님 11/25)
  */
 const FACTOR_TEXT: Record<string, Record<Factor['direction'], string>> = {
   bmi: { UP: '체중(BMI)이 평균보다 높아요', DOWN: '체중(BMI)이 평균보다 낮아요' },
@@ -51,7 +52,7 @@ const FACTOR_TEXT: Record<string, Record<Factor['direction'], string>> = {
   mother: { UP: '어머니 가족력이 있어요', DOWN: '어머니 가족력이 없어요' },
   sibling: { UP: '형제자매 가족력이 있어요', DOWN: '형제자매 가족력이 없어요' },
   alcohol_frequency: { UP: '술 마시는 횟수가 평균보다 많아요', DOWN: '술 마시는 횟수가 평균보다 적어요' },
-  alcohol_amount: { UP: '한 번에 마시는 양이 평균보다 많아요', DOWN: '한 번에 마시는 양이 평균보다 적어요' },
+  alcohol_amount: { UP: '한 번에 마시는 양이 평균보다 많아요', DOWN: '술 마시는 양이 평균보다 적어요' },
   smoking_current: { UP: '지금 담배를 피워요', DOWN: '지금 담배를 피우지 않아요' },
 }
 

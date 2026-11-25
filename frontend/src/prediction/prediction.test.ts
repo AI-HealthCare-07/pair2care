@@ -162,6 +162,12 @@ describe('요인 문구 (#107)', () => {
     expect(factorText({ feature: 'sibling_hypertension_history', direction: 'DOWN' })).toBe('형제자매 가족력이 없어요')
   })
 
+  it('술 DOWN은 안 마시는 분에게도 맞는 문장 (양은 "한 번에" 없음)', () => {
+    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN' })).toBe('술 마시는 양이 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'UP' })).toBe('한 번에 마시는 양이 평균보다 많아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN' })).toBe('술 마시는 횟수가 평균보다 적어요')
+  })
+
   it('age·sex·모르는 값은 null → 건너뜀 (#107 전에 저장된 행)', () => {
     expect(factorText({ feature: 'age', direction: 'UP' })).toBeNull()
     expect(factorText({ feature: 'sex', direction: 'DOWN' })).toBeNull()
