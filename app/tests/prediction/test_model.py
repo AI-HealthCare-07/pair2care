@@ -7,7 +7,7 @@ import pytest
 
 from app.models.risk_predictions import Disease, RiskLevel
 from app.services.prediction.features import FEATURE_NAMES
-from app.services.prediction.health_age import parse_health_age_curve
+from app.services.prediction.health_age import parse_means_by_sex
 from app.services.prediction.model import LogisticModel, load_model, read_model_file, to_level, to_score
 
 
@@ -100,9 +100,9 @@ def test_model_files_load_for_each_disease() -> None:
         assert 0 < model.probability(make_inputs()) < 1
 
 
-def test_model_file_curves_are_valid() -> None:
-    # 곡선이 있으면 형식 검사 (30~69 40개, 0~1, 같은 값 없이 증가). 실행 중엔 null로 넘어가니 여기서 머지 전에 막음
+def test_model_file_means_by_sex_are_valid() -> None:
+    # means_by_sex가 있으면 형식 검사 (성별 2개 × 그 질환 7문항). 실행 중엔 null로 넘어가니 여기서 머지 전에 막음
     for disease in Disease:
         data = read_model_file(disease)
-        if "health_age_curve" in data:
-            parse_health_age_curve(data["model_version"], data["health_age_curve"])
+        if "means_by_sex" in data:
+            parse_means_by_sex(data["model_version"], disease, data["means_by_sex"])

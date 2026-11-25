@@ -80,10 +80,21 @@ def find_changed_inputs(before: Mapping[str, Any], after: Mapping[str, Any]) -> 
     ]
 
 
+def stored_factors(row: RiskPrediction) -> list[dict[str, Any]]:
+    """예측 때 저장한 factors(옛 기준)를 years 없이. 같은 성별 평균을 못 쓸 때만 (api.md 5-3)."""
+    return [{**factor, "years": None} for factor in (row.factors or [])]
+
+
 def build_detail(
-    row: RiskPrediction, previous: RiskPrediction | None, health_age: dict[str, Any] | None = None
+    row: RiskPrediction,
+    previous: RiskPrediction | None,
+    health_age: dict[str, Any] | None = None,
+    factors: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """5-3 예측 상세. 기준표 행은 factors·changed_inputs·previous 대신 판정 수치."""
+    """5-3 예측 상세. 기준표 행은 factors·changed_inputs·previous 대신 판정 수치.
+
+    factors: 조회 때 계산한 가감 나이 요인 (#114). None이면 저장된 factors를 years: null로 (방향만).
+    """
     body: dict[str, Any] = {
         "id": row.id,
         "disease": row.disease.value,
@@ -101,7 +112,7 @@ def build_detail(
         body["used_values"] = {key: value for key, value in snapshot.items() if key not in CRITERIA_META_KEYS}
         body["checked_on"] = snapshot.get("checked_on")
     else:
-        body["factors"] = row.factors or []
+        body["factors"] = factors if factors is not None else stored_factors(row)
         if previous is not None:
             body["changed_inputs"] = find_changed_inputs(
                 previous.input_snapshot.get("inputs", {}), row.input_snapshot.get("inputs", {})
