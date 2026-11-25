@@ -19,8 +19,8 @@ CURVE_AGES: Final = tuple(range(MIN_AGE, MAX_AGE + 1))  # 30~69, 40개
 
 
 class OutOfRange(StrEnum):
-    BELOW = "BELOW"  # 30세 이하 수준
-    ABOVE = "ABOVE"  # 69세 이상 수준
+    BELOW = "BELOW"  # 30세 미만 수준
+    ABOVE = "ABOVE"  # 69세 초과 수준
 
 
 @dataclass(frozen=True)
