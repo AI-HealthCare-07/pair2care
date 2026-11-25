@@ -4,6 +4,7 @@
 
 import type { KeyboardEvent } from 'react'
 import Chip from '../common/Chip'
+import { moveRadioFocus } from '../common/radioKeys'
 import type { AnswerValue, QuestionOption } from '../../survey/types'
 import './survey.css'
 
@@ -20,20 +21,8 @@ export default function OptionList({ labelledBy, options, value, onChange }: Pro
   const tabbableIndex = selectedIndex >= 0 ? selectedIndex : 0
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'))
-    const current = buttons.findIndex((b) => b === document.activeElement)
-    if (current < 0) return
-
-    let next: number | null = null
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (current + 1) % buttons.length
-    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = (current - 1 + buttons.length) % buttons.length
-    else if (e.key === 'Home') next = 0
-    else if (e.key === 'End') next = buttons.length - 1
-    if (next === null) return
-
-    e.preventDefault()
-    buttons[next].focus()
-    onChange(options[next].value)
+    const next = moveRadioFocus(e)
+    if (next !== null) onChange(options[next].value)
   }
 
   return (

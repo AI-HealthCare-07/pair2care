@@ -35,7 +35,7 @@
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열)<br>**프론트가 종류로 갈라 처리해야 하는 에러에만** `code`를 붙임: `{ "detail": "한국어 메시지", "code": "SURVEY_VERSION_MISMATCH" }` → 프론트는 문구 글자가 아니라 `code`로 분기 (문구는 바뀔 수 있음)<br>구현: `app/core/exceptions.py`의 `AppError` + 전용 핸들러 (`HTTPException(detail={...})`는 `detail`이 한 번 더 감싸져서 쓰지 않음). `code` 목록은 아래 표와 `ErrorCode`를 같이 고침 |
-| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) |
+| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) · `SIGNUP_UNDER_14` 400 (2-1, `field: birthday`) · `SIGNUP_TERMS_REQUIRED` 400 (2-1, `field: consents`) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
@@ -83,8 +83,8 @@ S-02, S-03 · REQ-USER-001·005 · 로그인 필요 없음
 | password | 8자 이상, 영문·숫자·특수문자 각 1개 이상. 특수문자는 키보드 기호(ASCII 문장부호 `!@#$%^&*` 등 32자), 공백·한글은 안 됨. 아니면 422. 화면은 칸 아래 안내 문구 "8자 이상, 영문+숫자+특수문자(!@#$ 등)"로 미리 알려 줌 (체크 목록 없음, S-02) |
 | nickname | 2~20자. 중복 허용 (짝꿍 화면엔 닉네임만 보여서 같은 이름이 있어도 됨) |
 | gender | `MALE` / `FEMALE` (예측 입력 sex, 설문 임신 문항, 대사증후군 기준에 씀) |
-| birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` |
-| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` → 정할 것 22번 |
+| birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` + `code: SIGNUP_UNDER_14`, `field: birthday` (날짜 형식이 틀리면 422) |
+| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` + `code: SIGNUP_TERMS_REQUIRED`, `field: consents` → 정할 것 22번. 검사 순서: 나이 → 약관 → 이메일 중복(409) |
 
 **처리 (한 트랜잭션)**: `users` 저장 → `user_consents` 3행 저장(`created_at` = 동의 시각) → 토큰 발급
 - 동의는 화면 S-03에서 받지만 저장은 가입과 한 번에 (동의 없이 가입만 된 계정이 생기지 않게)
