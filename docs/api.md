@@ -470,7 +470,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 0.5 올림 정수 0~100 (model.py `to_score`: floor(확률 × 100 + 0.5), 파이썬 round 아님) |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별·나이와 다른 질환 가족력은 뺌 (계산에는 그대로 씀). 성별·나이는 바꿀 수 없는 값이라 "바꿀 수 있는 것 → 챌린지"로 이어지는 자리에 안 맞고, 나이는 평균에서 멀면 거의 항상 1순위라 체중·음주·흡연이 밀려남 → 나이 비교는 건강 나이가 따로 보여 줌, 결과 화면에 "점수에는 나이도 반영돼요" 안내 (11/25 장성은). 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임 (11/24). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
+| factors | 저장값은 예측 때 기록용(옛 기준). **응답의 factors는 5-3 조회 때 `input_snapshot.model_inputs`로 다시 계산** (#114, 기준을 바꿔도 예전 행까지 한 번에 맞춤). 후보는 건강 나이와 같은 7문항(`bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환 가족력 3개). 성별·나이는 바꿀 수 없는 값이고 나이 비교는 건강 나이가 따로 보여 줌, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보여서 뺌 (계산에는 그대로 씀, 11/24·11/25 장성은). 항목마다 `years = 반올림(계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수)` 정수 → **0살은 빼고 절댓값 큰 순 3개**, 양수 `UP` / 음수 `DOWN`. `[{"feature": "bmi", "direction": "UP", "years": 5}]`. 같은 성별 평균은 모델 JSON `means_by_sex` (5-2 `health_age`와 같은 기준이라 요인과 건강 나이가 항상 같은 말을 함). 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 유의한 차이 없음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, `mlflow_run_id`와 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
@@ -535,11 +535,11 @@ S-09, S-12 홈 카드
   "health_profile_id": 31,
   "predictions": [
     { "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
-      "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": 5 }, { "feature": "father_diabetes_history", "years": 5 } ] }, "created_at": "2026-11-19T10:40:00+09:00" },
+      "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null }, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8,
       "health_age": null, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW",
-      "health_age": { "decade": 30, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": -12 }, { "feature": "alcohol_frequency", "years": -3 } ] }, "created_at": "2026-11-19T10:40:00+09:00" }
+      "health_age": { "decade": 30, "actual_age": 45, "out_of_range": null }, "created_at": "2026-11-19T10:40:00+09:00" }
   ],
   "managed_diseases": [],
   "skipped_reason": null,
@@ -557,7 +557,7 @@ S-09, S-12 홈 카드
   - `decade`: 건강 나이를 반올림한 정수의 10살 단위. 40 = "40대 수준". 범위 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
   - `out_of_range`: null / `BELOW`(반올림한 건강 나이 30 미만, "30세 미만 수준") / `ABOVE`(69 초과, "69세 초과 수준") — 학습 범위(30~69) 밖이라 숫자 대신 이 문구. ±15 제한 때문에 `BELOW`는 실제 나이 44세 이하, `ABOVE`는 55세 이상에서만 나옴 (예: 38세 −15 → 23 → `BELOW`)
-  - `items`: 항목별 가감 나이, 반올림한 정수가 0이 아닌 것만, 절댓값 큰 순 `[{ "feature": "bmi", "years": 5 }, { "feature": "smoking_current", "years": 5 }]` → 화면 "+5살". 문구는 factors와 같은 프론트 상수. 합계가 ±15를 넘으면 `decade`는 제한한 값이라 `items` 합과 다를 수 있음
+  - 항목별 가감 나이는 따로 내려 주지 않고 5-3 `factors[].years`로 보여 줌 (같은 7문항·같은 기준, #114 합의). 건강 나이는 7문항 전부의 합(반올림 전)을 ±15로 자른 값이라 화면의 요인 3개 합과 다를 수 있음 → 화면은 합계 숫자를 안 쓰고 10살 단위 줄만
   - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 `means_by_sex`가 없거나 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
   - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
 
@@ -567,14 +567,14 @@ S-09 상세
 {
   "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
   "factors": [
-    { "feature": "bmi", "direction": "UP" },
-    { "feature": "father_diabetes_history", "direction": "UP" },
-    { "feature": "alcohol_frequency", "direction": "DOWN" }
+    { "feature": "bmi", "direction": "UP", "years": 5 },
+    { "feature": "father_diabetes_history", "direction": "UP", "years": 5 },
+    { "feature": "alcohol_frequency", "direction": "DOWN", "years": -1 }
   ],
   "model_version": "diabetes_risk:v1",
   "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
   "previous": { "id": 40, "score": 37, "level": "CAUTION", "created_at": "2026-11-12T09:10:00+09:00" },
-  "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": 5 }, { "feature": "father_diabetes_history", "years": 5 } ] },
+  "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null },
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
@@ -590,7 +590,8 @@ S-09 상세
 }
 ```
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
-- 요인 크기 숫자는 내려주지 않음 (방향만)
+- 요인 크기는 `years`(가감 나이 정수)만 내려 줌. 확률·계수 같은 숫자는 안 내려 줌 (11/25 #114: 건강 나이 항목과 합침). 화면은 "영향을 준 요인" 카드 줄 오른쪽에 "+5살 / −1살"
+- `model_version`이 지금 모델과 다르거나 `means_by_sex`를 읽지 못하면 저장된 factors를 그대로 내려 주고 `years`는 null (방향만)
 - 남의 것이면 404
 
 ### 5-4. 습관 시뮬레이션 `POST /api/v1/risk-predictions/simulate` ⚕️
