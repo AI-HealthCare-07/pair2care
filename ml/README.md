@@ -14,7 +14,7 @@
 |---|---|
 | train.py | 원본 불러오기 → 대상·정답 → 입력 변환 → 평가 → 100% 재학습 → 서버 JSON + MLflow 기록 |
 | evaluate.py | AUROC·AUPRC·Brier·보정 기울기, 연령대별 AUROC, 위험 단계(30/60)별 비율·Recall·Precision, 계수 부호 확인 |
-| serving_json.py | 원래 단위 계수 → 서버 모델 JSON, 건강 나이 곡선 계산·검사 (표준 라이브러리만, CI 테스트) |
+| serving_json.py | 원래 단위 계수 → 서버 모델 JSON, 같은 성별 평균(건강 나이·요인 7문항), 건강 나이 곡선 계산·검사 (표준 라이브러리만, CI 테스트) |
 
 - 입력 변환은 서빙과 같은 `app/services/prediction/features.py`를 씀 (학습·서빙 어긋남 방지)
 - 테스트: `app/tests/ml_training/` (가상 데이터만)
@@ -40,7 +40,7 @@ flowchart LR
     D --> E[80% 학습 / 20% 평가<br/>층화, 시드 42]
     E --> F[학습 세트 5-fold CV<br/>평가 세트 지표·연령대별·단계별·보정]
     D --> G[100% 데이터로 다시 학습]
-    G --> H[원래 단위 계수 + 학습 평균<br/>+ 건강 나이 곡선]
+    G --> H[원래 단위 계수 + 학습 평균<br/>+ 같은 성별 평균 7문항 + 건강 나이 곡선]
     H --> I[서버 모델 JSON]
     F --> J[(MLflow<br/>params·metrics·artifacts)]
     I --> J

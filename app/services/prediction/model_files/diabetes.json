@@ -1,6 +1,6 @@
 {
   "model_version": "diabetes_risk:v1",
-  "mlflow_run_id": "bb21927fc4db4384809c85f12b027f13",
+  "mlflow_run_id": "c7768b1c8ce441c2bcbf56c184844b91",
   "disease": "DIABETES",
   "features": [
     "sex",
@@ -44,6 +44,26 @@
     "alcohol_frequency": 3.072925669835782,
     "alcohol_amount": 1.8958513396715644,
     "smoking_current": 0.15654710458081245
+  },
+  "means_by_sex": {
+    "MALE": {
+      "bmi": 24.995838820121197,
+      "father_diabetes_history": 0.1290492494074269,
+      "mother_diabetes_history": 0.13062944429813012,
+      "sibling_diabetes_history": 0.05240979720832236,
+      "alcohol_frequency": 3.652883855675533,
+      "alcohol_amount": 2.7221490650513562,
+      "smoking_current": 0.31656570977087173
+    },
+    "FEMALE": {
+      "bmi": 23.422879648287307,
+      "father_diabetes_history": 0.13647188129694082,
+      "mother_diabetes_history": 0.15753801062465653,
+      "sibling_diabetes_history": 0.09324052024180253,
+      "alcohol_frequency": 2.66953654515479,
+      "alcohol_amount": 1.321121084447701,
+      "smoking_current": 0.04524638212126763
+    }
   },
   "health_age_curve": {
     "MALE": [

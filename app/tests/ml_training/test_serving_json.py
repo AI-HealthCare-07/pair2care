@@ -1,4 +1,4 @@
-"""ml/serving_json.py: 학습 결과 → 서버 JSON·건강 나이 곡선 (가상 데이터만, DB 없이 도는 순수 테스트)."""
+"""ml/serving_json.py: 학습 결과 → 서버 JSON·같은 성별 평균·건강 나이 곡선 (가상 데이터만, DB 없이 도는 순수 테스트)."""
 
 import math
 from typing import Any
@@ -6,9 +6,16 @@ from typing import Any
 import pytest
 
 from app.models.risk_predictions import Disease
-from app.services.prediction.features import FEATURE_NAMES
+from app.services.prediction.features import DIABETES_FAMILY_FIELDS, FEATURE_NAMES
 from app.services.prediction.model import CAUTION_MIN_SCORE, HIGH_MIN_SCORE, LogisticModel, to_score
-from ml.serving_json import CURVE_AGES, build_health_age_curve, check_health_age_curve, to_server_json
+from ml.serving_json import (
+    CURVE_AGES,
+    build_health_age_curve,
+    build_means_by_sex,
+    check_health_age_curve,
+    health_age_fields,
+    to_server_json,
+)
 
 COEFFICIENTS = dict.fromkeys(FEATURE_NAMES, 0.0) | {"age": 0.05, "bmi": 0.1, "sex": -0.3, "smoking_current": 0.2}
 MEANS = dict.fromkeys(FEATURE_NAMES, 0.0) | {"age": 50.0, "bmi": 24.0, "sex": 1.5}
@@ -103,6 +110,36 @@ def test_check_curve_rejects_broken(broken: dict[str, Any]) -> None:
     curve: dict[str, Any] = {"MALE": good, "FEMALE": good} | broken
     with pytest.raises(ValueError):
         check_health_age_curve(curve)
+
+
+def test_means_by_sex_is_mean_within_each_sex() -> None:
+    rows = make_rows()
+    fields = health_age_fields(DIABETES_FAMILY_FIELDS)
+
+    means_by_sex = build_means_by_sex(rows, fields)
+
+    assert fields == (
+        "bmi",
+        "father_diabetes_history",
+        "mother_diabetes_history",
+        "sibling_diabetes_history",
+        "alcohol_frequency",
+        "alcohol_amount",
+        "smoking_current",
+    )
+    for label, code in (("MALE", 1.0), ("FEMALE", 2.0)):
+        group = [row for row in rows if row["sex"] == code]
+        assert list(means_by_sex[label]) == list(fields)
+        for name in fields:
+            assert means_by_sex[label][name] == pytest.approx(sum(row[name] for row in group) / len(group))
+
+
+def test_means_by_sex_needs_both_sexes_and_seven_fields() -> None:
+    fields = health_age_fields(DIABETES_FAMILY_FIELDS)
+    with pytest.raises(ValueError):
+        build_means_by_sex([row for row in make_rows() if row["sex"] == 1.0], fields)
+    with pytest.raises(ValueError):
+        health_age_fields(DIABETES_FAMILY_FIELDS[:2])
 
 
 def test_evaluate_score_rules_match_server() -> None:
