@@ -3,13 +3,19 @@
 CI test 작업은 app 그룹만 설치해서 sklearn·xgboost가 없음 → 없으면 건너뜀. 로컬은 --group ml로 실행.
 """
 
-import numpy as np
-import pandas as pd
 import pytest
 
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
 pytest.importorskip("sklearn")
-pytest.importorskip("xgboost")
 pytest.importorskip("mlflow")
+try:
+    import xgboost  # noqa: F401
+except Exception:  # 설치 안 됨(ImportError) 또는 맥에 libomp 없음(XGBoostError)
+    pytest.skip("xgboost를 쓸 수 없음 (맥은 brew install libomp)", allow_module_level=True)
+
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 
 from app.services.prediction.features import FEATURE_NAMES  # noqa: E402
 from ml.compare import (  # noqa: E402
