@@ -87,7 +87,7 @@ class PredictionService:
         return rows
 
     async def retry_latest(self, user: User) -> dict[str, Any]:
-        """5-5 다시 계산: 최근 설문에 모델 예측이 없을 때(3-1·4-1 예측 실패)만 설문 날짜 기준으로 다시 예측."""
+        """5-5 다시 계산: 최근 설문에 모델 예측이 없을 때(3-1 예측 실패)만 설문 날짜 기준으로 다시 예측."""
         profile = await HealthProfileRepository().get_latest(user.id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
