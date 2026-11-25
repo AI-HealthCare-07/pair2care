@@ -34,6 +34,20 @@ export function buildPredictionView(latest: LatestPredictionsResponse): Predicti
   return { kind: 'RESULT', cards }
 }
 
+/**
+ * 단계 기준 (api.md 5-0, 서버 model.py 상수와 같음): 30 미만 LOW / 30–59 CAUTION / 60 이상 HIGH.
+ * 게이지의 색 구간과 낮음·주의·높음 글자 위치를 이 기준에 맞춰서, 62점(HIGH) 원이 "주의" 글자 옆에 찍히지 않게 함 (#111 성은 님)
+ */
+export const CAUTION_MIN_SCORE = 30
+export const HIGH_MIN_SCORE = 60
+
+/** 낮음·주의·높음 글자 위치(%): 각 구간의 가운데 → 15 · 45 · 80 */
+export const GAUGE_LABEL_PERCENT = {
+  LOW: CAUTION_MIN_SCORE / 2,
+  CAUTION: (CAUTION_MIN_SCORE + HIGH_MIN_SCORE) / 2,
+  HIGH: (HIGH_MIN_SCORE + 100) / 2,
+} as const
+
 /** 게이지 표시 위치 0~100(%). 기준표 행처럼 점수가 없으면 null */
 export function gaugePercent(score: number | null): number | null {
   if (score === null || !Number.isFinite(score)) return null

@@ -92,7 +92,25 @@
   height: 8px;
   margin: 0 9px; /* 표시 원 반지름만큼 → 0·100점에서도 원이 카드 밖으로 안 나감 */
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--pred-gauge-start), var(--pred-gauge-mid) 50%, var(--pred-gauge-end));
+  /* 색 구간을 단계 기준(30·60)에 맞춤 → 62점(HIGH) 원이 "주의" 글자 근처에 있어도 어느 구간인지 보이게 (#111 성은 님)
+     구간 안은 한 색, 경계만 짧게 섞음 */
+  background: linear-gradient(
+    90deg,
+    var(--pred-gauge-start) 0%,
+    var(--pred-gauge-start) 27%,
+    var(--pred-gauge-mid) 33%,
+    var(--pred-gauge-mid) 57%,
+    var(--pred-gauge-end) 63%,
+    var(--pred-gauge-end) 100%
+  );}
+
+.pred-gauge__divider {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--color-surface);
+  transform: translateX(-50%);
 }
 
 .pred-gauge__marker {
@@ -112,11 +130,19 @@
 .pred-gauge__marker--HIGH { color: var(--pred-high-text); }
 
 .pred-gauge__labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
+  position: relative;
+  height: 22px;
+  margin: 12px 9px 0; /* 트랙과 같은 좌우 여백 → 글자 위치(%)가 트랙 위치와 맞음 */
   font-size: 15px;
+  line-height: 22px;
   color: var(--color-muted);
+}
+
+.pred-gauge__labels span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .pred-card__message {

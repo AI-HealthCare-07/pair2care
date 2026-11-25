@@ -6,7 +6,13 @@
 
 import { healthAgeLine } from '../../prediction/healthAge'
 import { DISEASE_LABEL, LEVEL_LABEL, LEVEL_MESSAGE, MANAGED_MESSAGE, MANAGED_TITLE, MISSING_MESSAGE } from '../../prediction/labels'
-import { gaugePercent, type DiseaseCard as DiseaseCardData } from '../../prediction/view'
+import {
+  CAUTION_MIN_SCORE,
+  GAUGE_LABEL_PERCENT,
+  gaugePercent,
+  HIGH_MIN_SCORE,
+  type DiseaseCard as DiseaseCardData,
+} from '../../prediction/view'
 import './prediction.css'
 
 export default function DiseaseCard({ card }: { card: DiseaseCardData }) {
@@ -50,12 +56,18 @@ export default function DiseaseCard({ card }: { card: DiseaseCardData }) {
       {percent !== null && (
         <div className="pred-gauge" role="img" aria-label={`위험도 ${score}점, ${LEVEL_LABEL[level]}`}>
           <div className="pred-gauge__track">
+            {/* 단계 구분선 30 · 60 */}
+            <span className="pred-gauge__divider" style={{ left: `${CAUTION_MIN_SCORE}%` }} />
+            <span className="pred-gauge__divider" style={{ left: `${HIGH_MIN_SCORE}%` }} />
             <span className={`pred-gauge__marker pred-gauge__marker--${level}`} style={{ left: `${percent}%` }} />
           </div>
+          {/* 글자는 단계 구간 가운데 (15 · 45 · 80%) */}
           <div className="pred-gauge__labels" aria-hidden="true">
-            <span>{LEVEL_LABEL.LOW}</span>
-            <span>{LEVEL_LABEL.CAUTION}</span>
-            <span>{LEVEL_LABEL.HIGH}</span>
+            {(['LOW', 'CAUTION', 'HIGH'] as const).map((key) => (
+              <span key={key} style={{ left: `${GAUGE_LABEL_PERCENT[key]}%` }}>
+                {LEVEL_LABEL[key]}
+              </span>
+            ))}
           </div>
         </div>
       )}

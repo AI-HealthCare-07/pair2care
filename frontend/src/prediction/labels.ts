@@ -1,6 +1,6 @@
 // frontend/src/prediction/labels.ts
 // S-09 화면 문구 상수. 서버는 코드값만 주고 문구는 프론트가 정함 (api.md 5-3 "feature → 화면 문구는 프론트 상수").
-// 확정: LOW 한 줄(성은 님), 요인 14개·ℹ️ 나이 안내(#107 성은 님, 술 DOWN 문구 11/25 수정), 범위 밖 건강 나이(#102 "30세 미만 / 69세 초과")
+// 확정: 단계별 한 줄(성은 님), 요인 14개·ℹ️ 나이 안내(#107 성은 님, 술 DOWN 문구 11/25 수정), 범위 밖 건강 나이(#102 "30세 미만 / 69세 초과")
 
 import type { Disease, Factor, RiskLevel } from '../api/predictions'
 
@@ -21,8 +21,8 @@ export const LEVEL_LABEL: Record<RiskLevel, string> = {
 
 /**
  * 모델 행 카드의 단계별 한 줄.
- * LOW는 확정 (정답이 "전단계 이상"이라 LOW에도 실제 위험한 분이 섞여 있어서 "상대적으로 낮은 편", 성은 님 11/25).
- * TODO(성은 님 문구 확인): CAUTION·HIGH는 임시 문구
+ * LOW: 정답이 "전단계 이상"이라 LOW에도 실제 위험한 분이 섞여 있어서 "상대적으로 낮은 편" (성은 님 11/25)
+ * CAUTION·HIGH: #111 리뷰에서 성은 님 확정
  */
 export const LEVEL_MESSAGE: Record<RiskLevel, string> = {
   LOW: '상대적으로 낮은 편이에요. 지금처럼 유지해도 좋아요',

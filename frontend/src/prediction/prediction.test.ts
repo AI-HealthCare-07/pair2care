@@ -13,7 +13,7 @@ import {
 import { MOCK_PREDICTION_SCENARIOS } from '../api/predictions.mockScenarios'
 import { decadeOf, healthAgeLine } from './healthAge'
 import { DISEASE_ORDER, factorText, LEVEL_LABEL } from './labels'
-import { buildPredictionView, factorLines, gaugePercent } from './view'
+import { buildPredictionView, CAUTION_MIN_SCORE, factorLines, GAUGE_LABEL_PERCENT, gaugePercent, HIGH_MIN_SCORE } from './view'
 
 const row = (overrides: Partial<LatestPrediction>): LatestPrediction => ({
   id: 1,
@@ -101,8 +101,23 @@ describe('gaugePercent', () => {
   })
 })
 
+describe('게이지 글자 위치 (#111 성은 님)', () => {
+  it('단계 기준 30·60 (서버 model.py와 같음), 글자는 구간 가운데 15·45·80%', () => {
+    expect([CAUTION_MIN_SCORE, HIGH_MIN_SCORE]).toEqual([30, 60])
+    expect(GAUGE_LABEL_PERCENT).toEqual({ LOW: 15, CAUTION: 45, HIGH: 80 })
+  })
+
+  it('글자는 자기 단계 구간 안에 있음 (62점 HIGH 원은 60% 구분선 오른쪽 = "높음" 구간)', () => {
+    expect(GAUGE_LABEL_PERCENT.LOW).toBeLessThan(CAUTION_MIN_SCORE)
+    expect(GAUGE_LABEL_PERCENT.CAUTION).toBeGreaterThanOrEqual(CAUTION_MIN_SCORE)
+    expect(GAUGE_LABEL_PERCENT.CAUTION).toBeLessThan(HIGH_MIN_SCORE)
+    expect(GAUGE_LABEL_PERCENT.HIGH).toBeGreaterThanOrEqual(HIGH_MIN_SCORE)
+    expect(gaugePercent(62)).toBeGreaterThanOrEqual(HIGH_MIN_SCORE)
+  })
+})
+
 describe('healthAgeLine (건강 나이 한 줄)', () => {
-  it('null이면 줄 숨김 (곡선 JSON 없는 지금 진짜 서버)', () => {
+  it('null이면 줄 숨김 (기준표 행·곡선 읽기 실패·예전 모델 행)', () => {
     expect(healthAgeLine(null)).toBeNull()
   })
 

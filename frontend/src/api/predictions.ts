@@ -12,7 +12,8 @@ export type SkippedReason = 'PREGNANT' | 'AGE_OUT_OF_RANGE'
 
 /**
  * 건강 나이 (5-2·5-3, #102). decade와 out_of_range는 둘 중 하나만 값이 있음.
- * 행 자체가 null인 경우: 기준표 행, 모델 JSON에 곡선 없음(11/25 지금은 전부 null), 곡선 읽기 실패, model_version 다름
+ * 행 자체가 null인 경우: 기준표 행, 모델 JSON에 곡선 없음, 곡선 읽기 실패, model_version 다름
+ * (#110부터 진짜 모델 JSON에 곡선이 있어서 모델 행은 보통 값이 옴)
  */
 export interface HealthAge {
   decade: number | null // 40 = "40대 수준"
