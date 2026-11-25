@@ -10,9 +10,10 @@ from tortoise.contrib.test import TestCase
 
 from app.main import app
 from app.models.checkup_records import CheckupRecord
+from app.models.health_profiles import HealthProfile
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
-from app.tests.prediction.fixed_models import LOAD_MODEL_TARGET, fixed_model
+from app.tests.prediction.fixed_models import LOAD_CURVE_TARGET, LOAD_MODEL_TARGET, fixed_curve, fixed_model
 from app.tests.survey.test_validation import make_answers
 
 LATEST_URL = "/api/v1/risk-predictions/latest"
@@ -76,6 +77,7 @@ class TestRiskPredictionAPI(TestCase):
         assert body["managed_diseases"] == ["HYPERTENSION"]
         assert body["skipped_reason"] is None
         assert body["metabolic_syndrome"] is None  # 검진 없음
+        assert body["predictions"][0]["health_age"] is None  # 곡선이 없는 모델이면 null → 화면은 건강 나이 줄을 숨김
 
     async def test_latest_with_checkup_has_criteria_and_metabolic(self) -> None:
         email = "rp-checkup@example.com"
@@ -154,3 +156,33 @@ class TestRiskPredictionAPI(TestCase):
             response = await other.get(f"/api/v1/risk-predictions/{prediction_id}")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_health_age_with_curve(self) -> None:
+        # 고정 모델과 같은 버전의 곡선: 당뇨 34점 → 63세 → 60대, 고혈압 21점 → 50세 → 50대
+        with patch(LOAD_CURVE_TARGET, new=fixed_curve):
+            async with new_client() as client:
+                await self.login(client, "rp-health-age@example.com")
+                created = await client.post(SURVEY_URL, json=onboarding_body())
+                latest = await client.get(LATEST_URL)
+                detail = await client.get(f"/api/v1/risk-predictions/{created.json()['predictions'][0]['id']}")
+
+        actual_age = (await HealthProfile.get(id=created.json()["health_profile"]["id"])).created_at.year - 1990
+        health_ages = {p["disease"]: p["health_age"] for p in latest.json()["predictions"]}
+        assert health_ages["DIABETES"]["decade"] == 60
+        assert health_ages["HYPERTENSION"]["decade"] == 50
+        assert health_ages["DIABETES"]["out_of_range"] is None
+        assert health_ages["DIABETES"]["actual_age"] in (actual_age - 1, actual_age)  # 생일 전후
+        assert detail.json()["health_age"] == health_ages["DIABETES"]
+
+    async def test_criteria_row_health_age_is_null(self) -> None:
+        email = "rp-health-age-criteria@example.com"
+        with patch(LOAD_CURVE_TARGET, new=fixed_curve):
+            async with new_client() as client:
+                await self.login(client, email)
+                user = await User.get(email=email)
+                await CheckupRecord.create(user=user, checked_on=date.today(), systolic_bp=135, diastolic_bp=85)
+                await client.post(SURVEY_URL, json=onboarding_body())
+                response = await client.get(LATEST_URL)
+
+        criteria = [p for p in response.json()["predictions"] if p["method"] == "CHECKUP_CRITERIA"]
+        assert criteria and all(p["health_age"] is None for p in criteria)

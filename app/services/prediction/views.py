@@ -19,8 +19,8 @@ def to_kst_iso(value: datetime) -> str:
     return value.astimezone(KST).isoformat()
 
 
-def summarize_row(row: RiskPrediction) -> dict[str, Any]:
-    """5-2 predictions 한 줄. checkup_record_id는 기준표 행에만."""
+def summarize_row(row: RiskPrediction, health_age: dict[str, Any] | None = None) -> dict[str, Any]:
+    """5-2 predictions 한 줄. checkup_record_id는 기준표 행에만, health_age는 모든 행에 (기준표 행은 항상 null)."""
     body: dict[str, Any] = {
         "id": row.id,
         "disease": row.disease.value,
@@ -30,6 +30,7 @@ def summarize_row(row: RiskPrediction) -> dict[str, Any]:
     }
     if row.method == PredictionMethod.CHECKUP_CRITERIA:
         body["checkup_record_id"] = row.checkup_record_id
+    body["health_age"] = health_age
     body["created_at"] = to_kst_iso(row.created_at)
     return body
 
@@ -42,6 +43,15 @@ def pick_latest_rows(rows: Iterable[RiskPrediction]) -> list[RiskPrediction]:
         current = latest.get(key)
         if current is None or (row.created_at, row.id) > (current.created_at, current.id):
             latest[key] = row
+    # 기준표 행은 최신 MODEL 행과 같은 예측 때 만든 것만 (예측은 항상 MODEL → 기준표 순서로 같이 저장).
+    # 최신 MODEL 행보다 오래됐으면 지난 판정 → 숨김 (가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
+    for disease in DISEASE_ORDER:
+        model_row = latest.get((disease.value, PredictionMethod.MODEL.value))
+        criteria_row = latest.get((disease.value, PredictionMethod.CHECKUP_CRITERIA.value))
+        if model_row is not None and criteria_row is not None:
+            if (criteria_row.created_at, criteria_row.id) < (model_row.created_at, model_row.id):
+                del latest[(disease.value, PredictionMethod.CHECKUP_CRITERIA.value)]
+
     keys = [
         (disease.value, method.value)
         for disease in DISEASE_ORDER
@@ -70,7 +80,9 @@ def find_changed_inputs(before: Mapping[str, Any], after: Mapping[str, Any]) -> 
     ]
 
 
-def build_detail(row: RiskPrediction, previous: RiskPrediction | None) -> dict[str, Any]:
+def build_detail(
+    row: RiskPrediction, previous: RiskPrediction | None, health_age: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """5-3 예측 상세. 기준표 행은 factors·changed_inputs·previous 대신 판정 수치."""
     body: dict[str, Any] = {
         "id": row.id,
@@ -82,6 +94,7 @@ def build_detail(row: RiskPrediction, previous: RiskPrediction | None) -> dict[s
         "model_version": row.model_version,
         "changed_inputs": None,
         "previous": None,
+        "health_age": health_age,
     }
     if row.method == PredictionMethod.CHECKUP_CRITERIA:
         snapshot = row.input_snapshot

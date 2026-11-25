@@ -1,7 +1,6 @@
 {
-  "_note": "가짜 모델 (장성은 학습 전). 계수 0, 절편만으로 고정 점수 21를 냄. 진짜 JSON이 오면 이 파일을 바꿈",
-  "model_version": "hypertension_risk:dummy",
-  "mlflow_run_id": null,
+  "model_version": "hypertension_risk:v1",
+  "mlflow_run_id": "0c4a091971644b3bb632b1a7f66a8c98",
   "disease": "HYPERTENSION",
   "features": [
     "sex",
@@ -17,33 +16,359 @@
     "alcohol_amount",
     "smoking_current"
   ],
-  "intercept": -1.324925,
+  "intercept": -5.6049853206597575,
   "coefficients": {
-    "sex": 0.0,
-    "age": 0.0,
-    "bmi": 0.0,
-    "father_diabetes_history": 0.0,
-    "mother_diabetes_history": 0.0,
-    "sibling_diabetes_history": 0.0,
-    "father_hypertension_history": 0.0,
-    "mother_hypertension_history": 0.0,
-    "sibling_hypertension_history": 0.0,
-    "alcohol_frequency": 0.0,
-    "alcohol_amount": 0.0,
-    "smoking_current": 0.0
+    "sex": -0.6398414697775698,
+    "age": 0.042448690069319193,
+    "bmi": 0.12228785666738212,
+    "father_diabetes_history": 0.05121706121981627,
+    "mother_diabetes_history": -0.11869458031904939,
+    "sibling_diabetes_history": -0.1558516927782386,
+    "father_hypertension_history": 0.2015088049527113,
+    "mother_hypertension_history": 0.34503006672422015,
+    "sibling_hypertension_history": 0.32249571183948317,
+    "alcohol_frequency": 0.11748002028874939,
+    "alcohol_amount": 0.10099306710669385,
+    "smoking_current": 0.05476208637755872
   },
   "means": {
-    "sex": 0.0,
-    "age": 0.0,
-    "bmi": 0.0,
-    "father_diabetes_history": 0.0,
-    "mother_diabetes_history": 0.0,
-    "sibling_diabetes_history": 0.0,
-    "father_hypertension_history": 0.0,
-    "mother_hypertension_history": 0.0,
-    "sibling_hypertension_history": 0.0,
-    "alcohol_frequency": 0.0,
-    "alcohol_amount": 0.0,
-    "smoking_current": 0.0
+    "sex": 1.6005823829167678,
+    "age": 49.784396991021595,
+    "bmi": 23.75715845668527,
+    "father_diabetes_history": 0.1486289735501092,
+    "mother_diabetes_history": 0.156030089784033,
+    "sibling_diabetes_history": 0.08323222518806116,
+    "father_hypertension_history": 0.2322251880611502,
+    "mother_hypertension_history": 0.2691094394564426,
+    "sibling_hypertension_history": 0.09694248968696918,
+    "alcohol_frequency": 3.027784518320796,
+    "alcohol_amount": 1.8482164523173987,
+    "smoking_current": 0.16197524872603736
+  },
+  "health_age_curve": {
+    "MALE": [
+      {
+        "age": 30,
+        "probability": 0.2590703712386402
+      },
+      {
+        "age": 31,
+        "probability": 0.266771942423657
+      },
+      {
+        "age": 32,
+        "probability": 0.2746103114280714
+      },
+      {
+        "age": 33,
+        "probability": 0.28258299548899957
+      },
+      {
+        "age": 34,
+        "probability": 0.29068724100557986
+      },
+      {
+        "age": 35,
+        "probability": 0.2989200228410596
+      },
+      {
+        "age": 36,
+        "probability": 0.30727804462897224
+      },
+      {
+        "age": 37,
+        "probability": 0.31575774011698005
+      },
+      {
+        "age": 38,
+        "probability": 0.32435527557626337
+      },
+      {
+        "age": 39,
+        "probability": 0.3330665532981884
+      },
+      {
+        "age": 40,
+        "probability": 0.34188721619341755
+      },
+      {
+        "age": 41,
+        "probability": 0.3508126535016907
+      },
+      {
+        "age": 42,
+        "probability": 0.35983800761326556
+      },
+      {
+        "age": 43,
+        "probability": 0.3689581819955173
+      },
+      {
+        "age": 44,
+        "probability": 0.37816785021053495
+      },
+      {
+        "age": 45,
+        "probability": 0.3874614660017903
+      },
+      {
+        "age": 46,
+        "probability": 0.3968332744201619
+      },
+      {
+        "age": 47,
+        "probability": 0.4062773239518692
+      },
+      {
+        "age": 48,
+        "probability": 0.4157874796032699
+      },
+      {
+        "age": 49,
+        "probability": 0.4253574368901011
+      },
+      {
+        "age": 50,
+        "probability": 0.434980736671666
+      },
+      {
+        "age": 51,
+        "probability": 0.4446507807637718
+      },
+      {
+        "age": 52,
+        "probability": 0.4543608482579835
+      },
+      {
+        "age": 53,
+        "probability": 0.4641041124690469
+      },
+      {
+        "age": 54,
+        "probability": 0.4738736584272154
+      },
+      {
+        "age": 55,
+        "probability": 0.48366250082775253
+      },
+      {
+        "age": 56,
+        "probability": 0.49346360234612724
+      },
+      {
+        "age": 57,
+        "probability": 0.5032698922244131
+      },
+      {
+        "age": 58,
+        "probability": 0.5130742850321871
+      },
+      {
+        "age": 59,
+        "probability": 0.5228696995038171
+      },
+      {
+        "age": 60,
+        "probability": 0.5326490773534521
+      },
+      {
+        "age": 61,
+        "probability": 0.5424054019692862
+      },
+      {
+        "age": 62,
+        "probability": 0.5521317168897506
+      },
+      {
+        "age": 63,
+        "probability": 0.5618211439661934
+      },
+      {
+        "age": 64,
+        "probability": 0.5714669011192866
+      },
+      {
+        "age": 65,
+        "probability": 0.5810623195998541
+      },
+      {
+        "age": 66,
+        "probability": 0.5906008606689614
+      },
+      {
+        "age": 67,
+        "probability": 0.6000761316169239
+      },
+      {
+        "age": 68,
+        "probability": 0.6094819010463128
+      },
+      {
+        "age": 69,
+        "probability": 0.6188121133499874
+      }
+    ],
+    "FEMALE": [
+      {
+        "age": 30,
+        "probability": 0.11551481342959342
+      },
+      {
+        "age": 31,
+        "probability": 0.1197181932739591
+      },
+      {
+        "age": 32,
+        "probability": 0.12404889698200235
+      },
+      {
+        "age": 33,
+        "probability": 0.12850907885611926
+      },
+      {
+        "age": 34,
+        "probability": 0.13310081668563464
+      },
+      {
+        "age": 35,
+        "probability": 0.1378261031715703
+      },
+      {
+        "age": 36,
+        "probability": 0.14268683711736366
+      },
+      {
+        "age": 37,
+        "probability": 0.14768481440875367
+      },
+      {
+        "age": 38,
+        "probability": 0.15282171880898868
+      },
+      {
+        "age": 39,
+        "probability": 0.1580991125985047
+      },
+      {
+        "age": 40,
+        "probability": 0.16351842709124648
+      },
+      {
+        "age": 41,
+        "probability": 0.16908095306283677
+      },
+      {
+        "age": 42,
+        "probability": 0.17478783112881302
+      },
+      {
+        "age": 43,
+        "probability": 0.18064004211411752
+      },
+      {
+        "age": 44,
+        "probability": 0.18663839745791413
+      },
+      {
+        "age": 45,
+        "probability": 0.19278352970058074
+      },
+      {
+        "age": 46,
+        "probability": 0.1990758831023534
+      },
+      {
+        "age": 47,
+        "probability": 0.20551570444554504
+      },
+      {
+        "age": 48,
+        "probability": 0.21210303407448028
+      },
+      {
+        "age": 49,
+        "probability": 0.21883769722925447
+      },
+      {
+        "age": 50,
+        "probability": 0.22571929573108337
+      },
+      {
+        "age": 51,
+        "probability": 0.2327472000783366
+      },
+      {
+        "age": 52,
+        "probability": 0.23992054201329518
+      },
+      {
+        "age": 53,
+        "probability": 0.24723820762020646
+      },
+      {
+        "age": 54,
+        "probability": 0.254698831015295
+      },
+      {
+        "age": 55,
+        "probability": 0.26230078868899376
+      },
+      {
+        "age": 56,
+        "probability": 0.2700421945597511
+      },
+      {
+        "age": 57,
+        "probability": 0.2779208957973288
+      },
+      {
+        "age": 58,
+        "probability": 0.2859344694715081
+      },
+      {
+        "age": 59,
+        "probability": 0.29408022007954565
+      },
+      {
+        "age": 60,
+        "probability": 0.30235517800257766
+      },
+      {
+        "age": 61,
+        "probability": 0.310756098937422
+      },
+      {
+        "age": 62,
+        "probability": 0.31927946434591875
+      },
+      {
+        "age": 63,
+        "probability": 0.3279214829590543
+      },
+      {
+        "age": 64,
+        "probability": 0.3366780933676762
+      },
+      {
+        "age": 65,
+        "probability": 0.3455449677256387
+      },
+      {
+        "age": 66,
+        "probability": 0.3545175165847636
+      },
+      {
+        "age": 67,
+        "probability": 0.3635908948740944
+      },
+      {
+        "age": 68,
+        "probability": 0.37276000902862155
+      },
+      {
+        "age": 69,
+        "probability": 0.38201952526501187
+      }
+    ]
   }
 }

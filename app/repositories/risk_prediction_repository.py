@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from tortoise import BaseDBAsyncClient
@@ -28,11 +29,22 @@ class RiskPredictionRepository:
         return await self._model.get_or_none(id=prediction_id, user_id=user_id)
 
     async def get_previous_model_row(self, row: RiskPrediction) -> RiskPrediction | None:
-        """같은 질환의 바로 앞 MODEL 행 (changed_inputs·previous 비교 대상)."""
+        """같은 질환, 이전 설문의 가장 최근 MODEL 행 (changed_inputs·previous 비교 대상).
+
+        검진 저장(4-1·4-4)으로 같은 설문에 MODEL 행이 다시 생겨도, 비교는 지난 설문과 함 (같은 설문끼리면 변화가 없어 보임).
+        """
         return (
             await self._model.filter(
-                user_id=row.user_id, disease=row.disease, method=PredictionMethod.MODEL, id__lt=row.id
+                user_id=row.user_id,
+                disease=row.disease,
+                method=PredictionMethod.MODEL,
+                id__lt=row.id,
             )
+            .exclude(health_profile_id=row.health_profile_id)
             .order_by("-created_at", "-id")
             .first()
         )
+
+    async def list_since(self, user_id: int, start: datetime) -> list[RiskPrediction]:
+        """7-1 추이: start 이후 내 예측 전부 (MODEL·기준표 둘 다, 주별로 고르는 건 서비스)."""
+        return await self._model.filter(user_id=user_id, created_at__gte=start).order_by("created_at", "id")

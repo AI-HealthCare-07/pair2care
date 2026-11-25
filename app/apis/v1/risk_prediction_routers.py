@@ -1,4 +1,4 @@
-"""5장 위험 예측 조회 API."""
+"""5장 위험 예측 API (조회·시뮬레이션·다시 계산)."""
 
 from typing import Annotated, Any
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from app.dependencies.security import get_request_user
 from app.models.users import User
-from app.services.prediction.service import PredictionQueryService
+from app.services.prediction.service import PredictionQueryService, PredictionService
 from app.services.prediction.simulation import SimulationRequest
 
 risk_prediction_router = APIRouter(prefix="/risk-predictions", tags=["risk-predictions"])
@@ -29,6 +29,15 @@ async def simulate_habits(
 ) -> dict[str, Any]:
     """5-4 습관 시뮬레이션 (S-10). 저장하지 않음."""
     return await service.simulate(user, data.changes)
+
+
+@risk_prediction_router.post("/retry")
+async def retry_predictions(
+    user: Annotated[User, Depends(get_request_user)],
+    service: Annotated[PredictionService, Depends(PredictionService)],
+) -> dict[str, Any]:
+    """5-5 다시 계산 (S-09 C-02). 이미 예측이 있으면 409, 또 실패하면 503."""
+    return await service.retry_latest(user)
 
 
 @risk_prediction_router.get("/{prediction_id}")

@@ -11,6 +11,7 @@ TORTOISE_APP_MODELS = [
     "app.models.health_profiles",
     "app.models.checkup_records",
     "app.models.risk_predictions",
+    "app.models.health_logs",
     "app.models.recommendations",
     "app.models.llm_usage_logs",
     "app.models.challenge_templates",

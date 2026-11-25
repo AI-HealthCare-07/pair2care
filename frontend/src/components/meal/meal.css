@@ -7,9 +7,6 @@
 .meal-screen {
   --meal-track: #e3e6f8;      /* 진행 막대 바탕 */
   --meal-select-bg: #eef0ff;  /* 선택된 후보·칩 바탕 */
-  --meal-warn-bg: #fff6d6;    /* 의료 안내 박스 */
-  --meal-warn-line: #f1dd90;
-  --meal-warn-text: #6b4a00;
   --meal-error: #b3261e;
 }
 
@@ -234,38 +231,6 @@
 }
 
 /* ───── 의료 안내 (C-01) ───── */
-.meal-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--meal-warn-line);
-  border-radius: 12px;
-  background: var(--meal-warn-bg);
-  color: var(--meal-warn-text);
-}
-
-.meal-notice__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.meal-notice__text {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 /* ═════════ S-22·S-23 (하단 탭 없는 전체 화면) ═════════ */
 .meal-screen {
   max-width: 375px;

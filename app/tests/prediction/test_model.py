@@ -7,7 +7,8 @@ import pytest
 
 from app.models.risk_predictions import Disease, RiskLevel
 from app.services.prediction.features import FEATURE_NAMES
-from app.services.prediction.model import LogisticModel, load_model, to_level, to_score
+from app.services.prediction.health_age import parse_health_age_curve
+from app.services.prediction.model import LogisticModel, load_model, read_model_file, to_level, to_score
 
 
 def make_model_dict(**overrides: Any) -> dict[str, Any]:
@@ -62,14 +63,23 @@ def test_level_follows_rounded_score() -> None:
     assert to_level(to_score(0.596)) == RiskLevel.HIGH
 
 
-def test_factors_top3_by_contribution_excluding_sex_and_other_family() -> None:
+def test_factors_top3_by_contribution_excluding_not_changeable_and_other_family() -> None:
     model = LogisticModel.from_dict(make_model_dict())
     inputs = make_inputs(bmi=30.0, age=60.0, father_hypertension_history=1.0, sex=2.0)
 
     factors = model.factors(inputs)
 
-    # bmi 0.1×6=0.6, age 0.05×10=0.5 / sex(0.15)·고혈압 가족력(0.4)은 당뇨 factors 후보에서 뺌
-    assert factors == [{"feature": "bmi", "direction": "UP"}, {"feature": "age", "direction": "UP"}]
+    # bmi 0.1×6=0.6만 남음 / age(0.5)·sex(0.15)는 바꿀 수 없어서, 고혈압 가족력(0.4)은 다른 질환이라 당뇨 후보에서 뺌
+    assert factors == [{"feature": "bmi", "direction": "UP"}]
+
+
+def test_age_never_in_factors_even_when_far_from_mean() -> None:
+    # 나이가 평균(50)에서 아주 멀어도(30세) 1순위를 차지하지 않음 → 체중·음주·흡연이 보임 (11/25 합의)
+    model = LogisticModel.from_dict(make_model_dict())
+
+    factors = model.factors(make_inputs(age=30.0, bmi=26.0))
+
+    assert [factor["feature"] for factor in factors] == ["bmi"]
 
 
 def test_factors_direction_down() -> None:
@@ -88,3 +98,11 @@ def test_model_files_load_for_each_disease() -> None:
         assert model.disease == disease
         assert model.model_version.startswith(f"{disease.lower()}_risk:")
         assert 0 < model.probability(make_inputs()) < 1
+
+
+def test_model_file_curves_are_valid() -> None:
+    # 곡선이 있으면 형식 검사 (30~69 40개, 0~1, 같은 값 없이 증가). 실행 중엔 null로 넘어가니 여기서 머지 전에 막음
+    for disease in Disease:
+        data = read_model_file(disease)
+        if "health_age_curve" in data:
+            parse_health_age_curve(data["model_version"], data["health_age_curve"])

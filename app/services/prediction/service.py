@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from tortoise.transactions import in_transaction
 
+from app.core import default_logger as logger
 from app.models.checkup_records import CheckupRecord
 from app.models.health_profiles import HealthProfile
 from app.models.risk_predictions import PredictionMethod, RiskPrediction
@@ -17,7 +18,8 @@ from app.repositories.health_profile_repository import HealthProfileRepository, 
 from app.repositories.risk_prediction_repository import RiskPredictionRepository
 from app.services.prediction.criteria import CheckupValues, is_checkup_valid, judge_checkup, judge_metabolic_syndrome
 from app.services.prediction.features import build_input_snapshot, calculate_age
-from app.services.prediction.model import load_model, to_level, to_score
+from app.services.prediction.health_age import health_age_for_row
+from app.services.prediction.model import load_health_age_curve, load_model, to_level, to_score
 from app.services.prediction.plan import PredictionPlan, plan_predictions
 from app.services.prediction.simulation import SimulationChanges, apply_changes, check_simulatable_keys
 from app.services.prediction.views import (
@@ -84,6 +86,74 @@ class PredictionService:
                     )
         return rows
 
+    async def retry_latest(self, user: User) -> dict[str, Any]:
+        """5-5 다시 계산: 최근 설문에 모델 예측이 없을 때(3-1 예측 실패)만 설문 날짜 기준으로 다시 예측."""
+        profile = await HealthProfileRepository().get_latest(user.id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
+
+        surveyed_on = profile.created_at.astimezone(KST).date()
+        age = calculate_age(user.birthday, surveyed_on)
+        plan = plan_predictions(
+            age=age,
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+        existing = await self.prediction_repo.list_for_profile(profile.id)
+        if plan.diseases and any(row.method == PredictionMethod.MODEL for row in existing):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ALREADY_PREDICTED_DETAIL)
+
+        try:
+            rows = await self.predict(user, profile, plan, age, surveyed_on)
+        except Exception as error:
+            logger.exception("다시 계산 실패 health_profile_id=%s", profile.id)
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=RETRY_FAILED_DETAIL) from error
+        return {
+            "predictions": [summarize(row) for row in rows],
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+        }
+
+    async def repredict_latest(self, user: User) -> dict[str, Any]:
+        """4-1·4-4: 최근 설문 + 지금 가장 최근 검진으로 다시 예측. 응답은 3-1과 같은 예측 필드.
+
+        설문이 없으면 예측하지 않음 (나중에 3-1을 저장할 때 이 검진을 읽어서 같이 판정).
+        예측이 실패해도 검진은 이미 저장됨 → prediction_error: true.
+        """
+        profile = await HealthProfileRepository().get_latest(user.id)
+        if profile is None:
+            return {"predictions": [], "managed_diseases": [], "skipped_reason": None, "prediction_error": False}
+
+        today = datetime.now(KST).date()
+        age = calculate_age(user.birthday, today)
+        plan = plan_predictions(
+            age=age,
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+        predictions: list[dict[str, Any]] = []
+        prediction_error = False
+        try:
+            predictions = [summarize(row) for row in await self.predict(user, profile, plan, age, today)]
+        except Exception:
+            logger.exception("검진 저장 뒤 예측 실패 health_profile_id=%s", profile.id)
+            prediction_error = True
+        return {
+            "predictions": predictions,
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+            "prediction_error": prediction_error,
+        }
+
+
+def health_age_of(row: RiskPrediction) -> dict[str, Any] | None:
+    """모델 행의 건강 나이. 곡선이 없거나 어긋났거나 다른 모델 버전이면 null (api.md 5-2·5-3)."""
+    if row.method != PredictionMethod.MODEL:
+        return None
+    return health_age_for_row(row, load_health_age_curve(row.disease))
+
 
 def to_checkup_values(checkup: CheckupRecord | None) -> CheckupValues | None:
     if checkup is None:
@@ -112,6 +182,8 @@ def summarize(prediction: RiskPrediction) -> dict[str, Any]:
 
 
 NO_SURVEY_DETAIL = "아직 설문 기록이 없어요."
+ALREADY_PREDICTED_DETAIL = "이미 계산된 위험도가 있어요."
+RETRY_FAILED_DETAIL = "위험도를 계산하지 못했어요. 잠시 후 다시 시도해 주세요."
 PREDICTION_NOT_FOUND_DETAIL = "예측 결과를 찾을 수 없어요."
 
 
@@ -150,7 +222,7 @@ class PredictionQueryService:
 
         return {
             "health_profile_id": profile.id,
-            "predictions": [summarize_row(row) for row in rows],
+            "predictions": [summarize_row(row, health_age_of(row)) for row in rows],
             "managed_diseases": [disease.value for disease in plan.managed_diseases],
             "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
             "metabolic_syndrome": metabolic_to_response(metabolic),
@@ -164,7 +236,7 @@ class PredictionQueryService:
         previous = None
         if row.method == PredictionMethod.MODEL:
             previous = await self.prediction_repo.get_previous_model_row(row)
-        return build_detail(row, previous)
+        return build_detail(row, previous, health_age_of(row))
 
     async def simulate(self, user: User, raw_changes: dict[str, Any]) -> dict[str, Any]:
         """5-4. 최근 설문에 바꾼 습관만 덮어 다시 계산 (저장 안 함). 검사 순서: 필드 400 → 형식 422 → 해당 여부 400."""

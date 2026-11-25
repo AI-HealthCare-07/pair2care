@@ -288,7 +288,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 1. 검사 → 건너뛰기 코드 채움 → (WEEKLY) 직전 값 복사 → `health_profiles` 저장
 2. 예측 서비스 호출 (FastAPI 안에서 바로 추론, REQ-PRED-001) → 질환별 `risk_predictions` 저장. 진단 "예"인 질환은 예측 행을 만들지 않음. **`is_pregnant = true`면 두 질환 모두 예측 안 함** (모델이 임신부를 빼고 학습)
    - 유효한 검진 수치가 있으면 같은 질환에 **모델 점수 행(MODEL) + 기준표 판정 행(CHECKUP_CRITERIA) 둘 다** 저장 (11/19 데이터팀 ERD 요청 ②)
-3. 예측 실패 시 설문은 저장하고 응답의 `predictions`를 빈 배열 + `prediction_error: true`로 줌 (설문을 다시 받게 하지 않기 위함)
+3. 예측 실패 시 설문은 저장하고 응답의 `predictions`를 빈 배열 + `prediction_error: true`로 줌 (설문을 다시 받게 하지 않기 위함) → 화면 "다시 계산" 버튼은 5-5
 
 > 2번 예측 호출의 세부(입력 변환·검진 수치 기준표·응답 상세)는 **5장 예측 API(명세·학습 장성은 / 서빙 구현 최현영)** 와 맞춤
 
@@ -419,20 +419,33 @@ S-07(직접 입력), S-08(결과지 인식, P2) · REQ-PROF-002·003
 - 저장 후 최근 설문 + 이 검진 기록으로 **예측을 다시 계산**(5장, `checkup_record_id` 채움)
   - 모델 점수 행(`MODEL`)은 항상 저장하고, 검진 수치가 있는 질환은 **기준표 판정 행(`CHECKUP_CRITERIA`)을 하나 더 저장** (정할 것 9번)
   - "관리 중"은 설문에서 진단 "예"일 때만 씀. 검진 수치가 기준 범위여도 "관리 중"으로 바꾸지 않음
-- 응답 201: 저장된 행 + 3-1과 같은 `predictions` / `managed_diseases` / `prediction_error`
+- `source`는 받지 않음: 4-6 결과지 인식 전까지 서버가 `MANUAL`로 저장
+- 응답 201: `{ "checkup_record": { 저장된 행 }, "predictions": [...], "managed_diseases": [...], "skipped_reason": null, "prediction_error": false }` (예측 필드는 3-1과 같음)
+- `prediction_error: true`면 검진은 저장됐고 예측만 실패 → S-07 안내 "검진을 다시 저장하면 다시 계산돼요" (5-5 다시 계산은 3-1 실패용)
+  - 다시 예측은 **최근 설문 + 지금 가장 최근 검진(검진 날짜 기준)**으로 함. 예전 날짜 검진을 넣으면 기준표 행은 더 최근 검진으로 판정됨
+  - 설문이 아직 없으면 검진만 저장하고 `predictions: []` → 나중에 3-1을 저장할 때 이 검진을 읽어 같이 판정
+  - 검진 저장으로 같은 설문에 `MODEL` 행이 다시 생기므로, 5-3의 `previous`·`changed_inputs`는 **이전 설문**의 `MODEL` 행과 비교 (같은 설문끼리는 변화가 없어 보여서)
+- 400 문구: 날짜가 오늘 이후 `"검진 날짜는 오늘 이후로 입력할 수 없어요."` / 혈압 `"수축기 혈압(높은 값)이 이완기 혈압(낮은 값)보다 커야 해요."` / 수치 없음 위 문구. 검사 순서: 날짜 → 혈압 → 최소 1개, 첫 위반 하나만
 - 화면 표현은 "진단"이 아니라 "수치가 고혈압 범위예요, 병원 확인을 권해요" (S-09)
 
 ### 4-2. 목록 `GET /api/v1/checkup-records?limit=20&cursor=`
-- `checked_on` 최신순
+- `checked_on` 최신순 (같은 날이면 나중에 넣은 것 먼저). `limit` 1~50
+- 응답 `{ "items": [ 행 ], "next_cursor": 12 | null }`. 커서는 마지막 행의 id, 다음 페이지는 (검진 날짜, id)가 그 행보다 앞선 것
+- 남의 기록 id를 커서로 보내면 404
 
 ### 4-3. 한 건 `GET /api/v1/checkup-records/{id}`
+- 행 모양: `{ "id", "checked_on", "systolic_bp", "diastolic_bp", "fasting_glucose", "waist_cm", "triglyceride", "hdl_cholesterol", "hba1c", "source", "created_at", "updated_at" }`
+- 남의 것이면 404 `"검진 기록을 찾을 수 없어요."` (4-4·4-5도 같음)
 
 ### 4-4. 수정 `PATCH /api/v1/checkup-records/{id}`
 - 보낸 필드만 바꿈, 규칙은 4-1과 같음(수정 후에도 최소 1개). `updated_at` 갱신
 - 수정해도 **지난 예측 행은 그대로** 두고(`input_snapshot`에 당시 값이 있음), 이 기록이 가장 최근 검진이면 예측을 새로 한 번 계산
+- 수치에 null을 보내면 그 값을 지움. `checked_on`에 null이면 400 `"검진 날짜를 입력해 주세요."`, `source`는 못 바꿈
+- 응답 200: 4-1과 같은 모양. **수정 전이나 후에** 가장 최근 검진이면 다시 예측 (가장 최근 검진의 날짜를 예전으로 옮기면 다른 기록이 최근이 되므로), 아니면 `predictions: []`
 
 ### 4-5. 삭제 `DELETE /api/v1/checkup-records/{id}` → 204
 - 이 기록을 참조한 `risk_predictions.checkup_record_id`는 null로 (FK `ON DELETE SET NULL` 필요 → **정할 것 2번**)
+- 지운 기록이 가장 최근 검진이었으면 남은 최근 검진으로 다시 예측 (남은 검진이 없거나 1년이 지났으면 기준표 행 없이 → 5-2에서 지난 판정이 안 보임)
 
 ### 4-6. 결과지 인식 (P2, 12/4 이후, 김지연)
 - `POST /api/v1/checkup-records/ocr` (multipart 사진) → 202 `{ "task_id": "..." }` → SSE로 읽은 수치 → 사용자가 확인 후 4-1에 `source: "OCR"`로 저장
@@ -458,7 +471,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 0.5 올림 정수 0~100 (model.py `to_score`: floor(확률 × 100 + 0.5), 파이썬 round 아님) |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별과 다른 질환 가족력은 뺌 (바꿀 수 없는 값, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임. 계산에는 그대로 씀). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
+| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별·나이와 다른 질환 가족력은 뺌 (계산에는 그대로 씀). 성별·나이는 바꿀 수 없는 값이라 "바꿀 수 있는 것 → 챌린지"로 이어지는 자리에 안 맞고, 나이는 평균에서 멀면 거의 항상 1순위라 체중·음주·흡연이 밀려남 → 나이 비교는 건강 나이가 따로 보여 줌, 결과 화면에 "점수에는 나이도 반영돼요" 안내 (11/25 장성은). 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임 (11/24). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, `mlflow_run_id`와 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
@@ -522,9 +535,12 @@ S-09, S-12 홈 카드
 {
   "health_profile_id": 31,
   "predictions": [
-    { "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION", "created_at": "2026-11-19T10:40:00+09:00" },
-    { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8, "created_at": "2026-11-19T10:40:00+09:00" },
-    { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW", "created_at": "2026-11-19T10:40:00+09:00" }
+    { "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
+      "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null }, "created_at": "2026-11-19T10:40:00+09:00" },
+    { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8,
+      "health_age": null, "created_at": "2026-11-19T10:40:00+09:00" },
+    { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW",
+      "health_age": { "decade": null, "actual_age": 45, "out_of_range": "BELOW" }, "created_at": "2026-11-19T10:40:00+09:00" }
   ],
   "managed_diseases": [],
   "skipped_reason": null,
@@ -534,6 +550,14 @@ S-09, S-12 홈 카드
 - 질환별 가장 최근 `MODEL` 행 1개 + (있으면) `CHECKUP_CRITERIA` 행 1개
 - 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
 - `metabolic_syndrome`: 유효한 검진이 없으면 null
+- 기준표 행(`CHECKUP_CRITERIA`)은 같은 질환의 최신 `MODEL` 행과 같은 예측 때 만든 것만 보여줌 (더 오래됐으면 지난 판정이라 숨김: 가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
+- `health_age`: 건강 나이 (11/25 확정). 내 점수와 같은 확률이 나오는 "아직 진단받지 않은 같은 성별 또래"의 나이를 **10살 단위**로
+  - `decade`: 40 = "40대 수준". 곡선 밖이면 null
+  - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
+  - `out_of_range`: null / `BELOW`("30세 미만 수준") / `ABOVE`("69세 초과 수준")
+  - 계산: 모델 JSON의 `health_age_curve`(성별마다 30~69세 확률 40개, 장성은)에서 `score / 100`과 같은 확률의 나이를 직선 보간 → 같은 점수면 언제나 같은 건강 나이
+  - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 곡선이 없음, 곡선을 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
+  - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
 
 ### 5-3. 예측 상세 `GET /api/v1/risk-predictions/{id}` ⚕️
 S-09 상세
@@ -548,11 +572,21 @@ S-09 상세
   "model_version": "diabetes_risk:v1",
   "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
   "previous": { "id": 40, "score": 37, "level": "CAUTION", "created_at": "2026-11-12T09:10:00+09:00" },
+  "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null },
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
-- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
-- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
+- `changed_inputs`: 같은 질환, **이전 설문**의 가장 최근 `MODEL` 행 `input_snapshot.inputs`와 비교한 값 (검진 저장으로 같은 설문에 생긴 행은 건너뜀, 4-1) (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `health_age`: 5-2와 같은 값·규칙
+- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null(`score`·`model_version`도 null), 대신 `input_snapshot`의 판정 수치를 **최상위 키** `used_values`(판정에 쓴 수치만)·`checked_on`(검진 날짜)으로 내려줌. `MODEL` 행에는 두 키가 없음
+```json
+{
+  "id": 52, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION",
+  "factors": null, "model_version": null, "changed_inputs": null, "previous": null, "health_age": null,
+  "used_values": { "fasting_glucose": 108, "hba1c": 5.5 }, "checked_on": "2026-05-10",
+  "created_at": "2026-11-19T10:40:00+09:00"
+}
+```
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
 - 남의 것이면 404
@@ -588,6 +622,18 @@ S-10 · **저장하지 않음** (`risk_predictions`에 행 안 생김)
 
 ---
 
+### 5-5. 다시 계산 `POST /api/v1/risk-predictions/retry` ⚕️
+S-09 "다시 계산" 버튼(C-02) · REQ-PRED-001
+- **3-1**에서 `prediction_error: true`였을 때(모델 파일 오류 등) 최근 설문으로 예측만 다시 함. 요청 본문 없음
+- 4-1·4-4 실패용이 아님: 그 설문에는 이미 3-1 때의 `MODEL` 행이 있어서 409가 나고, 기준 날짜도 다름(4-1은 오늘, 5-5는 설문 날짜) → 4-1·4-4 실패는 S-07에서 "검진을 다시 저장하면 다시 계산돼요"로 안내
+- 계산은 5-0 그대로: 최근 설문 + 지금 가장 최근 검진. 나이와 검진 유효 기간(1년)은 3-1과 같이 **설문 날짜 기준** (설문 때 했어야 할 예측을 다시 하는 것)
+- 응답 200: `{ "predictions": [...], "managed_diseases": [...], "skipped_reason": null }` (3-1의 예측 필드와 같은 모양, `prediction_error` 없음)
+- 예측할 질환이 없으면(진단 "예"·임신·나이 범위 밖) 200, `predictions: []` + `managed_diseases`·`skipped_reason`
+- 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
+- 최근 설문에 이미 모델 예측(`MODEL` 행)이 있으면 **409** `"이미 계산된 위험도가 있어요."` → 화면은 5-2를 다시 불러옴. 예측은 질환 전부를 한 트랜잭션으로 저장해서 실패하면 행이 하나도 없음 → "행 없음 = 실패"로 판단 (같은 결과가 쌓이지 않게)
+- 또 실패하면 **503** `"위험도를 계산하지 못했어요. 잠시 후 다시 시도해 주세요."` (아무것도 저장 안 함, 로그엔 설문 id만)
+- 버튼은 요청 중 비활성화 (409가 거의 막지만 동시에 두 번 보낸 요청은 둘 다 저장될 수 있음, 5-2는 최신 행만 보여서 화면엔 영향 없음)
+
 ## 6. 건강 기록 — `health_logs`
 S-19(일일 기록), S-11 뒷부분(주간 기록 6종), S-12 컨디션 · REQ-DASH-001·005
 
@@ -611,6 +657,10 @@ S-19(일일 기록), S-11 뒷부분(주간 기록 6종), S-12 컨디션 · REQ-D
 | STRESS | 0~3 | — | null | | 주 1행 |
 
 - `unit`은 **서버가 종류에 맞게 채움** (클라이언트가 보내도 무시)
+- 소수점: `ALCOHOL`·`WEIGHT`·`SITTING_HOURS`·`SLEEP`은 소수 첫째 자리까지, 나머지는 정수 (`132.0`처럼 소수가 0이면 정수로 봄)
+- 범위·소수점은 종류마다 달라서 **400** + 종류별 문구 (`"체중은 25~300 사이로 입력해 주세요."`, `"체중은 소수 첫째 자리까지 입력해 주세요."`). 타입이 틀리면 FastAPI 기본 422
+- `value2`는 혈압(이완기 필수)·수면(주말 필수)만. 다른 종류에 오면 400 `"이 기록에는 두 번째 값을 넣을 수 없어요."`
+- 혈압은 수축기 > 이완기 (4-1과 같음) → 아니면 400 `"수축기 혈압(높은 값)이 이완기 혈압(낮은 값)보다 커야 해요."`
 - 실천 기록만으로 "위험이 줄었다"는 문구를 만들지 않음 (REQ-NFR-003). 이 API는 값만 저장
 
 ### 6-1. 일일 기록 저장 `POST /api/v1/health-logs`
@@ -618,13 +668,14 @@ S-19(일일 기록), S-11 뒷부분(주간 기록 6종), S-12 컨디션 · REQ-D
 { "log_type": "BLOOD_PRESSURE", "value": 132, "value2": 84, "measured_at": "2026-11-19T07:40:00+09:00", "memo": "아침 약 먹기 전" }
 ```
 - 주간 6종(`WALK_DAYS` 등)을 여기로 보내면 400 `"주간 기록은 주간 기록 API로 저장해 주세요."`
-- `measured_at` 미래 불가(5분 여유), 생략하면 지금
+- `measured_at` 미래 불가(5분 여유) → 400 `"아직 오지 않은 시각으로는 기록할 수 없어요."`, 생략하면 지금, 시간대가 없으면 KST로 봄
 - STEPS·CONDITION은 같은 날(KST)에 이미 있으면 **덮어쓰고 200**, 없으면 201
 - 응답: 저장된 행 `{ id, log_type, value, value2, unit, measured_at, memo, created_at }`
 
 ### 6-2. 기록 조회 `GET /api/v1/health-logs?log_type=BLOOD_PRESSURE&from=2026-11-01&to=2026-11-19`
 - `log_type` 필수(여러 개는 쉼표), `from`·`to`는 KST 날짜(양끝 포함), 최대 366일
 - `measured_at` 오름차순(그래프용), 최대 1000건 → 넘으면 400으로 기간 줄이기 안내
+- 400 문구: 모르는 종류 `"알 수 없는 기록 종류예요."` / from > to `"시작 날짜가 끝 날짜보다 늦어요."` / 366일 초과 `"한 번에 366일까지 조회할 수 있어요."` / 1000건 초과 `"기록이 너무 많아요. 기간을 줄여 주세요."`
 ```json
 { "items": [ { "id": 901, "log_type": "BLOOD_PRESSURE", "value": 132, "value2": 84, "unit": "mmHg", "measured_at": "2026-11-19T07:40:00+09:00", "memo": "아침 약 먹기 전" } ] }
 ```
@@ -632,6 +683,11 @@ S-19(일일 기록), S-11 뒷부분(주간 기록 6종), S-12 컨디션 · REQ-D
 ### 6-3. 수정 `PATCH /api/v1/health-logs/{id}` / 삭제 `DELETE /api/v1/health-logs/{id}` → 204
 - 수정 가능: `value`, `value2`, `measured_at`, `memo` (`log_type`은 못 바꿈 → 지우고 새로)
 - 수정 허용 (**정할 것 4번**, 11/23 확정) → ERD `health_logs.updated_at` 추가
+- 보낸 필드만 바꾸고, 기존 값과 합친 뒤 6-0 규칙 검사. 응답 200: 6-1과 같은 행
+- 수정에서 `measured_at: null`은 400 `"측정 시각을 입력해 주세요."` (6-1처럼 "지금"으로 바꾸지 않음 → 기록이 조용히 오늘로 옮겨지지 않게)
+- `log_type`을 보내면 400 `"기록 종류는 바꿀 수 없어요. 지우고 새로 저장해 주세요."`, 주간 기록 행은 400 `"주간 기록은 주간 기록 API로 고쳐 주세요."`
+- 걸음 수·컨디션의 `measured_at`을 이미 기록이 있는 날로 옮기면 400 `"그 날짜에는 이미 기록이 있어요. 그 기록을 고쳐 주세요."`
+- 남의 것이면 404 `"기록을 찾을 수 없어요."`
 
 ### 6-4. 주간 기록 저장 `PUT /api/v1/health-logs/weekly/{week_start}`
 S-11 뒷부분. `week_start` = 그 주 **월요일** 날짜 (`2026-11-16`). 월요일이 아니면 400
@@ -647,8 +703,9 @@ S-11 뒷부분. `week_start` = 그 주 **월요일** 날짜 (`2026-11-16`). 월�
 }
 ```
 - 모두 선택. **보낸 항목만** 그 주 1행으로 저장·덮어씀(`measured_at` = 월요일 00:00 KST), `null`을 보내면 그 항목 삭제, 안 보낸 항목은 그대로
-- 수면은 주중·주말 둘 다 있어야 저장 (한쪽만 오면 400)
-- 이번 주·지난주만 저장 가능 (더 과거·미래는 400) → 늦게 하는 사람 배려
+- 수면은 주중·주말 둘 다 있어야 저장 (한쪽만 오면 400 `"수면 시간은 주중·주말을 함께 입력해 주세요."`), 둘 다 null이면 삭제
+- 이번 주·지난주만 저장 가능 (더 과거·미래는 400 `"주간 기록은 이번 주와 지난주만 저장할 수 있어요."`) → 늦게 하는 사람 배려
+- 월요일이 아니면 400 `"주간 기록은 그 주 월요일 날짜로 보내 주세요."`. 범위 밖 값은 422 (필드가 고정이라 DTO에서 막음)
 - 응답 200: 아래 6-5와 같은 형태
 
 ### 6-5. 주간 기록 조회 `GET /api/v1/health-logs/weekly/{week_start}`
@@ -656,7 +713,7 @@ S-11 뒷부분. `week_start` = 그 주 **월요일** 날짜 (`2026-11-16`). 월�
 { "week_start": "2026-11-16", "walk_days": 3, "strength_days": 1, "sitting_hours": 9,
   "sleep_weekday_hours": 6.5, "sleep_weekend_hours": 8, "breakfast": 2, "stress": 1 }
 ```
-- 없는 항목은 null (404 아님)
+- 없는 항목은 null (404 아님). 조회는 지난 주도 됨 (월요일이 아니면 400)
 
 ---
 
@@ -669,19 +726,24 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
 {
   "series": [
     { "disease": "DIABETES", "managed": false,
-      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51 } ] },
+      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51, "criteria_level": "CAUTION" } ] },
     { "disease": "HYPERTENSION", "managed": true, "points": [] }
   ]
 }
 ```
 - `managed: true` = 최근 설문에서 진단 "예" → 추이 대신 "관리 중" 카드
-- 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음)
+- 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음). 두 질환은 항상 내려줌 (설문 전이면 둘 다 빈 `points`)
+- 주는 KST 월요일 기준, 이번 주 포함 N주. `weeks`는 1~52 (밖이면 422)
+- `criteria_level`: 그 주 마지막 기준표 판정 단계, 없으면 null. 그 주 마지막 MODEL 행보다 오래된 기준표(최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측)는 지난 판정이라 null (5-2와 같은 규칙)
 - 추이는 `method = MODEL`인 점만 이어 그림. 기준표 판정(`CHECKUP_CRITERIA`, score 없음)은 그 주에 표시만 따로 (`criteria_level`) → 정할 것 9번
 - "위험도가 낮아졌어요"는 **직전 점보다 실제로 내려갔을 때만**, 바뀐 입력값과 같이 보여줌 (REQ-NFR-003) → 바뀐 입력값은 예측 상세(5장)의 `input_snapshot` 비교로
 
 ### 7-2. 항목별 그래프 `GET /api/v1/dashboard/logs?log_type=BLOOD_PRESSURE&from=&to=&bucket=day`
 - `bucket`: `raw`(그대로, 기본) / `day` / `week`. 묶을 때는 평균, 혈압은 수축기·이완기 각각 평균
 - 혈압 그래프는 **집에서 잰 값(health_logs)만**, 검진 수치는 섞지 않음 (REQ-DASH-002)
+- `log_type`은 일일 기록 한 종류만 (주간 기록은 400 `"주간 기록은 주간 기록 API로 조회해 주세요."`, 모르는 종류 400). 기간은 6-2와 같음 (KST 양끝 포함, 366일까지)
+- 평균은 소수 첫째 자리 (0.05 올림). `raw`는 점마다 `{ "measured_at", "value", "value2", "count": 1 }`, `day`는 `date` = 그날, `week`는 `date` = 그 주 월요일
+- 점 한도: `raw` 1000개 / `day`·`week`는 원래 기록 20000개 → 넘으면 400 `"기록이 너무 많아요. 기간을 줄이거나 day·week로 묶어 주세요."`
 ```json
 { "log_type": "BLOOD_PRESSURE", "unit": "mmHg", "bucket": "day",
   "points": [ { "date": "2026-11-18", "value": 131.5, "value2": 83.0, "count": 2 } ] }
@@ -698,13 +760,20 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
     "BLOOD_PRESSURE": { "count": 4, "avg_value": 131.2, "avg_value2": 83.5, "last_measured_at": "2026-11-19T07:40:00+09:00" },
     "STEPS": { "days_logged": 3, "avg_value": 6120 }
   },
+  "managed_diseases": [],
   "weekly_record_done": true,
   "challenge": { "achieved_checks": 4, "target_checks": 6, "achievement_rate": 0.67 },
   "meal": null
 }
 ```
 - `priority_disease`: 먼저 보여줄 카드(S-18 "고혈압·당뇨에 따라 먼저 보여줄 카드가 다름"). 최근 예측 level이 더 높은 질환, 같으면 score가 높은 쪽, "관리 중"이면 그 질환 우선
-- `challenge`: 이번 주 체크 수 ÷ 목표 횟수 → 챌린지 API 담당과 계산식 맞춤
+- `latest_risk`: 5-2와 같은 기준 (최근 설문의 질환별 최신 `MODEL` 행), 당뇨 → 고혈압. `managed_diseases`도 같이 내려줌
+- `logs`: 이번 주(월 00:00 ~ 다음 주 월 00:00, KST) 일일 기록. 기록이 없는 종류는 뺌
+  - 걸음 수·컨디션(하루 1행): `{ "days_logged", "avg_value" }`
+  - 나머지: `{ "count", "avg_value", "last_measured_at" }` + 혈압 `avg_value2`, 음주·운동 `total_value`(주간 합계)
+- `weekly_record_done`: 그 주 주간 기록(6-4)을 **하나라도** 저장했으면 true
+- `week_start`가 월요일이 아니면 400 `"week_start는 그 주 월요일 날짜로 보내 주세요."`. 설문 전이어도 200 (`priority_disease: null`, `latest_risk: []`)
+- `challenge`: 이번 주 체크 수 ÷ 목표 횟수 → 챌린지 API 담당과 계산식 맞춤. **8장 챌린지가 머지될 때까지 null**
 - `meal`: 식단은 P2라 처음엔 null, 붙으면 `{ "kcal_avg": ..., "sodium_avg_mg": ... }`
 - 문구는 "~를 달성했어요!" 같은 달성률로만 (REQ-NFR-003)
 
@@ -1401,7 +1470,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 3 | 일일 기록 값 규칙(6-0 위쪽 7종) | ✅ 11/23 확정: 혈압 60~260, 혈당 40~600, 음주 소주잔·맥주잔, 운동 분 단위, 걸음 수 ~10만 보(하루 1행 덮어씀), 컨디션 6-0 그대로, 체중 ~300kg. 음주 소주잔·맥주잔 저장 방식(따로 받을지·환산할지)은 미정 | ERD·프론트 |
 | 4 | 건강 기록 수정 허용 여부 | ✅ 11/23 확정: 허용, `health_logs.updated_at` 추가 (6-3) | — |
 | 5 | 주간 재설문 하루·주 몇 번까지 | ✅ 11/19 확정: 같은 주에 여러 번 해도 새 행(이력 보존), 추이는 주의 마지막 값만 사용 (7-1) | — |
-| 6 | 예측 실패 시 설문 저장 여부 | ✅ 11/19 확정: 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1) | — |
+| 6 | 예측 실패 시 설문 저장 여부 | ✅ 11/19 확정: 설문은 저장, `prediction_error: true` 후 재시도 버튼 (3-1, 재시도 API 5-5) | — |
 | 7 | 설문 문항 정의 API(3-6) 할지 | ✅ 11/23 확정 (S-11 fetch 교체는 S-11 담당, S-06 뒤 결정): 서버 상수 하나가 기준, 3-6이 그대로 내려줌. 프론트는 같은 모양 상수로 시작해 S-11 전에 fetch로 교체. NUMBER·BOOLEAN 타입, `only_for`·`text_by_gender`, WEEKLY `ask_when_applicable`, 버전 다르면 409 | 문항 내용 장성은 / 3-1 구현 담당 / 프론트 |
 | 8 | 대시보드 챌린지 달성률 계산식 | 8-13: Σ min(체크, 개인 목표) ÷ Σ 개인 목표 | 이지희(8장)·최현영(7장) |
 | 9 | 검진 수치가 있을 때 판정 | ✅ 11/19 확정: 모델 점수 행 항상 + 기준표 행 추가, 추이는 모델 점수. 가장 최근 검진 1건·1년 이내만, 정상은 그 질환 항목이 모두 있을 때만 (5-1) | — |

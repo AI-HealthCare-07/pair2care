@@ -3,7 +3,8 @@ import TabLayout from './layouts/TabLayout'
 import StartPage from './pages/StartPage'
 import SignupPage from './pages/SignupPage'
 import LoginPage from './pages/LoginPage'
-import OnboardingPage from './pages/OnboardingPage'
+import SurveyPage from './pages/SurveyPage'
+import PredictionPage from './pages/PredictionPage'
 import HomePage from './pages/HomePage'
 import ChallengesPage from './pages/ChallengesPage'
 import ChallengeDetailPage from './pages/ChallengeDetailPage'
@@ -19,7 +20,8 @@ export const router = createBrowserRouter([
   { path: '/', element: <StartPage /> },
   { path: '/signup', element: <SignupPage /> },
   { path: '/login', element: <LoginPage /> },
-  { path: '/onboarding', element: <OnboardingPage /> },   // S-06 가입 설문 (가입·로그인 후 설문 전이면)
+  { path: '/onboarding', element: <SurveyPage /> },   // S-06 가입 설문 (가입·로그인 후 설문 전이면)
+  { path: '/prediction', element: <PredictionPage /> },   // S-09 예측 결과 (설문 저장 뒤, 하단 탭 없음)
   {
     element: <TabLayout />,
     children: [

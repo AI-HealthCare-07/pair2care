@@ -1,6 +1,6 @@
 // frontend/src/components/common/Input.tsx
-// 글자 입력창: 위에 라벨, 아래에 안내(hint) 또는 오류(error).
-// ⚠️ 임시 모양: 로그인·가입 화면 Figma를 못 봐서 식단 검색창 기준으로 만들었음. 시트 확인 후 수치만 맞추면 됨.
+// 글자 입력창: 위에 라벨, 아래에 안내(hint) 또는 오류(error). Figma 컴포넌트 시트 "Input" 기준.
+// hideLabel: 질문 제목이 이미 화면에 있어서 라벨을 또 보여 줄 필요가 없을 때 (스크린리더는 라벨을 읽음, common.css .ui-visually-hidden)
 
 import { useId, type InputHTMLAttributes } from 'react'
 import './common.css'
@@ -9,9 +9,10 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label: string
   hint?: string
   error?: string
+  hideLabel?: boolean
 }
 
-export default function Input({ label, hint, error, id: idProp, className, ...rest }: Props) {
+export default function Input({ label, hint, error, hideLabel = false, id: idProp, className, ...rest }: Props) {
   const autoId = useId()
   const id = idProp ?? autoId
   const noteId = `${id}-note`
@@ -19,7 +20,7 @@ export default function Input({ label, hint, error, id: idProp, className, ...re
 
   return (
     <div className={['ui-field', className].filter(Boolean).join(' ')}>
-      <label className="ui-field__label" htmlFor={id}>
+      <label className={`ui-field__label${hideLabel ? ' ui-visually-hidden' : ''}`} htmlFor={id}>
         {label}
       </label>
       <input
