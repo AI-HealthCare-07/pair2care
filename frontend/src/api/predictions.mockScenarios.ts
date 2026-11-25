@@ -4,8 +4,8 @@
 
 export const MOCK_PREDICTION_SCENARIOS = [
   'normal', // 고혈압 주의(건강 나이 높게) · 당뇨 낮음(30세 미만 수준)
-  'similar', // 고혈압 낮음(비슷한 수준, 요인 0개) · 당뇨 높음(69세 초과 수준, 요인 1개 + 예전 행의 age)
-  'health_age_null', // 건강 나이 전부 null (곡선 읽기 실패·model_version 다른 예전 행 등) → 줄 숨김 확인
+  'similar', // 고혈압 낮음(비슷한 수준, 요인 0개) · 당뇨 높음(69세 초과 수준, 요인 1개 + 예전 행의 age, years 없음)
+  'health_age_null', // 건강 나이 null + 요인 years null (means_by_sex 없음·예전 모델 행) → 줄·숫자 숨김 확인
   'managed_one', // 당뇨 진단 "예" → 당뇨는 관리 중, 고혈압만 결과
   'managed_both', // 둘 다 관리 중
   'pregnant', // 일반 안내 (M04-b)

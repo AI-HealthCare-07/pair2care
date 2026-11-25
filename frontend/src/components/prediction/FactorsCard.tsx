@@ -1,6 +1,7 @@
 // frontend/src/components/prediction/FactorsCard.tsx
 // 영향을 준 요인 (Figma M04 아래 카드). factors는 질환마다 따로 계산돼서 질환 소제목으로 나눔 (성은 님 11/25).
 // 요인이 하나도 없는 질환은 소제목째 숨기고, 모든 질환이 비면 카드 자체를 안 그림.
+// 줄 오른쪽 "+5살 / −1살": 같은 성별 평균보다 건강 나이를 몇 살 올리거나 내리는지 (5-3 factors[].years, #114). null이면 숨김
 // 맨 아래 ℹ️: 요인 후보에서 나이를 뺀 이유 (#107, 팀장님 11/25 위치 확정)
 
 import { DISEASE_LABEL, AGE_IN_SCORE_NOTICE } from '../../prediction/labels'
@@ -33,10 +34,16 @@ export default function FactorsCard({ groups }: { groups: FactorGroup[] }) {
                 <span className={`pred-factors__arrow pred-factors__arrow--${line.direction}`} aria-hidden="true">
                   {ARROW[line.direction]}
                 </span>
-                <span>
+                <span className="pred-factors__text">
                   <span className="ui-visually-hidden">{ARROW_LABEL[line.direction]}: </span>
                   {line.text}
                 </span>
+                {line.years && (
+                  <span className={`pred-factors__years pred-factors__years--${line.direction}`}>
+                    <span className="ui-visually-hidden">건강 나이 </span>
+                    {line.years}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

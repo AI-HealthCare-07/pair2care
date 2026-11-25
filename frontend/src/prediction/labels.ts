@@ -41,19 +41,25 @@ export const MANAGED_MESSAGE = '진단받은 질환은 위험도를 계산하지
 export const MISSING_MESSAGE = '이번에는 위험도를 계산하지 못했어요'
 
 /**
- * 요인 문구 14개 (#107 성은 님 초안). 질환 소제목 아래에 보여서 질환 이름은 뺌.
+ * 요인 문구 14개 (#107 성은 님 초안, #114에서 기준이 같은 성별 평균으로 바뀌어 체중·음주 4개 수정). 질환 소제목 아래라 질환 이름은 뺌.
  * 가족력은 질환 상관없이 "누구의 가족력"만: father_diabetes_history·father_hypertension_history → 'father'
  * 술: 안 마시는 분은 빈도 1·양 0으로 들어가 둘 다 DOWN이 나올 수 있음 → DOWN은 안 마시는 분에게도 맞는 문장으로
  *     (양 DOWN은 "한 번에"를 뺌, 빈도 DOWN은 그대로도 맞음. UP은 마시는 분만 나옴, 성은 님 11/25)
  */
 const FACTOR_TEXT: Record<string, Record<Factor['direction'], string>> = {
-  bmi: { UP: '체중(BMI)이 평균보다 높아요', DOWN: '체중(BMI)이 평균보다 낮아요' },
+  bmi: { UP: '체중(BMI)이 같은 성별 평균보다 높아요', DOWN: '체중(BMI)이 같은 성별 평균보다 낮아요' },
   father: { UP: '아버지 가족력이 있어요', DOWN: '아버지 가족력이 없어요' },
   mother: { UP: '어머니 가족력이 있어요', DOWN: '어머니 가족력이 없어요' },
   sibling: { UP: '형제자매 가족력이 있어요', DOWN: '형제자매 가족력이 없어요' },
-  alcohol_frequency: { UP: '술 마시는 횟수가 평균보다 많아요', DOWN: '술 마시는 횟수가 평균보다 적어요' },
-  alcohol_amount: { UP: '한 번에 마시는 양이 평균보다 많아요', DOWN: '술 마시는 양이 평균보다 적어요' },
+  alcohol_frequency: { UP: '술 마시는 횟수가 같은 성별 평균보다 많아요', DOWN: '술 마시는 횟수가 같은 성별 평균보다 적어요' },
+  alcohol_amount: { UP: '한 번에 마시는 양이 같은 성별 평균보다 많아요', DOWN: '술 마시는 양이 같은 성별 평균보다 적어요' },
   smoking_current: { UP: '지금 담배를 피워요', DOWN: '지금 담배를 피우지 않아요' },
+}
+
+/** 가감 나이 표시: 5 → "+5살", -1 → "−1살"(마이너스 기호 U+2212). null·0·숫자 아님은 null → 숨김 */
+export function yearsText(years: number | null | undefined): string | null {
+  if (typeof years !== 'number' || !Number.isFinite(years) || years === 0) return null
+  return years > 0 ? `+${years}살` : `\u2212${Math.abs(years)}살`
 }
 
 const FAMILY_FEATURE = /^(father|mother|sibling)_(diabetes|hypertension)_history$/
