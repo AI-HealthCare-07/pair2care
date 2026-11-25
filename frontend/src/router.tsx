@@ -15,12 +15,18 @@ import MealPickPage from './pages/MealPickPage'
 import MyPage from './pages/MyPage'
 import NotFoundPage from './pages/NotFoundPage'
 import RequireAuth from './auth/RequireAuth'
+import GuestOnly from './auth/GuestOnly'
 
 
 export const router = createBrowserRouter([
-  { path: '/', element: <StartPage /> },
-  { path: '/signup', element: <SignupPage /> },
-  { path: '/login', element: <LoginPage /> },
+  {
+    element: <GuestOnly />,                           // 이미 로그인했으면 홈(설문 전이면 설문)으로
+    children: [
+      { path: '/', element: <StartPage /> },
+      { path: '/signup', element: <SignupPage /> },
+      { path: '/login', element: <LoginPage /> },
+    ],
+  },
   {
     element: <RequireAuth />,                         // 아래 children은 로그인해야 들어감
     children: [

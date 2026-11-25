@@ -19,7 +19,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setState(await loadState())
   }, [])
 
-  const clear = useCallback(() => setState({ status: 'guest' }), [])
+  const clear = useCallback(() => setState({ status: 'guest', loggedOut: true }), [])
 
   useEffect(() => {
     let ignore = false

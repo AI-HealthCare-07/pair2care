@@ -7,7 +7,7 @@ const ONBOARDING_PATH = '/onboarding'
 
 export default function RequireAuth() {
   const { state, reload } = useAuth()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
 
   if (state.status === 'loading')
     return (
@@ -24,7 +24,10 @@ export default function RequireAuth() {
         </Button>
       </div>
     )
-  if (state.status === 'guest') return <Navigate to="/login" replace /> // 로그인 안 한 사람
+  // 로그인 안 한 사람: 로그인 뒤 다시 여기로 오도록 지금 주소를 넘김 (LoginPage가 afterLoginPath로 씀)
+  // 직접 로그아웃한 경우는 그 화면(마이)으로 돌아올 이유가 없어서 안 넘김
+  if (state.status === 'guest')
+    return <Navigate to="/login" replace state={state.loggedOut ? undefined : { from: pathname + search }} />
   const onOnboarding = pathname === ONBOARDING_PATH
   if (!state.me.has_health_profile && !onOnboarding) return <Navigate to={ONBOARDING_PATH} replace /> // 설문 안 한 사람
   if (state.me.has_health_profile && onOnboarding) return <Navigate to="/home" replace /> // 설문 다시 받으면 409라서 홈으로

@@ -3,7 +3,7 @@ import type { Me } from '../api/users'
 
 export type AuthState =
   | { status: 'loading' }            // 앱 켜지고 /users/me 기다리는 중
-  | { status: 'guest' }              // 401: 로그인 안 됨 (refresh도 실패)
+  | { status: 'guest'; loggedOut?: true } // loggedOut: 직접 로그아웃함 → 가드가 "로그인 뒤 돌아올 주소"를 안 붙임              // 401: 로그인 안 됨 (refresh도 실패)
   | { status: 'authed'; me: Me }
   | { status: 'error' }              // 서버 고장·네트워크 (로그인 문제 아님 → /login으로 보내면 안 됨)
 
