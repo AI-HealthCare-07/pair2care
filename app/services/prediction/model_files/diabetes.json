@@ -1,6 +1,5 @@
 {
-  "_note": "가짜 모델 (장성은 학습 전). 계수 0, 절편만으로 고정 점수 34를 냄. 진짜 JSON이 오면 이 파일을 바꿈",
-  "model_version": "diabetes_risk:dummy",
+  "model_version": "diabetes_risk:v1",
   "mlflow_run_id": null,
   "disease": "DIABETES",
   "features": [
@@ -17,33 +16,33 @@
     "alcohol_amount",
     "smoking_current"
   ],
-  "intercept": -0.663294,
+  "intercept": -7.222187933758231,
   "coefficients": {
-    "sex": 0.0,
-    "age": 0.0,
-    "bmi": 0.0,
-    "father_diabetes_history": 0.0,
-    "mother_diabetes_history": 0.0,
-    "sibling_diabetes_history": 0.0,
-    "father_hypertension_history": 0.0,
-    "mother_hypertension_history": 0.0,
-    "sibling_hypertension_history": 0.0,
-    "alcohol_frequency": 0.0,
-    "alcohol_amount": 0.0,
-    "smoking_current": 0.0
+    "sex": -0.2851460187607392,
+    "age": 0.06109619872317033,
+    "bmi": 0.15748072293417148,
+    "father_diabetes_history": 0.3448463467734631,
+    "mother_diabetes_history": 0.3639397227679963,
+    "sibling_diabetes_history": 0.48015840324319004,
+    "father_hypertension_history": -0.07027060774939163,
+    "mother_hypertension_history": -0.12510872957461455,
+    "sibling_hypertension_history": -0.04933246303589366,
+    "alcohol_frequency": 0.06759640955847417,
+    "alcohol_amount": 0.014283387007577003,
+    "smoking_current": 0.2852812375156384
   },
   "means": {
-    "sex": 0.0,
-    "age": 0.0,
-    "bmi": 0.0,
-    "father_diabetes_history": 0.0,
-    "mother_diabetes_history": 0.0,
-    "sibling_diabetes_history": 0.0,
-    "father_hypertension_history": 0.0,
-    "mother_hypertension_history": 0.0,
-    "sibling_hypertension_history": 0.0,
-    "alcohol_frequency": 0.0,
-    "alcohol_amount": 0.0,
-    "smoking_current": 0.0
+    "sex": 1.589779602420052,
+    "age": 51.05704407951599,
+    "bmi": 24.06813958513397,
+    "father_diabetes_history": 0.13342696629213482,
+    "mother_diabetes_history": 0.14649956784788246,
+    "sibling_diabetes_history": 0.07649092480553155,
+    "father_hypertension_history": 0.25432152117545376,
+    "mother_hypertension_history": 0.3052074330164218,
+    "sibling_hypertension_history": 0.13569576490924806,
+    "alcohol_frequency": 3.072925669835782,
+    "alcohol_amount": 1.8958513396715644,
+    "smoking_current": 0.15654710458081245
   }
 }
