@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from tortoise.transactions import in_transaction
 
+from app.core import default_logger as logger
 from app.models.checkup_records import CheckupRecord
 from app.models.health_profiles import HealthProfile
 from app.models.risk_predictions import PredictionMethod, RiskPrediction
@@ -84,6 +85,38 @@ class PredictionService:
                         )
                     )
         return rows
+
+    async def repredict_latest(self, user: User) -> dict[str, Any]:
+        """4-1·4-4: 최근 설문 + 지금 가장 최근 검진으로 다시 예측. 응답은 3-1과 같은 예측 필드.
+
+        설문이 없으면 예측하지 않음 (나중에 3-1을 저장할 때 이 검진을 읽어서 같이 판정).
+        예측이 실패해도 검진은 이미 저장됨 → prediction_error: true.
+        """
+        profile = await HealthProfileRepository().get_latest(user.id)
+        if profile is None:
+            return {"predictions": [], "managed_diseases": [], "skipped_reason": None, "prediction_error": False}
+
+        today = datetime.now(KST).date()
+        age = calculate_age(user.birthday, today)
+        plan = plan_predictions(
+            age=age,
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+        predictions: list[dict[str, Any]] = []
+        prediction_error = False
+        try:
+            predictions = [summarize(row) for row in await self.predict(user, profile, plan, age, today)]
+        except Exception:
+            logger.exception("검진 저장 뒤 예측 실패 health_profile_id=%s", profile.id)
+            prediction_error = True
+        return {
+            "predictions": predictions,
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+            "prediction_error": prediction_error,
+        }
 
 
 def health_age_of(row: RiskPrediction) -> dict[str, Any] | None:

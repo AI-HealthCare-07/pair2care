@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.apis.v1.auth_routers import auth_router
+from app.apis.v1.checkup_record_routers import checkup_record_router
 from app.apis.v1.health_profile_routers import health_profile_router
 from app.apis.v1.recommendation_routers import recommendation_router
 from app.apis.v1.risk_prediction_routers import risk_prediction_router
@@ -12,3 +13,4 @@ v1_routers.include_router(user_router)
 v1_routers.include_router(recommendation_router)
 v1_routers.include_router(health_profile_router)
 v1_routers.include_router(risk_prediction_router)
+v1_routers.include_router(checkup_record_router)
