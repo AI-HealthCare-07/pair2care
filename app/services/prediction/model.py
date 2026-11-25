@@ -40,10 +40,14 @@ CAUTION_MIN_SCORE: Final = 30
 HIGH_MIN_SCORE: Final = 60
 
 FACTOR_COUNT: Final = 3
-# factors 후보에서 빼는 입력 (계산에는 그대로 씀): 바꿀 수 없는 성별, 다른 질환의 가족력 (11/24 합의)
+# factors 후보에서 빼는 입력 (계산에는 그대로 씀)
+# - 성별·나이: 바꿀 수 없는 값. factors는 "바꿀 수 있는 것 → 챌린지"로 이어지는 자리인데, 나이는 평균에서 멀면
+#   거의 항상 1순위라 체중·음주·흡연이 밀려남. 나이 비교는 건강 나이가 따로 보여 줌 (11/25 장성은 합의)
+# - 다른 질환의 가족력: 계수가 작은 음수라 "위험을 낮춤"처럼 보임 (11/24 합의)
+NOT_CHANGEABLE_FIELDS: Final = frozenset({"sex", "age"})
 FACTOR_EXCLUDED_BY_DISEASE: Final[dict[Disease, frozenset[str]]] = {
-    Disease.DIABETES: frozenset({"sex", *HYPERTENSION_FAMILY_FIELDS}),
-    Disease.HYPERTENSION: frozenset({"sex", *DIABETES_FAMILY_FIELDS}),
+    Disease.DIABETES: NOT_CHANGEABLE_FIELDS | frozenset(HYPERTENSION_FAMILY_FIELDS),
+    Disease.HYPERTENSION: NOT_CHANGEABLE_FIELDS | frozenset(DIABETES_FAMILY_FIELDS),
 }
 
 
