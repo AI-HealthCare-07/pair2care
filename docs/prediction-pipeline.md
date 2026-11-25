@@ -7,7 +7,7 @@
 ```mermaid
 flowchart LR
     subgraph G1["입력"]
-        A["S-06 설문 21문항<br/>3-1 POST health-profile"]
+        A["S-06 설문 21문항<br/>3-1 POST health-profiles"]
         B["S-07 검진 수치<br/>4-1·4-4 checkup-records"]
         U["회원 정보<br/>성별·생년월일"]
     end
@@ -27,7 +27,7 @@ flowchart LR
         S["score 0~100<br/>확률×100 반올림"]
         L["위험 단계<br/>30 미만 LOW · 60 이상 HIGH"]
         FA["요인 상위 3개<br/>성별·나이·다른 질환 가족력 제외"]
-        HA["건강 나이<br/>실제 나이 + 7문항 가감(±15)<br/>10살 단위"]
+        HA["건강 나이 (조회 때 계산)<br/>실제 나이 + 7문항 가감(±15)<br/>10살 단위"]
         DB[("risk_predictions<br/>MODEL · CHECKUP_CRITERIA 행")]
     end
 
@@ -47,14 +47,13 @@ flowchart LR
     B --> C
     M --> S --> L
     M --> FA
-    F --> HA
     L --> DB
     FA --> DB
-    HA --> DB
     C --> DB
     MG --> S09
     SK --> S09
     DB --> S09
+    DB -- "input_snapshot" --> HA --> S09
     DB --> D
     F -. "바뀐 입력으로 다시 계산" .-> S10
 ```
@@ -74,4 +73,5 @@ flowchart LR
 
 ## 건강 나이 (11/25 재결정)
 - 곡선 방식(#102·#110) → **자가검진 7문항 + 산식**: 실제 나이 + clamp(Σ 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수, ±15) → 10살 단위. 자세한 규칙은 api.md 5-2 `health_age`
+- `risk_predictions`에 저장하지 않고 5-2·5-3 조회 때 행의 `input_snapshot`으로 계산 (모델 JSON이 바뀌면 `model_version`이 같을 때만)
 - 새로 학습하지 않아서 과적합 걱정이 없고, 항목별로 "+5살"처럼 설명할 수 있음 (멘토 의견: 모델링 대신 산식 + 자가검진)
