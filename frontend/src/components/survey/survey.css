@@ -1,0 +1,119 @@
+/* frontend/src/components/survey/survey.css
+   설문 화면(S-06, Figma M02) 스타일. 클래스는 survey- 로 시작. 색은 index.css 토큰 사용. */
+
+.survey-screen {
+  --survey-track: #e3e6f8;
+  --survey-weak: var(--color-primary-weak, #eef0ff);
+  --survey-error: #b3261e;
+
+  max-width: 375px;
+  min-height: 100vh;
+  margin: 0 auto;
+  color: var(--color-text);
+}
+
+.survey-body {
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 진행률 */
+.survey-progress__label {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.survey-progress__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--survey-track);
+  overflow: hidden;
+}
+
+.survey-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+/* 질문 */
+.survey-title {
+  margin: 24px 0 0;
+  font-size: 28px;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.survey-title:focus {
+  outline: none; /* 화면이 바뀔 때 제목으로 포커스를 옮기는 용도라 테두리는 숨김 */
+}
+
+.survey-help {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+/* 보기 */
+.survey-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.survey-option {
+  width: 100%;
+  justify-content: flex-start; /* Chip은 가운데 정렬이라 이 화면에서는 왼쪽 정렬 */
+  padding: 0 22px;
+  text-align: left;
+}
+
+/* 숫자 입력 */
+.survey-number {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.survey-number__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.survey-number__unit {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 56px; /* 입력칸 높이와 맞춤 */
+  color: var(--color-muted);
+}
+
+/* 안내·오류 */
+.survey-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--survey-weak);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-primary);
+}
+
+.survey-error {
+  margin: 16px 0 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--survey-error);
+}
+
+/* 아래 버튼 */
+.survey-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 40px;
+}
