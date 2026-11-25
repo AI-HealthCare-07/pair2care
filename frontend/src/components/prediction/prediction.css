@@ -1,0 +1,256 @@
+/* frontend/src/components/prediction/prediction.css
+   예측 결과 화면(S-09, Figma M04·M04-b) 스타일. 클래스는 pred- 로 시작. 색은 index.css 토큰을 쓰고,
+   토큰에 없는 단계 색(주의 노랑·높음 빨강)과 게이지 색만 .pred-screen 안에 둠. */
+
+.pred-screen {
+  --pred-low-bg: var(--color-primary-weak, #e6e8fb);
+  --pred-low-text: var(--color-primary);
+  --pred-caution-bg: #fff3c4;
+  --pred-caution-text: var(--color-warn);
+  --pred-high-bg: #fde4df;
+  --pred-high-text: #b3261e;
+  --pred-managed-bg: #eceef5;
+  --pred-gauge-start: #e3e6f8;
+  --pred-gauge-mid: #f6dc8f;
+  --pred-gauge-end: #e8a08a;
+
+  max-width: 375px;
+  min-height: 100vh;
+  margin: 0 auto;
+  color: var(--color-text);
+}
+
+.pred-body {
+  padding: 24px 24px calc(32px + env(safe-area-inset-bottom, 0px));
+}
+
+.pred-title {
+  margin: 0 0 20px;
+  font-size: 22px;
+  line-height: 1.45;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: pre-line; /* Figma 줄바꿈 그대로 */
+}
+
+.pred-status {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.pred-error {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--pred-high-text);
+}
+
+/* ───── 카드 ───── */
+.pred-card {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.pred-card:first-of-type { margin-top: 0; }
+
+.pred-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pred-card__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pred-badge {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pred-badge--LOW { background: var(--pred-low-bg); color: var(--pred-low-text); }
+.pred-badge--CAUTION { background: var(--pred-caution-bg); color: var(--pred-caution-text); }
+.pred-badge--HIGH { background: var(--pred-high-bg); color: var(--pred-high-text); }
+.pred-badge--MANAGED { background: var(--pred-managed-bg); color: var(--color-muted); }
+
+/* 게이지: 숫자 대신 위치로 (스크린리더는 aria-label로 점수·단계를 읽음) */
+.pred-gauge { margin-top: 18px; }
+
+.pred-gauge__track {
+  position: relative;
+  height: 8px;
+  margin: 0 9px; /* 표시 원 반지름만큼 → 0·100점에서도 원이 카드 밖으로 안 나감 */
+  border-radius: 999px;
+  /* 색 구간을 단계 기준(30·60)에 맞춤 → 62점(HIGH) 원이 "주의" 글자 근처에 있어도 어느 구간인지 보이게 (#111 성은 님)
+     구간 안은 한 색, 경계만 짧게 섞음 */
+  background: linear-gradient(
+    90deg,
+    var(--pred-gauge-start) 0%,
+    var(--pred-gauge-start) 27%,
+    var(--pred-gauge-mid) 33%,
+    var(--pred-gauge-mid) 57%,
+    var(--pred-gauge-end) 63%,
+    var(--pred-gauge-end) 100%
+  );}
+
+.pred-gauge__divider {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--color-surface);
+  transform: translateX(-50%);
+}
+
+.pred-gauge__marker {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 4px solid currentColor;
+  border-radius: 50%;
+  background: var(--color-surface);
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+}
+
+.pred-gauge__marker--LOW { color: var(--pred-low-text); }
+.pred-gauge__marker--CAUTION { color: var(--pred-caution-text); }
+.pred-gauge__marker--HIGH { color: var(--pred-high-text); }
+
+.pred-gauge__labels {
+  position: relative;
+  height: 22px;
+  margin: 12px 9px 0; /* 트랙과 같은 좌우 여백 → 글자 위치(%)가 트랙 위치와 맞음 */
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--color-muted);
+}
+
+.pred-gauge__labels span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.pred-card__message {
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.pred-card__message--LOW { color: var(--pred-low-text); }
+.pred-card__message--CAUTION { color: var(--pred-caution-text); }
+.pred-card__message--HIGH { color: var(--pred-high-text); }
+
+.pred-card__note {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.pred-card__note strong {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ───── 영향을 준 요인 ───── */
+.pred-factors__group + .pred-factors__group { margin-top: 16px; }
+
+.pred-factors__disease {
+  margin: 14px 0 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.pred-factors__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pred-factors__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.pred-factors__arrow { flex-shrink: 0; font-size: 14px; }
+.pred-factors__arrow--UP { color: var(--pred-caution-text); }
+.pred-factors__arrow--DOWN { color: var(--pred-low-text); }
+
+/* ℹ️ 한 줄 (요인 카드 맨 아래 나이 안내, M04-b 안내) */
+.pred-info {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-muted);
+}
+
+.pred-info__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: var(--color-muted);
+  color: var(--color-surface);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ───── M04-b 일반 안내 ───── */
+.pred-guide__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pred-guide__list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.pred-guide__list li { padding: 4px 0; }
+
+.pred-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* 개발용 (가짜 모드에서만 보임) */
+.pred-dev {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px dashed var(--color-line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}

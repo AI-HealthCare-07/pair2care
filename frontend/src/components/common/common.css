@@ -227,6 +227,40 @@ button.ui-row__body:focus-visible {
   outline-offset: 2px;
 }
 
+/* ───── 의료 안내 (C-01) ───── MedicalNotice. 식단·예측 결과 화면 공통 (meal.css의 .meal-notice에서 옮김)
+   노랑 계열은 아직 index.css 토큰이 없어서 기본값을 같이 적음 */
+.ui-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-warn-line, #f1dd90);
+  border-radius: 12px;
+  background: var(--color-warn-bg, #fff6d6);
+  color: var(--color-warn-text, #6b4a00);
+}
+
+.ui-notice__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ui-notice__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 /* ───── 화면에서만 숨김 ───── (스크린리더는 읽음. 예: Input hideLabel)
    .ui-field__label 등 다른 ui- 클래스와 같이 붙어도 이기도록 파일 맨 끝에 둠 */
 .ui-visually-hidden {
