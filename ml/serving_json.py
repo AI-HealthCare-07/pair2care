@@ -1,11 +1,11 @@
-"""학습 결과 → 서버 모델 JSON + 건강 나이 곡선 (api.md 5-0·5-2).
+"""학습 결과 → 서버 모델 JSON + 같은 성별 평균 + 건강 나이 곡선 (api.md 5-0·5-2).
 
 - 형식은 app/services/prediction/model.py(LogisticModel.from_dict)·health_age.py와 같음
 - CI(app 그룹만 설치)에서 테스트할 수 있게 표준 라이브러리와 features.py만 씀 (pandas·sklearn 없음)
 """
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from itertools import pairwise
 from typing import Any, Final
 
@@ -36,6 +36,41 @@ def to_server_json(
         "coefficients": {name: float(coefficients[name]) for name in FEATURE_NAMES},
         "means": {name: float(means[name]) for name in FEATURE_NAMES},
     }
+
+
+# 건강 나이·요인 7문항 중 생활습관 4개 (나머지 3개는 그 질환 가족력, api.md 5-2 health_age·5-3 factors)
+HABIT_FIELDS: Final = ("bmi", "alcohol_frequency", "alcohol_amount", "smoking_current")
+HEALTH_AGE_FIELD_COUNT: Final = 7
+
+
+def health_age_fields(own_family_fields: Sequence[str]) -> tuple[str, ...]:
+    """건강 나이·요인 7문항 = 생활습관 4개 + 그 질환 가족력 3개 (FEATURE_NAMES 순서). 다른 질환 가족력은 평균 고정."""
+    wanted = {*HABIT_FIELDS, *own_family_fields}
+    fields = tuple(name for name in FEATURE_NAMES if name in wanted)
+    if len(fields) != HEALTH_AGE_FIELD_COUNT:
+        raise ValueError(f"건강 나이 문항이 7개가 아님: {fields}")
+    return fields
+
+
+def build_means_by_sex(rows: Iterable[Mapping[str, float]], fields: Sequence[str]) -> dict[str, dict[str, float]]:
+    """같은 성별 평균 (api.md 5-2 health_age·5-3 factors.years 기준). 남녀 합친 means를 쓰면 한쪽 성별이 일괄 치우침.
+
+    rows: 모델 입력 12개 dict (100% 학습 데이터, means와 같은 집단). 키는 users.gender 값(MALE·FEMALE).
+    """
+    sums = {code: dict.fromkeys(fields, 0.0) for code in SEX_CODE_BY_LABEL.values()}
+    counts = dict.fromkeys(SEX_CODE_BY_LABEL.values(), 0)
+    for row in rows:
+        code = int(row["sex"])
+        counts[code] += 1
+        for name in fields:
+            sums[code][name] += float(row[name])
+
+    means_by_sex: dict[str, dict[str, float]] = {}
+    for label, code in SEX_CODE_BY_LABEL.items():
+        if counts[code] == 0:
+            raise ValueError(f"{label} 기준 집단이 없음")
+        means_by_sex[label] = {name: sums[code][name] / counts[code] for name in fields}
+    return means_by_sex
 
 
 def linear_sum(spec: Mapping[str, Any], row: Mapping[str, float]) -> float:

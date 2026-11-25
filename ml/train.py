@@ -4,7 +4,7 @@
     uv run --env-file envs/.local.env --group ml python -m ml.train
 
 흐름: 원본 불러오기 → 대상·정답 → 입력 변환(features.py) → 80/20 분할(시드 42)
-      → 학습 세트 5-fold CV + 평가 세트 지표 → 100% 재학습 → 서버 JSON(+ 건강 나이 곡선) → MLflow
+      → 학습 세트 5-fold CV + 평가 세트 지표 → 100% 재학습 → 서버 JSON(+ 같은 성별 평균·건강 나이 곡선) → MLflow
 - 원본·개별 자료는 레포·MLflow에 남기지 않음. 출력·기록은 인원·비율·지표·계수만
 - 결과 JSON은 MLflow artifacts(mlruns/, .gitignore)에 저장. 레포 model_files/ 교체는 따로 PR
 """
@@ -35,7 +35,7 @@ from app.services.prediction.features import (
     to_model_inputs,
 )
 from ml.evaluate import basic_metrics, count_wrong_sign, level_metrics, metrics_by_age
-from ml.serving_json import build_health_age_curve, to_server_json
+from ml.serving_json import build_health_age_curve, build_means_by_sex, health_age_fields, to_server_json
 
 YEARS: Final = (2022, 2023, 2024)
 SEED: Final = 42
@@ -230,7 +230,9 @@ def train_one(
             # 계수 방향이 진료지침과 반대면 원인 확인 전에는 JSON을 만들지 않음 (CLAUDE.md 모델 규칙)
             raise ValueError(f"{cfg.code}: 계수 부호가 진료지침과 반대인 입력 {wrong}개")
 
-        spec["health_age_curve"] = build_health_age_curve(spec, x.to_dict("records"))
+        records = x.to_dict("records")
+        spec["means_by_sex"] = build_means_by_sex(records, health_age_fields(cfg.own_family_fields))
+        spec["health_age_curve"] = build_health_age_curve(spec, records)
         mlflow.log_dict(spec, cfg.file_name)
         mlflow.log_dict({"coefficients": spec["coefficients"], "intercept": spec["intercept"]}, "coefficients.json")
         if out_dir is not None:

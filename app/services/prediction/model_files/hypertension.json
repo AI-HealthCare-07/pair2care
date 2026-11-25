@@ -1,6 +1,6 @@
 {
   "model_version": "hypertension_risk:v1",
-  "mlflow_run_id": "0c4a091971644b3bb632b1a7f66a8c98",
+  "mlflow_run_id": "8c3e49e6404b4b3c876befcdc6464f2b",
   "disease": "HYPERTENSION",
   "features": [
     "sex",
@@ -44,6 +44,26 @@
     "alcohol_frequency": 3.027784518320796,
     "alcohol_amount": 1.8482164523173987,
     "smoking_current": 0.16197524872603736
+  },
+  "means_by_sex": {
+    "MALE": {
+      "bmi": 24.69529161603889,
+      "father_hypertension_history": 0.21931956257594168,
+      "mother_hypertension_history": 0.2129404617253949,
+      "sibling_hypertension_history": 0.06227217496962333,
+      "alcohol_frequency": 3.549210206561361,
+      "alcohol_amount": 2.6339611178614826,
+      "smoking_current": 0.33718104495747264
+    },
+    "FEMALE": {
+      "bmi": 23.13325252525255,
+      "father_hypertension_history": 0.2408080808080808,
+      "mother_hypertension_history": 0.30646464646464644,
+      "sibling_hypertension_history": 0.12,
+      "alcohol_frequency": 2.681010101010101,
+      "alcohol_amount": 1.3256565656565658,
+      "smoking_current": 0.045454545454545456
+    }
   },
   "health_age_curve": {
     "MALE": [
