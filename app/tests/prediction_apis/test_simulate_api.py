@@ -11,6 +11,7 @@ from app.main import app
 from app.models.risk_predictions import Disease, RiskPrediction
 from app.services.prediction.model import LogisticModel
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from app.tests.prediction.fixed_models import LOAD_MODEL_TARGET, fixed_model
 from app.tests.prediction.test_model import make_model_dict
 from app.tests.survey.test_validation import make_answers
 
@@ -27,10 +28,11 @@ def onboarding_body(**overrides: Any) -> dict[str, Any]:
 
 
 def bmi_model(disease: Disease) -> LogisticModel:
-    """bmi 계수가 있는 테스트용 모델 (가짜 모델은 계수가 0이라 점수가 안 바뀜)."""
+    """bmi 계수가 있는 테스트용 모델 (고정 모델은 계수가 0이라 점수가 안 바뀜)."""
     return LogisticModel.from_dict(make_model_dict(disease=disease.value, model_version=f"{disease.lower()}:test"))
 
 
+@patch(LOAD_MODEL_TARGET, new=fixed_model)  # 모델 파일과 상관없이 당뇨 34 / 고혈압 21
 class TestSimulateAPI(TestCase):
     async def login(self, client: AsyncClient, email: str, **signup: Any) -> None:
         await client.post("/api/v1/auth/signup", json=make_signup_data(email, **signup))
@@ -45,7 +47,7 @@ class TestSimulateAPI(TestCase):
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_weight_loss_lowers_score_and_saves_nothing(self) -> None:
-        with patch("app.services.prediction.service.load_model", side_effect=bmi_model):
+        with patch(LOAD_MODEL_TARGET, side_effect=bmi_model):
             async with new_client() as client:
                 await self.login(client, "sim-weight@example.com")
                 await client.post(SURVEY_URL, json=onboarding_body())
@@ -62,7 +64,7 @@ class TestSimulateAPI(TestCase):
         assert await RiskPrediction.all().count() == rows_before  # 저장 안 함
 
     async def test_before_uses_saved_score(self) -> None:
-        # 가짜 모델로 저장된 34점이 before, 계수 0이라 after도 34
+        # 고정 모델로 저장된 34점이 before, 계수 0이라 after도 34
         async with new_client() as client:
             await self.login(client, "sim-saved@example.com")
             await client.post(SURVEY_URL, json=onboarding_body())
@@ -114,11 +116,11 @@ class TestSimulateAPI(TestCase):
         assert response.json() == {"results": [], "managed_diseases": [], "skipped_reason": "PREGNANT"}
 
     async def test_before_recomputed_when_model_version_changed(self) -> None:
-        # 가짜 모델(34점)로 저장된 뒤 모델이 바뀌면, before도 새 모델로 다시 계산해 같은 모델끼리 비교
+        # 고정 모델(34점)로 저장된 뒤 모델이 바뀌면, before도 새 모델로 다시 계산해 같은 모델끼리 비교
         async with new_client() as client:
             await self.login(client, "sim-version@example.com")
             await client.post(SURVEY_URL, json=onboarding_body())
-            with patch("app.services.prediction.service.load_model", side_effect=bmi_model):
+            with patch(LOAD_MODEL_TARGET, side_effect=bmi_model):
                 response = await client.post(SIMULATE_URL, json={"changes": {"weight_kg": 65.0}})
 
         diabetes = response.json()["results"][0]
