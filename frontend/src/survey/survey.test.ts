@@ -177,6 +177,25 @@ describe('validateAnswers (제출 전 전체 검사)', () => {
     expect(validateAnswers(DEF, { ...base, height_cm: Number.NaN }, 'MALE')[0].message).toBe('숫자를 입력해 주세요.')
   })
 
+  it('키·몸무게·허리둘레는 소수 첫째 자리까지 (서버 DECIMAL(4,1)): 78.2 통과, 78.25 안내', () => {
+    const base = drinkerSmokerAnswers()
+    expect(validateAnswers(DEF, { ...base, weight_kg: 78.2 }, 'MALE')).toEqual([])
+    expect(validateAnswers(DEF, { ...base, weight_kg: 78 }, 'MALE')).toEqual([])
+    expect(validateAnswers(DEF, { ...base, weight_kg: 78.25 }, 'MALE')).toEqual([
+      { field: 'weight_kg', message: '소수 첫째 자리까지 입력해 주세요.' },
+    ])
+    expect(validateAnswers(DEF, { ...base, height_cm: 170.05 }, 'MALE')[0].field).toBe('height_cm')
+    expect(validateAnswers(DEF, { ...base, waist_cm: 88.15 }, 'MALE')[0].field).toBe('waist_cm')
+  })
+
+  it('소수 자리 검사는 부동소수 오차에 흔들리지 않음 (0.1 단위 값 전부 통과)', () => {
+    const base = drinkerSmokerAnswers()
+    for (let tenths = 250; tenths <= 3000; tenths += 1) {
+      const w = tenths / 10
+      expect(validateAnswers(DEF, { ...base, weight_kg: w }, 'MALE')).toEqual([])
+    }
+  })
+
   it('허리둘레는 비워도 되지만, 적었으면 범위 검사', () => {
     const base = drinkerSmokerAnswers()
     expect(validateAnswers(DEF, { ...base, waist_cm: undefined }, 'MALE')).toEqual([])
