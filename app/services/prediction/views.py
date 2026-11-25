@@ -19,8 +19,8 @@ def to_kst_iso(value: datetime) -> str:
     return value.astimezone(KST).isoformat()
 
 
-def summarize_row(row: RiskPrediction) -> dict[str, Any]:
-    """5-2 predictions 한 줄. checkup_record_id는 기준표 행에만."""
+def summarize_row(row: RiskPrediction, health_age: dict[str, Any] | None = None) -> dict[str, Any]:
+    """5-2 predictions 한 줄. checkup_record_id는 기준표 행에만, health_age는 모든 행에 (기준표 행은 항상 null)."""
     body: dict[str, Any] = {
         "id": row.id,
         "disease": row.disease.value,
@@ -30,6 +30,7 @@ def summarize_row(row: RiskPrediction) -> dict[str, Any]:
     }
     if row.method == PredictionMethod.CHECKUP_CRITERIA:
         body["checkup_record_id"] = row.checkup_record_id
+    body["health_age"] = health_age
     body["created_at"] = to_kst_iso(row.created_at)
     return body
 
@@ -70,7 +71,9 @@ def find_changed_inputs(before: Mapping[str, Any], after: Mapping[str, Any]) -> 
     ]
 
 
-def build_detail(row: RiskPrediction, previous: RiskPrediction | None) -> dict[str, Any]:
+def build_detail(
+    row: RiskPrediction, previous: RiskPrediction | None, health_age: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """5-3 예측 상세. 기준표 행은 factors·changed_inputs·previous 대신 판정 수치."""
     body: dict[str, Any] = {
         "id": row.id,
@@ -82,6 +85,7 @@ def build_detail(row: RiskPrediction, previous: RiskPrediction | None) -> dict[s
         "model_version": row.model_version,
         "changed_inputs": None,
         "previous": None,
+        "health_age": health_age,
     }
     if row.method == PredictionMethod.CHECKUP_CRITERIA:
         snapshot = row.input_snapshot
