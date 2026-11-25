@@ -65,11 +65,23 @@ export function yearsText(years: number | null | undefined): string | null {
   return years > 0 ? `+${years}살` : `\u2212${Math.abs(years)}살`
 }
 
+/**
+ * years가 null(또는 없음)이면 서버가 예측 때 저장한 옛 기준(남녀 합친 학습 평균) 요인을 줌 (means_by_sex 없음·예전 모델 행, api.md 5-3)
+ * → 체중·음주 3개만 "같은 성별" 없이 원래 문구(#107)로. 가족력·흡연은 평균과 상관없는 문장이라 그대로 (#123 현영 님)
+ */
+const LEGACY_AVERAGE_TEXT: Record<string, Record<Factor['direction'], string>> = {
+  bmi: { UP: '체중(BMI)이 평균보다 높아요', DOWN: '체중(BMI)이 평균보다 낮아요' },
+  alcohol_frequency: { UP: '술 마시는 횟수가 평균보다 많아요', DOWN: '술 마시는 횟수가 평균보다 적어요' },
+  alcohol_amount: { UP: '한 번에 마시는 양이 평균보다 많아요', DOWN: '술 마시는 양이 평균보다 적어요' },
+}
+
 const FAMILY_FEATURE = /^(father|mother|sibling)_(diabetes|hypertension)_history$/
 
-/** 요인 한 개의 문구. 모르는 feature(예: #107 전에 저장된 age, sex)는 null → 화면에서 건너뜀 */
+/** 요인 한 개의 문구. 모르는 feature(예: #107 전에 저장된 age, sex)는 null → 화면에서 건너뜀. years 유무로 평균 기준 문구를 고름 */
 export function factorText(factor: Factor): string | null {
   const family = FAMILY_FEATURE.exec(factor.feature)
   const key = family ? family[1] : factor.feature
+  const sameSexBasis = typeof factor.years === 'number'
+  if (!sameSexBasis && LEGACY_AVERAGE_TEXT[key]) return LEGACY_AVERAGE_TEXT[key][factor.direction]
   return FACTOR_TEXT[key]?.[factor.direction] ?? null
 }

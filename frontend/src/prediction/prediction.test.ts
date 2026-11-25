@@ -178,9 +178,9 @@ describe('요인 문구 (#107)', () => {
   })
 
   it('술 DOWN은 안 마시는 분에게도 맞는 문장 (양은 "한 번에" 없음)', () => {
-    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN' })).toBe('술 마시는 양이 같은 성별 평균보다 적어요')
-    expect(factorText({ feature: 'alcohol_amount', direction: 'UP' })).toBe('한 번에 마시는 양이 같은 성별 평균보다 많아요')
-    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN' })).toBe('술 마시는 횟수가 같은 성별 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN', years: -1 })).toBe('술 마시는 양이 같은 성별 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'UP', years: 1 })).toBe('한 번에 마시는 양이 같은 성별 평균보다 많아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN', years: -1 })).toBe('술 마시는 횟수가 같은 성별 평균보다 적어요')
   })
 
   it('age·sex·모르는 값은 null → 건너뜀 (#107 전에 저장된 행)', () => {
@@ -195,7 +195,7 @@ describe('요인 문구 (#107)', () => {
       { feature: 'bmi', direction: 'UP' },
       { feature: 'smoking_current', direction: 'DOWN' },
     ])
-    expect(lines.map((l) => l.text)).toEqual(['체중(BMI)이 같은 성별 평균보다 높아요', '지금 담배를 피우지 않아요'])
+    expect(lines.map((l) => l.text)).toEqual(['체중(BMI)이 평균보다 높아요', '지금 담배를 피우지 않아요']) // years 없음 = 옛 기준
     expect(factorLines(null)).toEqual([])
     expect(factorLines([])).toEqual([])
   })
@@ -211,10 +211,18 @@ describe('가감 나이 years (#114·#121)', () => {
   })
 
   it('체중·음주 4개는 "같은 성별 평균", 가족력·흡연은 그대로 (#114 성은 님)', () => {
-    expect(factorText({ feature: 'bmi', direction: 'DOWN' })).toBe('체중(BMI)이 같은 성별 평균보다 낮아요')
-    expect(factorText({ feature: 'alcohol_frequency', direction: 'UP' })).toBe('술 마시는 횟수가 같은 성별 평균보다 많아요')
+    expect(factorText({ feature: 'bmi', direction: 'DOWN', years: -2 })).toBe('체중(BMI)이 같은 성별 평균보다 낮아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'UP', years: 1 })).toBe('술 마시는 횟수가 같은 성별 평균보다 많아요')
     expect(factorText({ feature: 'father_diabetes_history', direction: 'UP' })).toBe('아버지 가족력이 있어요')
     expect(factorText({ feature: 'smoking_current', direction: 'DOWN' })).toBe('지금 담배를 피우지 않아요')
+  })
+
+  it('years가 null·없음이면 옛 기준(남녀 합친 평균)이라 체중·음주는 "같은 성별" 없이 (#123 현영 님)', () => {
+    expect(factorText({ feature: 'bmi', direction: 'UP', years: null })).toBe('체중(BMI)이 평균보다 높아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN' })).toBe('술 마시는 횟수가 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN', years: null })).toBe('술 마시는 양이 평균보다 적어요')
+    expect(factorText({ feature: 'mother_diabetes_history', direction: 'UP', years: null })).toBe('어머니 가족력이 있어요')
+    expect(factorText({ feature: 'smoking_current', direction: 'UP', years: null })).toBe('지금 담배를 피워요')
   })
 
   it('factorLines가 years를 붙이고, null·키 없음(예전 응답)이면 숫자 없이', () => {
