@@ -12,6 +12,12 @@ export interface AnswerError {
   message: string
 }
 
+/** step이 0.1이면 1, 0.01이면 2 (소수 자리 수). 1 이상이거나 없으면 0 */
+function decimalsOf(step: number | undefined): number {
+  if (step === undefined || step >= 1) return 0
+  return Math.max(0, Math.ceil(-Math.log10(step) - 1e-9))
+}
+
 function checkQuestion(q: Question, value: SurveyAnswers[string]): string | null {
   const empty = value === undefined || value === null
 
@@ -24,6 +30,14 @@ function checkQuestion(q: Question, value: SurveyAnswers[string]): string | null
       return `${min ?? ''}~${max ?? ''}${q.unit ?? ''} 사이로 입력해 주세요.`
     }
     if (q.step === 1 && !Number.isInteger(value)) return '정수로 입력해 주세요.'
+    // 서버는 키·몸무게·허리둘레를 소수 첫째 자리까지만 받음 (DTO decimal_places=1, DB DECIMAL(4,1)) → 78.25는 422
+    const decimals = decimalsOf(q.step)
+    if (decimals > 0) {
+      const scaled = value * 10 ** decimals
+      if (Math.abs(scaled - Math.round(scaled)) > 1e-6) {
+        return decimals === 1 ? '소수 첫째 자리까지 입력해 주세요.' : `소수 ${decimals}자리까지 입력해 주세요.`
+      }
+    }
     return null
   }
 
