@@ -8,7 +8,9 @@ from app.main import app
 from app.models.health_profiles import HealthProfile, SurveyKind
 from app.models.users import User
 from app.services.auth import LOGIN_FAIL_KEY_PREFIX, LOGIN_LOCK_SECONDS
+from app.services.survey.validation import resolve_answers
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from app.tests.survey.test_validation import make_answers
 
 
 class TestLoginAPI(TestCase):
@@ -104,33 +106,11 @@ class TestLoginAPI(TestCase):
         # 가입 설문을 했으면 로그인 응답 has_health_profile = true → 홈으로 (api.md 2-2)
         email = "onboarded@example.com"
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            await client.post("/api/v1/auth/signup", json=make_signup_data(email))
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email, gender="MALE"))
             user = await User.get(email=email)
-            await HealthProfile.create(user=user, kind=SurveyKind.ONBOARDING, survey_version="v1.0", **_VIRTUAL_SURVEY)
+            # 3-1이 저장하는 값과 같게: api.md 예시 답 → 서버 규칙으로 채운 21개 (건너뜀 8·888 포함)
+            answers = resolve_answers(SurveyKind.ONBOARDING, user.gender, make_answers())
+            await HealthProfile.create(user=user, kind=SurveyKind.ONBOARDING, survey_version="v1.0", **answers)
             response = await client.post("/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD})
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["has_health_profile"] is True
-
-
-# 가상 설문 값 (survey-mapping.md 코드: 2 = 아니요, 3 = 피운 적 없음, 8·888 = 건너뜀)
-_VIRTUAL_SURVEY = {
-    "height_cm": 170,
-    "weight_kg": 70,
-    "father_diabetes_history": 2,
-    "mother_diabetes_history": 2,
-    "sibling_diabetes_history": 2,
-    "father_hypertension_history": 2,
-    "mother_hypertension_history": 2,
-    "sibling_hypertension_history": 2,
-    "alcohol_ever": 1,
-    "alcohol_frequency": 8,
-    "alcohol_amount": 8,
-    "binge_frequency": 8,
-    "smoking_lifetime": 3,
-    "smoking_current": 8,
-    "cigarettes_per_day": 888,
-    "heated_tobacco": 2,
-    "liquid_ecig": 2,
-    "is_hypertension_diagnosed": False,
-    "is_diabetes_diagnosed": False,
-}

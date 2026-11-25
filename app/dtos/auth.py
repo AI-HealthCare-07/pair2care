@@ -39,4 +39,4 @@ class LoginResponse(TokenRefreshResponse):
 
 
 class SignUpResponse(LoginResponse):
-    user: UserInfoResponse  # 가입 설문(ONBOARDING)을 했는지 → 프론트가 S-06으로 보낼지 정함
+    user: UserInfoResponse  # 가입한 내 정보 (api.md 2-1). 설문 여부는 부모 LoginResponse의 has_health_profile

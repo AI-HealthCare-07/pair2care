@@ -11,6 +11,7 @@ import Input from '../components/common/Input'
 import Select from '../components/common/Select'
 import { signup, TERMS_VERSION, type Agreement, type Gender } from '../api/auth'
 import { ApiError } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 
 // 서버 규칙과 같음 (api.md 2-1): 8자 이상, 영문·숫자·특수문자(키보드 기호) 각 1개 이상, 공백·한글 안 됨
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[!-~]{8,}$/
@@ -33,6 +34,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1))
 
 export default function SignupPage() {
   const navigate = useNavigate()
+  const { reload } = useAuth()
   const genderLabelId = useId()
 
   const [email, setEmail] = useState('')
@@ -86,6 +88,7 @@ export default function SignupPage() {
         birthday,
         consents: TERMS.map((t) => ({ agreement: t.key, version: TERMS_VERSION, is_agreed: true })),
       })
+      await reload() // 가드가 새 로그인 상태를 알게 (안 하면 /login으로 튕김)
       navigate(result.has_health_profile ? '/home' : '/onboarding', { replace: true })
     } catch (err) {
       applyServerError(err)

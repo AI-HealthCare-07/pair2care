@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from starlette import status
 from tortoise.transactions import in_transaction
 
-from app.dtos.users import UserUpdateRequest
+from app.dtos.users import UserInfoResponse, UserUpdateRequest
 from app.models.users import User
 from app.repositories.user_repository import UserRepository
 
@@ -24,6 +24,11 @@ class UserManageService:
             await self.repo.update_instance(user=user, data=self._changes(data))
             await user.refresh_from_db()
         return user
+
+    async def get_me(self, user: User) -> dict[str, Any]:
+        """2-5 응답 (GET·PATCH 같이 씀). has_health_profile은 User 컬럼이 아니라 따로 채움 (로그인 2-2와 같은 함수)."""
+        has_profile = await self.repo.has_onboarding_profile(user.id)
+        return UserInfoResponse.model_validate(user).model_copy(update={"has_health_profile": has_profile}).model_dump()
 
     @staticmethod
     def _changes(data: UserUpdateRequest) -> dict[str, Any]:

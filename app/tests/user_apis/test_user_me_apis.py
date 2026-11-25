@@ -4,6 +4,7 @@ from tortoise.contrib.test import TestCase
 
 from app.main import app
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
+from app.tests.survey.test_validation import make_answers
 
 
 class TestUserMeApis(TestCase):
@@ -111,3 +112,26 @@ class TestUserMeApis(TestCase):
             response = await client.patch("/api/v1/users/me", json={"nickname": "새닉네임"}, headers=headers)
         assert response.json()["nickname"] == "새닉네임"
         assert response.json()["region"] == "부산"
+
+    async def test_user_me_has_health_profile(self):
+        # 가드가 설문 전이면 S-06으로 보내는 값 (api.md 2-5): 가입 직후 false → 가입 설문 저장 후 true
+        email = "me_profile@example.com"
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/v1/auth/signup", json=make_signup_data(email))
+            login_response = await client.post(
+                "/api/v1/auth/login", json={"email": email, "password": DEFAULT_PASSWORD}
+            )
+            headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+            before = await client.get("/api/v1/users/me", headers=headers)
+            survey = await client.post(
+                "/api/v1/health-profiles",
+                json={"kind": "ONBOARDING", "survey_version": "v1.0", **make_answers()},
+                headers=headers,
+            )
+            after = await client.get("/api/v1/users/me", headers=headers)
+            patched = await client.patch("/api/v1/users/me", json={"nickname": "설문완료"}, headers=headers)
+        assert before.json()["has_health_profile"] is False
+        assert survey.status_code == status.HTTP_201_CREATED
+        assert after.json()["has_health_profile"] is True
+        assert patched.json()["has_health_profile"] is True  # PATCH 응답도 같은 모양

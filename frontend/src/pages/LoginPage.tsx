@@ -8,9 +8,11 @@ import Button from '../components/common/Button'
 import Input from '../components/common/Input'
 import { login } from '../api/auth'
 import { ApiError } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { reload } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState<string[] | null>(null) // 오류 문구 줄들
@@ -26,6 +28,7 @@ export default function LoginPage() {
     setAlert(null)
     try {
       const result = await login(email.trim(), password)
+      await reload()
       navigate(result.has_health_profile ? '/home' : '/onboarding', { replace: true })
     } catch (err) {
       setAlert(toAlert(err))
