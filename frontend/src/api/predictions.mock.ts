@@ -1,0 +1,203 @@
+// frontend/src/api/predictions.mock.ts
+// 백엔드 없이 S-09를 만들 때 쓰는 가짜 예측 API (predictions.ts와 함수 이름·시그니처가 같음).
+// 응답 모양은 api.md 5-2·5-3과 서버 views.py 그대로. 점수·요인·건강 나이는 화면 확인용 가짜 값.
+// 요인 예시는 #107에서 진짜 v1 모델로 계산한 45세 남성 결과(bmi → 아버지/어머니 가족력 → 음주 빈도)를 따름.
+
+import { ApiError } from './client'
+import type {
+  Disease,
+  Factor,
+  HealthAge,
+  LatestPrediction,
+  LatestPredictionsResponse,
+  ModelPredictionDetail,
+  PredictionDetail,
+  RiskLevel,
+} from './predictions'
+import type { MockPredictionScenario } from './predictions.mockScenarios'
+
+let delayMs = 250 // 로딩 화면 확인용. 테스트는 0
+const wait = () => new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
+
+const CREATED_AT = '2026-11-19T10:40:00+09:00'
+const PREVIOUS_AT = '2026-11-12T09:10:00+09:00'
+
+let scenario: MockPredictionScenario = 'normal'
+
+/** 응답 지연(ms). 테스트에서 0으로 */
+export function setMockPredictionDelay(ms: number) {
+  delayMs = ms
+}
+
+/** 가짜 응답 경우 바꾸기 (predictionsApi.setMockScenario로 부름) */
+export function setMockPredictionScenario(next: MockPredictionScenario) {
+  scenario = next
+}
+
+function modelRow(id: number, disease: Disease, score: number, level: RiskLevel, health_age: HealthAge | null): LatestPrediction {
+  return { id, disease, method: 'MODEL', score, level, health_age, created_at: CREATED_AT }
+}
+
+function modelDetail(row: LatestPrediction, factors: Factor[], withPrevious = false): ModelPredictionDetail {
+  return {
+    id: row.id,
+    disease: row.disease,
+    method: 'MODEL',
+    score: row.score ?? 0,
+    level: row.level,
+    factors,
+    model_version: row.disease === 'DIABETES' ? 'diabetes_risk:v1' : 'hypertension_risk:v1',
+    changed_inputs: withPrevious ? [{ feature: 'weight_kg', before: 80.0, after: 78.2 }] : null,
+    previous: withPrevious ? { id: row.id - 20, score: (row.score ?? 0) + 3, level: row.level, created_at: PREVIOUS_AT } : null,
+    health_age: row.health_age,
+    created_at: CREATED_AT,
+  }
+}
+
+const AGE = (decade: number | null, out_of_range: HealthAge['out_of_range'] = null, actual_age = 45): HealthAge => ({
+  decade,
+  actual_age,
+  out_of_range,
+})
+
+interface MockData {
+  latest: LatestPredictionsResponse | 'NO_SURVEY'
+  details: PredictionDetail[]
+}
+
+function build(name: MockPredictionScenario): MockData {
+  const empty = (overrides: Partial<LatestPredictionsResponse> = {}): LatestPredictionsResponse => ({
+    health_profile_id: 31,
+    predictions: [],
+    managed_diseases: [],
+    skipped_reason: null,
+    metabolic_syndrome: null,
+    ...overrides,
+  })
+
+  switch (name) {
+    case 'normal': {
+      const dm = modelRow(51, 'DIABETES', 18, 'LOW', AGE(null, 'BELOW'))
+      const htn = modelRow(52, 'HYPERTENSION', 45, 'CAUTION', AGE(50))
+      return {
+        latest: empty({ predictions: [dm, htn] }),
+        details: [
+          modelDetail(dm, [
+            { feature: 'bmi', direction: 'UP' },
+            { feature: 'father_diabetes_history', direction: 'UP' },
+            { feature: 'smoking_current', direction: 'DOWN' },
+          ], true),
+          modelDetail(htn, [
+            { feature: 'bmi', direction: 'UP' },
+            { feature: 'mother_hypertension_history', direction: 'UP' },
+            { feature: 'alcohol_frequency', direction: 'UP' },
+          ], true),
+        ],
+      }
+    }
+    case 'similar': {
+      const dm = modelRow(61, 'DIABETES', 72, 'HIGH', AGE(null, 'ABOVE', 58))
+      const htn = modelRow(62, 'HYPERTENSION', 22, 'LOW', AGE(40, null, 43))
+      return {
+        latest: empty({ predictions: [dm, htn] }),
+        details: [
+          // age는 #107 전에 저장된 행처럼 섞어 둠 → 화면은 건너뛰어야 함
+          modelDetail(dm, [{ feature: 'age', direction: 'UP' }, { feature: 'bmi', direction: 'UP' }]),
+          modelDetail(htn, []),
+        ],
+      }
+    }
+    case 'health_age_null': {
+      const dm = modelRow(71, 'DIABETES', 34, 'CAUTION', null)
+      const htn = modelRow(72, 'HYPERTENSION', 21, 'LOW', null)
+      return {
+        latest: empty({ predictions: [dm, htn] }),
+        details: [
+          modelDetail(dm, [
+            { feature: 'bmi', direction: 'UP' },
+            { feature: 'alcohol_amount', direction: 'DOWN' },
+          ]),
+          modelDetail(htn, [{ feature: 'sibling_hypertension_history', direction: 'DOWN' }]),
+        ],
+      }
+    }
+    case 'managed_one': {
+      const htn = modelRow(82, 'HYPERTENSION', 31, 'CAUTION', AGE(40))
+      return {
+        latest: empty({ predictions: [htn], managed_diseases: ['DIABETES'] }),
+        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }, { feature: 'alcohol_amount', direction: 'UP' }])],
+      }
+    }
+    case 'managed_both':
+      return { latest: empty({ managed_diseases: ['DIABETES', 'HYPERTENSION'] }), details: [] }
+    case 'pregnant':
+      return { latest: empty({ skipped_reason: 'PREGNANT' }), details: [] }
+    case 'age_out':
+      return { latest: empty({ skipped_reason: 'AGE_OUT_OF_RANGE' }), details: [] }
+    case 'failed':
+      return { latest: empty(), details: [] }
+    case 'partial_failed': {
+      const htn = modelRow(92, 'HYPERTENSION', 45, 'CAUTION', AGE(50))
+      return {
+        latest: empty({ predictions: [htn] }),
+        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }])],
+      }
+    }
+    case 'checkup': {
+      const dm = modelRow(101, 'DIABETES', 18, 'LOW', AGE(40))
+      const htn = modelRow(102, 'HYPERTENSION', 45, 'CAUTION', AGE(50))
+      const htnCheckup: LatestPrediction = {
+        id: 103,
+        disease: 'HYPERTENSION',
+        method: 'CHECKUP_CRITERIA',
+        score: null,
+        level: 'CAUTION',
+        checkup_record_id: 8,
+        health_age: null,
+        created_at: CREATED_AT,
+      }
+      return {
+        latest: empty({
+          predictions: [dm, htn, htnCheckup],
+          metabolic_syndrome: { status: 'UNKNOWN', met_count: 2, missing: ['triglyceride', 'hdl_cholesterol'] },
+        }),
+        details: [
+          modelDetail(dm, [{ feature: 'bmi', direction: 'UP' }]),
+          modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }, { feature: 'father_hypertension_history', direction: 'UP' }]),
+          {
+            id: 103,
+            disease: 'HYPERTENSION',
+            method: 'CHECKUP_CRITERIA',
+            score: null,
+            level: 'CAUTION',
+            factors: null,
+            model_version: null,
+            changed_inputs: null,
+            previous: null,
+            health_age: null,
+            used_values: { systolic_bp: 134, diastolic_bp: 86 },
+            checked_on: '2026-05-10',
+            created_at: CREATED_AT,
+          },
+        ],
+      }
+    }
+    case 'no_survey':
+      return { latest: 'NO_SURVEY', details: [] }
+  }
+}
+
+export async function getLatestPredictions(): Promise<LatestPredictionsResponse> {
+  await wait()
+  const { latest } = build(scenario)
+  if (latest === 'NO_SURVEY') throw new ApiError(404, '아직 설문 기록이 없어요.')
+  return clone(latest)
+}
+
+export async function getPrediction(id: number): Promise<PredictionDetail> {
+  await wait()
+  const found = build(scenario).details.find((d) => d.id === id)
+  if (!found) throw new ApiError(404, '예측 기록을 찾을 수 없어요.')
+  return clone(found)
+}
