@@ -4,7 +4,6 @@
 // 가짜 쪽은 동적 import라서 운영 빌드에는 들어가지 않음 (mealsApi.ts·healthProfilesApi.ts와 같은 방식).
 
 import * as real from './predictions'
-import type { MockPredictionScenario } from './predictions.mockScenarios'
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'
 const loadMock = () => import('./predictions.mock')
@@ -15,7 +14,13 @@ export const predictionsApi = {
   getPrediction: (...args: Parameters<typeof real.getPrediction>) =>
     useMock ? loadMock().then((m) => m.getPrediction(...args)) : real.getPrediction(...args),
 
-  /** 개발용(가짜 모드에서만 동작): 가짜 응답 경우 바꾸기. 진짜 모드에서는 아무것도 안 함 */
-  setMockScenario: (scenario: MockPredictionScenario): Promise<void> =>
+  /** 가짜 모드인지 (화면의 개발용 안내 표시용) */
+  isMock: useMock,
+
+  /**
+   * 개발용(가짜 모드에서만 동작): 가짜 응답 경우 바꾸기. 이름 목록은 predictions.mockScenarios.ts, 모르는 이름은 normal.
+   * 진짜 모드에서는 아무것도 안 함 (이름 목록도 운영 빌드에 안 들어가게 문자열로 받음)
+   */
+  setMockScenario: (scenario: string | null): Promise<void> =>
     useMock ? loadMock().then((m) => m.setMockPredictionScenario(scenario)) : Promise.resolve(),
 }

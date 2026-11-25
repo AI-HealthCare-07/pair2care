@@ -14,7 +14,7 @@ import type {
   PredictionDetail,
   RiskLevel,
 } from './predictions'
-import type { MockPredictionScenario } from './predictions.mockScenarios'
+import { MOCK_PREDICTION_SCENARIOS, type MockPredictionScenario } from './predictions.mockScenarios'
 
 let delayMs = 250 // 로딩 화면 확인용. 테스트는 0
 const wait = () => new Promise<void>((resolve) => setTimeout(resolve, delayMs))
@@ -30,9 +30,9 @@ export function setMockPredictionDelay(ms: number) {
   delayMs = ms
 }
 
-/** 가짜 응답 경우 바꾸기 (predictionsApi.setMockScenario로 부름) */
-export function setMockPredictionScenario(next: MockPredictionScenario) {
-  scenario = next
+/** 가짜 응답 경우 바꾸기 (predictionsApi.setMockScenario로 부름). 모르는 이름은 'normal' */
+export function setMockPredictionScenario(next: string | null) {
+  scenario = (MOCK_PREDICTION_SCENARIOS as readonly string[]).includes(next ?? '') ? (next as MockPredictionScenario) : 'normal'
 }
 
 function modelRow(id: number, disease: Disease, score: number, level: RiskLevel, health_age: HealthAge | null): LatestPrediction {
