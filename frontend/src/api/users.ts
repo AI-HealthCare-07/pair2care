@@ -26,7 +26,7 @@ const MOCK_ME: Me = {
 
 export async function fetchMe(): Promise<Me> {
   if (useMock) return MOCK_ME
-  const res = await apiFetch('/users/me')            // 빈칸 1: 주소 (API_BASE '/api/v1'는 client가 붙여 줌)
-  if (!res.ok) throw await toApiError(res)          // 빈칸 2: 4xx·5xx → ApiError로 바꿔 던지는 함수
+  const res = await apiFetch('/users/me')
+  if (!res.ok) throw await toApiError(res) // 401이면 apiFetch가 refresh까지 시도한 뒤라 진짜 로그아웃 상태
   return (await res.json()) as Me
 }
