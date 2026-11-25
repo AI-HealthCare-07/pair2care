@@ -553,7 +553,7 @@ S-09, S-12 홈 카드
 - `health_age`: 건강 나이 (11/25 확정). 내 점수와 같은 확률이 나오는 "아직 진단받지 않은 같은 성별 또래"의 나이를 **10살 단위**로
   - `decade`: 40 = "40대 수준". 곡선 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
-  - `out_of_range`: null / `BELOW`("30세 이하 수준") / `ABOVE`("69세 이상 수준")
+  - `out_of_range`: null / `BELOW`("30세 미만 수준") / `ABOVE`("69세 초과 수준")
   - 계산: 모델 JSON의 `health_age_curve`(성별마다 30~69세 확률 40개, 장성은)에서 `score / 100`과 같은 확률의 나이를 직선 보간 → 같은 점수면 언제나 같은 건강 나이
   - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 곡선이 없음, 곡선을 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
   - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
@@ -577,7 +577,15 @@ S-09 상세
 ```
 - `changed_inputs`: 같은 질환, **이전 설문**의 가장 최근 `MODEL` 행 `input_snapshot.inputs`와 비교한 값 (검진 저장으로 같은 설문에 생긴 행은 건너뜀, 4-1) (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `health_age`: 5-2와 같은 값·규칙
-- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
+- `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null(`score`·`model_version`도 null), 대신 `input_snapshot`의 판정 수치를 **최상위 키** `used_values`(판정에 쓴 수치만)·`checked_on`(검진 날짜)으로 내려줌. `MODEL` 행에는 두 키가 없음
+```json
+{
+  "id": 52, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION",
+  "factors": null, "model_version": null, "changed_inputs": null, "previous": null, "health_age": null,
+  "used_values": { "fasting_glucose": 108, "hba1c": 5.5 }, "checked_on": "2026-05-10",
+  "created_at": "2026-11-19T10:40:00+09:00"
+}
+```
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
 - 요인 크기 숫자는 내려주지 않음 (방향만)
 - 남의 것이면 404
