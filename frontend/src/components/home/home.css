@@ -90,3 +90,11 @@
   box-sizing: border-box;
   text-decoration: none;
 }
+
+/* 불러오는 동안 자리만 잡는 회색 줄 */
+.home-placeholder {
+  display: block;
+  width: 40%;
+  border-radius: 8px;
+  background: var(--color-line);
+}

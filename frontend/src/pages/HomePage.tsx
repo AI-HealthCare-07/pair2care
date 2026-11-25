@@ -2,6 +2,7 @@
 // S-12 홈 (Figma M05). 순서: 인사 → 오늘의 한 가지 → 건강 나이(높은 쪽 하나) → 컨디션 → 오늘 할 챌린지(다음 챌린지 포함) → 식단 기록
 //  - 건강 나이·컨디션은 Figma M05에 자리가 없어서 11/25 팀장님 순서로 넣음
 //  - 🔔 알림(12장)·짝꿍 응원(8-12, P2)은 화면이 생기면 붙임
+//  - 의료 안내(C-01)는 맨 아래 한 번
 // 카드마다 따로 불러오고 따로 실패해서, 한 API가 안 돼도 나머지는 보임
 
 import { Link } from 'react-router-dom'
@@ -10,6 +11,7 @@ import ConditionPicker from '../components/home/ConditionPicker'
 import DailyActionCard from '../components/home/DailyActionCard'
 import HealthAgeCard from '../components/home/HealthAgeCard'
 import TodayChallenges from '../components/home/TodayChallenges'
+import MedicalNotice from '../components/common/MedicalNotice'
 import { homeDateLabel } from '../home/homeView'
 import '../components/home/home.css'
 
@@ -32,6 +34,8 @@ export default function HomePage() {
       <Link className="ui-btn ui-btn--secondary ui-btn--full home-meal" to="/records/meals">
         📷 오늘 식단 기록하기
       </Link>
+      {/* 추천·건강 나이가 어떤 상태든 항상 보이게 한 번 (C-01) */}
+      <MedicalNotice />
     </section>
   )
 }

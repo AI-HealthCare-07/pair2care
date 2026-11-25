@@ -3,6 +3,7 @@
 //  1. 11-2 조회 → 오늘 저장본이 없으면(404) 11-1로 생성 요청
 //  2. PENDING·PROCESSING이면 3초마다 11-2를 다시 확인 (완료 알림 SSE 12-6이 생기면 바꿈), 1분 넘으면 멈추고 "다시 확인"
 //  3. FAILED면 다시 만들기 (retry_count 3이면 서버가 429라 버튼 대신 안내)
+// 의료 안내(C-01)는 카드 상태와 상관없이 보이도록 HomePage 맨 아래에 한 번 둠 (#119 리뷰)
 
 import { useEffect, useState } from 'react'
 import { ApiError } from '../../api/client'
@@ -148,7 +149,6 @@ function DailyContent({ recommendation }: { recommendation: DailyRecommendation 
           ))}
         </ul>
       )}
-      <p className="home-muted">의료 진단이 아니며 전문가 상담이 필요해요.</p>
     </>
   )
 }
