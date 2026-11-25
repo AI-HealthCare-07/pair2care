@@ -539,7 +539,7 @@ S-09, S-12 홈 카드
     { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8,
       "health_age": null, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW",
-      "health_age": { "decade": null, "actual_age": 38, "out_of_range": "BELOW", "items": [ { "feature": "bmi", "years": -12 }, { "feature": "alcohol_frequency", "years": -3 } ] }, "created_at": "2026-11-19T10:40:00+09:00" }
+      "health_age": { "decade": 30, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": -12 }, { "feature": "alcohol_frequency", "years": -3 } ] }, "created_at": "2026-11-19T10:40:00+09:00" }
   ],
   "managed_diseases": [],
   "skipped_reason": null,
@@ -556,9 +556,8 @@ S-09, S-12 홈 카드
   - 같은 성별 평균: 모델 JSON의 `means_by_sex`(`MALE`·`FEMALE`마다 7문항 평균, 장성은). 남녀 합친 `means`를 쓰면 한쪽 성별이 일괄 많게·적게 나와서 안 씀
   - `decade`: 건강 나이를 반올림한 정수의 10살 단위. 40 = "40대 수준". 범위 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
-  - `out_of_range`: null / `BELOW`(반올림한 건강 나이 30 미만, "30세 미만 수준") / `ABOVE`(69 초과, "69세 초과 수준") — 학습 범위(30~69) 밖이라 숫자 대신 이 문구
+  - `out_of_range`: null / `BELOW`(반올림한 건강 나이 30 미만, "30세 미만 수준") / `ABOVE`(69 초과, "69세 초과 수준") — 학습 범위(30~69) 밖이라 숫자 대신 이 문구. ±15 제한 때문에 `BELOW`는 실제 나이 44세 이하, `ABOVE`는 55세 이상에서만 나옴 (예: 38세 −15 → 23 → `BELOW`)
   - `items`: 항목별 가감 나이, 반올림한 정수가 0이 아닌 것만, 절댓값 큰 순 `[{ "feature": "bmi", "years": 5 }, { "feature": "smoking_current", "years": 5 }]` → 화면 "+5살". 문구는 factors와 같은 프론트 상수. 합계가 ±15를 넘으면 `decade`는 제한한 값이라 `items` 합과 다를 수 있음
-  - 화면 표시: 같은 10살 구간이면 "비슷한 수준", 다르면 "높게 / 낮게" (S-09 질환별, S-12 홈은 높은 쪽 하나, 진단받은 질환 숨김 — 11/25 결정)
   - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 `means_by_sex`가 없거나 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
   - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
 
