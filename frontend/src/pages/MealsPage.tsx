@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { mealsApi } from '../api/mealsApi'
 import { MealApiError, type MealListResponse } from '../api/meals'
 import Button from '../components/common/Button'
-import MedicalNotice from '../components/meal/MedicalNotice'
+import MedicalNotice from '../components/common/MedicalNotice'
 import {
   DAILY_KCAL,
   firstEmptySlot,

@@ -470,7 +470,7 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 0.5 올림 정수 0~100 (model.py `to_score`: floor(확률 × 100 + 0.5), 파이썬 round 아님) |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별과 다른 질환 가족력은 뺌 (바꿀 수 없는 값, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임. 계산에는 그대로 씀). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
+| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별·나이와 다른 질환 가족력은 뺌 (계산에는 그대로 씀). 성별·나이는 바꿀 수 없는 값이라 "바꿀 수 있는 것 → 챌린지"로 이어지는 자리에 안 맞고, 나이는 평균에서 멀면 거의 항상 1순위라 체중·음주·흡연이 밀려남 → 나이 비교는 건강 나이가 따로 보여 줌, 결과 화면에 "점수에는 나이도 반영돼요" 안내 (11/25 장성은). 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임 (11/24). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
 | model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, `mlflow_run_id`와 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
@@ -716,19 +716,24 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
 {
   "series": [
     { "disease": "DIABETES", "managed": false,
-      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51 } ] },
+      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51, "criteria_level": "CAUTION" } ] },
     { "disease": "HYPERTENSION", "managed": true, "points": [] }
   ]
 }
 ```
 - `managed: true` = 최근 설문에서 진단 "예" → 추이 대신 "관리 중" 카드
-- 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음)
+- 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음). 두 질환은 항상 내려줌 (설문 전이면 둘 다 빈 `points`)
+- 주는 KST 월요일 기준, 이번 주 포함 N주. `weeks`는 1~52 (밖이면 422)
+- `criteria_level`: 그 주 마지막 기준표 판정 단계, 없으면 null. 그 주 마지막 MODEL 행보다 오래된 기준표(최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측)는 지난 판정이라 null (5-2와 같은 규칙)
 - 추이는 `method = MODEL`인 점만 이어 그림. 기준표 판정(`CHECKUP_CRITERIA`, score 없음)은 그 주에 표시만 따로 (`criteria_level`) → 정할 것 9번
 - "위험도가 낮아졌어요"는 **직전 점보다 실제로 내려갔을 때만**, 바뀐 입력값과 같이 보여줌 (REQ-NFR-003) → 바뀐 입력값은 예측 상세(5장)의 `input_snapshot` 비교로
 
 ### 7-2. 항목별 그래프 `GET /api/v1/dashboard/logs?log_type=BLOOD_PRESSURE&from=&to=&bucket=day`
 - `bucket`: `raw`(그대로, 기본) / `day` / `week`. 묶을 때는 평균, 혈압은 수축기·이완기 각각 평균
 - 혈압 그래프는 **집에서 잰 값(health_logs)만**, 검진 수치는 섞지 않음 (REQ-DASH-002)
+- `log_type`은 일일 기록 한 종류만 (주간 기록은 400 `"주간 기록은 주간 기록 API로 조회해 주세요."`, 모르는 종류 400). 기간은 6-2와 같음 (KST 양끝 포함, 366일까지)
+- 평균은 소수 첫째 자리 (0.05 올림). `raw`는 점마다 `{ "measured_at", "value", "value2", "count": 1 }`, `day`는 `date` = 그날, `week`는 `date` = 그 주 월요일
+- 점 한도: `raw` 1000개 / `day`·`week`는 원래 기록 20000개 → 넘으면 400 `"기록이 너무 많아요. 기간을 줄이거나 day·week로 묶어 주세요."`
 ```json
 { "log_type": "BLOOD_PRESSURE", "unit": "mmHg", "bucket": "day",
   "points": [ { "date": "2026-11-18", "value": 131.5, "value2": 83.0, "count": 2 } ] }
@@ -745,13 +750,20 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
     "BLOOD_PRESSURE": { "count": 4, "avg_value": 131.2, "avg_value2": 83.5, "last_measured_at": "2026-11-19T07:40:00+09:00" },
     "STEPS": { "days_logged": 3, "avg_value": 6120 }
   },
+  "managed_diseases": [],
   "weekly_record_done": true,
   "challenge": { "achieved_checks": 4, "target_checks": 6, "achievement_rate": 0.67 },
   "meal": null
 }
 ```
 - `priority_disease`: 먼저 보여줄 카드(S-18 "고혈압·당뇨에 따라 먼저 보여줄 카드가 다름"). 최근 예측 level이 더 높은 질환, 같으면 score가 높은 쪽, "관리 중"이면 그 질환 우선
-- `challenge`: 이번 주 체크 수 ÷ 목표 횟수 → 챌린지 API 담당과 계산식 맞춤
+- `latest_risk`: 5-2와 같은 기준 (최근 설문의 질환별 최신 `MODEL` 행), 당뇨 → 고혈압. `managed_diseases`도 같이 내려줌
+- `logs`: 이번 주(월 00:00 ~ 다음 주 월 00:00, KST) 일일 기록. 기록이 없는 종류는 뺌
+  - 걸음 수·컨디션(하루 1행): `{ "days_logged", "avg_value" }`
+  - 나머지: `{ "count", "avg_value", "last_measured_at" }` + 혈압 `avg_value2`, 음주·운동 `total_value`(주간 합계)
+- `weekly_record_done`: 그 주 주간 기록(6-4)을 **하나라도** 저장했으면 true
+- `week_start`가 월요일이 아니면 400 `"week_start는 그 주 월요일 날짜로 보내 주세요."`. 설문 전이어도 200 (`priority_disease: null`, `latest_risk: []`)
+- `challenge`: 이번 주 체크 수 ÷ 목표 횟수 → 챌린지 API 담당과 계산식 맞춤. **8장 챌린지가 머지될 때까지 null**
 - `meal`: 식단은 P2라 처음엔 null, 붙으면 `{ "kcal_avg": ..., "sodium_avg_mg": ... }`
 - 문구는 "~를 달성했어요!" 같은 달성률로만 (REQ-NFR-003)
 

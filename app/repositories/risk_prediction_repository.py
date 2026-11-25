@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from tortoise import BaseDBAsyncClient
@@ -43,3 +44,7 @@ class RiskPredictionRepository:
             .order_by("-created_at", "-id")
             .first()
         )
+
+    async def list_since(self, user_id: int, start: datetime) -> list[RiskPrediction]:
+        """7-1 추이: start 이후 내 예측 전부 (MODEL·기준표 둘 다, 주별로 고르는 건 서비스)."""
+        return await self._model.filter(user_id=user_id, created_at__gte=start).order_by("created_at", "id")

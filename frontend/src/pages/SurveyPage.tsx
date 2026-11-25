@@ -21,8 +21,9 @@ import { useGender } from '../survey/useGender'
 import { pruneHiddenAnswers, questionText } from '../survey/visibleQuestions'
 import '../components/survey/survey.css'
 
-// TODO: S-09(예측 결과) 경로가 정해지면 바꿈. 지금은 홈으로 보내고 저장 응답을 state로 넘김.
-const AFTER_SURVEY_PATH = '/home'
+// 저장 뒤 S-09 예측 결과로 (경로는 팀장님 11/25 확정). S-09는 들어올 때 5-2를 다시 부르므로 응답을 넘기지 않음.
+// replace: 뒤로 가기로 이미 저장한 설문에 돌아가지 않게 (다시 저장하면 409 ONBOARDING_ALREADY_DONE)
+const AFTER_SURVEY_PATH = '/prediction'
 
 interface ServerError {
   message: string
@@ -120,8 +121,8 @@ function SurveyFlow({ gender }: { gender: Gender }) {
     setSubmitting(true)
     setServerError(null)
     try {
-      const result = await healthProfilesApi.postHealthProfile(buildSurveyRequest(currentDef, currentAnswers, gender))
-      navigate(AFTER_SURVEY_PATH, { state: { surveyResult: result } })
+      await healthProfilesApi.postHealthProfile(buildSurveyRequest(currentDef, currentAnswers, gender))
+      navigate(AFTER_SURVEY_PATH, { replace: true })
     } catch (err) {
       await handleSubmitError(err)
     } finally {
