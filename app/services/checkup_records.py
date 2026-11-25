@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException, status
 
 from app.dtos.checkup_records import CheckupRecordCreateRequest, CheckupRecordUpdateRequest
-from app.models.checkup_records import CheckupRecord
+from app.models.checkup_records import CheckupRecord, CheckupSource
 from app.models.users import User
 from app.repositories.checkup_record_repository import CheckupRecordRepository
 from app.services.checkup_rules import CHECKUP_VALUE_FIELDS, check_checkup_values
@@ -27,7 +27,7 @@ class CheckupRecordService:
 
     async def create(self, user: User, data: CheckupRecordCreateRequest) -> dict[str, Any]:
         """4-1. 저장 → 최근 설문으로 다시 예측 (기준표 판정 행이 이 검진으로 생김)."""
-        values = data.model_dump()
+        values = data.model_dump() | {"source": CheckupSource.MANUAL}  # 4-6 결과지 인식 전까지 직접 입력만
         check_checkup_values(values, today_kst())
         record = await self.checkup_repo.create(user.id, values)
         return {"checkup_record": serialize(record), **await self.prediction_service.repredict_latest(user)}
@@ -50,23 +50,38 @@ class CheckupRecordService:
         return serialize(await self.get_own(user, record_id))
 
     async def update(self, user: User, record_id: int, data: CheckupRecordUpdateRequest) -> dict[str, Any]:
-        """4-4. 보낸 필드만, 합친 값으로 규칙 검사. 지난 예측 행은 그대로, 이 기록이 가장 최근 검진이면 다시 예측."""
+        """4-4. 보낸 필드만, 합친 값으로 규칙 검사. 지난 예측 행은 그대로.
+
+        수정 전이나 후에 이 기록이 가장 최근 검진이면 다시 예측 (가장 최근 검진의 날짜를 예전으로 옮기면
+        다른 기록이 최근이 되므로 그 기록으로 다시 판정해야 함, #103 리뷰).
+        """
         record = await self.get_own(user, record_id)
         changes = data.changes()
         merged = {field: getattr(record, field) for field in ("checked_on", *CHECKUP_VALUE_FIELDS)} | changes
         check_checkup_values(merged, today_kst())
+        was_latest = await self.is_latest(user, record.id)
         record = await self.checkup_repo.update(record, changes)
 
-        latest = await self.checkup_repo.get_latest(user.id)
-        if latest is not None and latest.id == record.id:
+        if was_latest or await self.is_latest(user, record.id):
             prediction = await self.prediction_service.repredict_latest(user)
         else:
             prediction = {"predictions": [], "managed_diseases": [], "skipped_reason": None, "prediction_error": False}
         return {"checkup_record": serialize(record), **prediction}
 
     async def delete(self, user: User, record_id: int) -> None:
-        """4-5. 지난 예측 행의 checkup_record_id는 null로 (FK SET NULL)."""
-        await self.checkup_repo.delete(await self.get_own(user, record_id))
+        """4-5. 지난 예측 행의 checkup_record_id는 null로 (FK SET NULL).
+
+        지운 기록이 가장 최근 검진이었으면 다시 예측 (남은 최근 검진으로 판정, 없으면 기준표 행 없이 → 5-2에서 안 보임).
+        """
+        record = await self.get_own(user, record_id)
+        was_latest = await self.is_latest(user, record.id)
+        await self.checkup_repo.delete(record)
+        if was_latest:
+            await self.prediction_service.repredict_latest(user)
+
+    async def is_latest(self, user: User, record_id: int) -> bool:
+        latest = await self.checkup_repo.get_latest(user.id)
+        return latest is not None and latest.id == record_id
 
     async def get_own(self, user: User, record_id: int) -> CheckupRecord:
         record = await self.checkup_repo.get_for_user(user.id, record_id)

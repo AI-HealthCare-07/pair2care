@@ -9,8 +9,6 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from app.models.checkup_records import CheckupSource
-
 SystolicBp = Annotated[int, Field(ge=60, le=260)]
 DiastolicBp = Annotated[int, Field(ge=30, le=160)]
 FastingGlucose = Annotated[int, Field(ge=40, le=600)]
@@ -31,8 +29,9 @@ class CheckupValuesFields(BaseModel):
 
 
 class CheckupRecordCreateRequest(CheckupValuesFields):
+    """source는 받지 않음: 4-6 결과지 인식 전까지 서버가 MANUAL로 저장 (보내도 무시, #103 리뷰)."""
+
     checked_on: date
-    source: CheckupSource = CheckupSource.MANUAL
 
 
 class CheckupRecordUpdateRequest(CheckupValuesFields):

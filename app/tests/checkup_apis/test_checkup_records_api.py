@@ -209,3 +209,59 @@ class TestCheckupRecordsAPI(TestCase):
         criteria = await RiskPrediction.get(id=criteria_id)
         assert criteria.checkup_record_id is None  # FK SET NULL, 판정 당시 수치는 input_snapshot에 남음
         assert criteria.input_snapshot["fasting_glucose"] == 108  # 당뇨 기준표 행
+
+    async def test_source_is_always_manual(self) -> None:
+        # 4-6 결과지 인식 전까지 클라이언트가 OCR을 보내도 MANUAL (#103 리뷰)
+        async with new_client() as client:
+            await self.login(client, "ck-source@example.com")
+            response = await client.post(URL, json=checkup_body(source="OCR"))
+
+        assert response.json()["checkup_record"]["source"] == "MANUAL"
+
+    async def test_moving_latest_record_older_repredicts_with_new_latest(self) -> None:
+        # 가장 최근 검진의 날짜를 예전으로 옮기면 다른 기록이 최근 → 그 기록으로 다시 판정 (#103 리뷰)
+        today = date.today()
+        async with new_client() as client:
+            await self.login(client, "ck-move-latest@example.com")
+            await client.post(SURVEY_URL, json=onboarding_body())
+            other = await client.post(URL, json=checkup_body(checked_on=(today - timedelta(days=60)).isoformat()))
+            latest = await client.post(URL, json=checkup_body(checked_on=(today - timedelta(days=10)).isoformat()))
+            response = await client.patch(
+                f"{URL}/{latest.json()['checkup_record']['id']}",
+                json={"checked_on": (today - timedelta(days=200)).isoformat()},
+            )
+            latest_view = await client.get(LATEST_URL)
+
+        assert response.json()["predictions"]  # 수정 전엔 최근이었으니 다시 예측
+        criteria_ids = {
+            p["checkup_record_id"] for p in latest_view.json()["predictions"] if p["method"] == "CHECKUP_CRITERIA"
+        }
+        assert criteria_ids == {other.json()["checkup_record"]["id"]}
+
+    async def test_deleting_latest_repredicts_with_remaining_record(self) -> None:
+        today = date.today()
+        async with new_client() as client:
+            await self.login(client, "ck-delete-latest@example.com")
+            await client.post(SURVEY_URL, json=onboarding_body())
+            remaining = await client.post(URL, json=checkup_body(checked_on=(today - timedelta(days=60)).isoformat()))
+            latest = await client.post(URL, json=checkup_body(checked_on=(today - timedelta(days=10)).isoformat()))
+            await client.delete(f"{URL}/{latest.json()['checkup_record']['id']}")
+            latest_view = await client.get(LATEST_URL)
+
+        criteria_ids = {
+            p["checkup_record_id"] for p in latest_view.json()["predictions"] if p["method"] == "CHECKUP_CRITERIA"
+        }
+        assert criteria_ids == {remaining.json()["checkup_record"]["id"]}
+
+    async def test_deleting_only_record_hides_old_criteria(self) -> None:
+        # 남은 검진이 없으면 기준표 없이 다시 예측 → 지운 검진의 판정은 5-2에 안 보임 (#103 리뷰)
+        async with new_client() as client:
+            await self.login(client, "ck-delete-only@example.com")
+            await client.post(SURVEY_URL, json=onboarding_body())
+            created = await client.post(URL, json=checkup_body())
+            await client.delete(f"{URL}/{created.json()['checkup_record']['id']}")
+            latest_view = await client.get(LATEST_URL)
+
+        methods = [p["method"] for p in latest_view.json()["predictions"]]
+        assert methods == ["MODEL", "MODEL"]
+        assert latest_view.json()["metabolic_syndrome"] is None
