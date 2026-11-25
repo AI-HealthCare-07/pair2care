@@ -45,6 +45,9 @@ def is_newer(row: RiskPrediction, other: RiskPrediction) -> bool:
 def build_risk_trend(rows: Iterable[RiskPrediction], managed_diseases: Sequence[Disease]) -> list[dict[str, Any]]:
     """질환별 주(월~일, KST)마다 마지막 MODEL 예측 1개. 그 주 마지막 기준표 판정은 criteria_level로.
 
+    기준표 행이 그 주 마지막 MODEL 행보다 오래됐으면 지난 판정이라 null (5-2 pick_latest_rows와 같은 규칙,
+    가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우).
+
     관리 중(최근 설문에서 진단 "예")이면 points는 비움 → 화면은 "관리 중" 카드. 예측이 없는 주는 점을 뺌.
     """
     last_model: dict[tuple[Disease, date], RiskPrediction] = {}
@@ -65,6 +68,8 @@ def build_risk_trend(rows: Iterable[RiskPrediction], managed_diseases: Sequence[
             for week in weeks:
                 model_row = last_model[(disease, week)]
                 criteria_row = last_criteria.get((disease, week))
+                if criteria_row is not None and is_newer(model_row, criteria_row):
+                    criteria_row = None
                 points.append(
                     {
                         "week_start": week.isoformat(),

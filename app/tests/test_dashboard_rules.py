@@ -77,6 +77,21 @@ def test_trend_last_model_row_per_week_with_criteria_level() -> None:
     }
 
 
+def test_trend_hides_criteria_older_than_last_model_row_in_week() -> None:
+    # 검진 저장으로 MODEL+기준표 → 같은 주에 최근 검진을 지워서 기준표 없이 다시 예측 (#103)
+    rows = [
+        prediction(1, Disease.DIABETES, kst(17), score=40),
+        prediction(
+            2, Disease.DIABETES, kst(17), score=None, method=PredictionMethod.CHECKUP_CRITERIA, level=RiskLevel.HIGH
+        ),
+        prediction(3, Disease.DIABETES, kst(18), score=35),
+    ]
+
+    diabetes, _ = build_risk_trend(rows, managed_diseases=[])
+
+    assert [(p["prediction_id"], p["criteria_level"]) for p in diabetes["points"]] == [(3, None)]
+
+
 def test_trend_managed_disease_has_no_points_and_both_diseases_always_listed() -> None:
     series = build_risk_trend([prediction(1, Disease.HYPERTENSION, kst(17))], managed_diseases=[Disease.HYPERTENSION])
 
