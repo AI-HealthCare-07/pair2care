@@ -10,10 +10,15 @@ from tortoise.contrib.test import TestCase
 
 from app.main import app
 from app.models.checkup_records import CheckupRecord
-from app.models.health_profiles import HealthProfile
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
-from app.tests.prediction.fixed_models import LOAD_CURVE_TARGET, LOAD_MODEL_TARGET, fixed_curve, fixed_model
+from app.tests.prediction.fixed_models import (
+    LOAD_MODEL_TARGET,
+    LOAD_SEX_MEANS_TARGET,
+    explain_model,
+    explain_sex_means,
+    fixed_model,
+)
 from app.tests.survey.test_validation import make_answers
 
 LATEST_URL = "/api/v1/risk-predictions/latest"
@@ -157,26 +162,41 @@ class TestRiskPredictionAPI(TestCase):
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    async def test_health_age_with_curve(self) -> None:
-        # 고정 모델과 같은 버전의 곡선: 당뇨 34점 → 63세 → 60대, 고혈압 21점 → 50세 → 50대
-        with patch(LOAD_CURVE_TARGET, new=fixed_curve):
+    async def test_health_age_and_factor_years(self) -> None:
+        # bmi 26.3 vs 같은 성별 평균 24.3 → 0.1 × 2.0 ÷ 0.05 = +4살 (다른 문항 계수 0 → 0살이라 빠짐)
+        with patch(LOAD_MODEL_TARGET, new=explain_model), patch(LOAD_SEX_MEANS_TARGET, new=explain_sex_means):
             async with new_client() as client:
                 await self.login(client, "rp-health-age@example.com")
                 created = await client.post(SURVEY_URL, json=onboarding_body())
                 latest = await client.get(LATEST_URL)
                 detail = await client.get(f"/api/v1/risk-predictions/{created.json()['predictions'][0]['id']}")
 
-        actual_age = (await HealthProfile.get(id=created.json()["health_profile"]["id"])).created_at.year - 1990
-        health_ages = {p["disease"]: p["health_age"] for p in latest.json()["predictions"]}
-        assert health_ages["DIABETES"]["decade"] == 60
-        assert health_ages["HYPERTENSION"]["decade"] == 50
-        assert health_ages["DIABETES"]["out_of_range"] is None
-        assert health_ages["DIABETES"]["actual_age"] in (actual_age - 1, actual_age)  # 생일 전후
-        assert detail.json()["health_age"] == health_ages["DIABETES"]
+        diabetes = latest.json()["predictions"][0]
+        actual_age = diabetes["health_age"]["actual_age"]
+        assert diabetes["disease"] == "DIABETES"
+        assert diabetes["health_age"] == {
+            "decade": (actual_age + 4) // 10 * 10,
+            "actual_age": actual_age,
+            "out_of_range": None,
+        }
+        assert detail.json()["health_age"] == diabetes["health_age"]
+        assert detail.json()["factors"] == [{"feature": "bmi", "direction": "UP", "years": 4}]
+
+    async def test_without_sex_means_health_age_null_and_stored_factors(self) -> None:
+        # 모델 JSON에 means_by_sex가 없거나 다른 버전 → 건강 나이 null, 요인은 저장값(years null)
+        async with new_client() as client:
+            await self.login(client, "rp-no-means@example.com")
+            created = await client.post(SURVEY_URL, json=onboarding_body())
+            latest = await client.get(LATEST_URL)
+            detail = await client.get(f"/api/v1/risk-predictions/{created.json()['predictions'][0]['id']}")
+
+        assert all(p["health_age"] is None for p in latest.json()["predictions"])
+        assert detail.json()["health_age"] is None
+        assert all(factor["years"] is None for factor in detail.json()["factors"])
 
     async def test_criteria_row_health_age_is_null(self) -> None:
         email = "rp-health-age-criteria@example.com"
-        with patch(LOAD_CURVE_TARGET, new=fixed_curve):
+        with patch(LOAD_MODEL_TARGET, new=explain_model), patch(LOAD_SEX_MEANS_TARGET, new=explain_sex_means):
             async with new_client() as client:
                 await self.login(client, email)
                 user = await User.get(email=email)
