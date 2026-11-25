@@ -17,7 +17,8 @@ from app.repositories.health_profile_repository import HealthProfileRepository, 
 from app.repositories.risk_prediction_repository import RiskPredictionRepository
 from app.services.prediction.criteria import CheckupValues, is_checkup_valid, judge_checkup, judge_metabolic_syndrome
 from app.services.prediction.features import build_input_snapshot, calculate_age
-from app.services.prediction.model import load_model, to_level, to_score
+from app.services.prediction.health_age import health_age_for_row
+from app.services.prediction.model import load_health_age_curve, load_model, to_level, to_score
 from app.services.prediction.plan import PredictionPlan, plan_predictions
 from app.services.prediction.simulation import SimulationChanges, apply_changes, check_simulatable_keys
 from app.services.prediction.views import (
@@ -85,6 +86,13 @@ class PredictionService:
         return rows
 
 
+def health_age_of(row: RiskPrediction) -> dict[str, Any] | None:
+    """모델 행의 건강 나이. 곡선이 없거나 어긋났거나 다른 모델 버전이면 null (api.md 5-2·5-3)."""
+    if row.method != PredictionMethod.MODEL:
+        return None
+    return health_age_for_row(row, load_health_age_curve(row.disease))
+
+
 def to_checkup_values(checkup: CheckupRecord | None) -> CheckupValues | None:
     if checkup is None:
         return None
@@ -150,7 +158,7 @@ class PredictionQueryService:
 
         return {
             "health_profile_id": profile.id,
-            "predictions": [summarize_row(row) for row in rows],
+            "predictions": [summarize_row(row, health_age_of(row)) for row in rows],
             "managed_diseases": [disease.value for disease in plan.managed_diseases],
             "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
             "metabolic_syndrome": metabolic_to_response(metabolic),
@@ -164,7 +172,7 @@ class PredictionQueryService:
         previous = None
         if row.method == PredictionMethod.MODEL:
             previous = await self.prediction_repo.get_previous_model_row(row)
-        return build_detail(row, previous)
+        return build_detail(row, previous, health_age_of(row))
 
     async def simulate(self, user: User, raw_changes: dict[str, Any]) -> dict[str, Any]:
         """5-4. 최근 설문에 바꾼 습관만 덮어 다시 계산 (저장 안 함). 검사 순서: 필드 400 → 형식 422 → 해당 여부 400."""
