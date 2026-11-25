@@ -219,6 +219,8 @@
   color: var(--color-muted);
 }
 
+.pred-info + .pred-info { margin-top: 6px; } /* ℹ️ 두 줄이면 붙여서 */
+
 .pred-info__icon {
   flex-shrink: 0;
   display: inline-flex;

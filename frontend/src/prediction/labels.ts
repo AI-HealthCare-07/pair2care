@@ -33,6 +33,9 @@ export const LEVEL_MESSAGE: Record<RiskLevel, string> = {
 /** 영향을 준 요인 카드 맨 아래 ℹ️ 안내 (#107, 요인 후보에서 나이를 뺀 이유) */
 export const AGE_IN_SCORE_NOTICE = '점수에는 나이도 반영돼요. 나이는 바꿀 수 없어서 요인에서는 뺐어요'
 
+/** 요인 줄의 "+5살"이 무슨 숫자인지 (#123 성은 님 제안). 숫자가 하나라도 보일 때만 ℹ️ 맨 위에 */
+export const YEARS_NOTICE = '숫자는 같은 성별 평균인 사람보다 건강 나이를 몇 살 높이거나 낮추는지예요'
+
 /** 관리 중 카드 (진단 "예" → 예측 안 함, api.md 5-0 managed_diseases) */
 export const MANAGED_TITLE = '관리 중'
 export const MANAGED_MESSAGE = '진단받은 질환은 위험도를 계산하지 않아요. 지금처럼 진료를 이어 가세요'
