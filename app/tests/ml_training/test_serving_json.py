@@ -1,4 +1,4 @@
-"""ml/serving_json.py: 학습 결과 → 서버 JSON·같은 성별 평균·건강 나이 곡선 (가상 데이터만, DB 없이 도는 순수 테스트)."""
+"""ml/serving_json.py: 학습 결과 → 서버 JSON·같은 성별 평균 (가상 데이터만, DB 없이 도는 순수 테스트)."""
 
 import math
 from typing import Any
@@ -6,16 +6,10 @@ from typing import Any
 import pytest
 
 from app.models.risk_predictions import Disease
-from app.services.prediction.features import DIABETES_FAMILY_FIELDS, FEATURE_NAMES
+from app.services.prediction.features import FEATURE_NAMES
+from app.services.prediction.health_age import ITEM_FIELDS_BY_DISEASE, parse_means_by_sex
 from app.services.prediction.model import CAUTION_MIN_SCORE, HIGH_MIN_SCORE, LogisticModel, to_score
-from ml.serving_json import (
-    CURVE_AGES,
-    build_health_age_curve,
-    build_means_by_sex,
-    check_health_age_curve,
-    health_age_fields,
-    to_server_json,
-)
+from ml.serving_json import build_means_by_sex, health_age_fields, to_server_json
 
 COEFFICIENTS = dict.fromkeys(FEATURE_NAMES, 0.0) | {"age": 0.05, "bmi": 0.1, "sex": -0.3, "smoking_current": 0.2}
 MEANS = dict.fromkeys(FEATURE_NAMES, 0.0) | {"age": 50.0, "bmi": 24.0, "sex": 1.5}
@@ -51,10 +45,6 @@ def make_rows() -> list[dict[str, float]]:
     return rows
 
 
-def make_points(probabilities: list[float]) -> list[dict[str, float]]:
-    return [{"age": age, "probability": p} for age, p in zip(CURVE_AGES, probabilities, strict=True)]
-
-
 def test_server_json_loads_and_matches_server_probability() -> None:
     spec = make_spec()
     model = LogisticModel.from_dict(spec)  # 서버가 읽는 방식 그대로
@@ -73,73 +63,32 @@ def test_server_json_rejects_missing_coefficient() -> None:
         make_spec(coefficients=without_bmi)
 
 
-def test_curve_is_mean_probability_with_only_age_changed() -> None:
-    # 같은 성별 전원의 나이만 바꿔 서버 모델로 계산한 확률 평균과 같아야 함 (11/24 검증 방식)
-    spec = make_spec()
-    model = LogisticModel.from_dict(spec)
+@pytest.mark.parametrize("disease", list(Disease))
+def test_health_age_fields_are_server_items_in_feature_order(disease: Disease) -> None:
+    fields = health_age_fields(disease)
+
+    assert set(fields) == set(ITEM_FIELDS_BY_DISEASE[disease])  # 서버 7문항과 같은 목록 (학습·서빙 어긋남 방지)
+    assert list(fields) == [name for name in FEATURE_NAMES if name in fields]  # JSON 순서는 FEATURE_NAMES
+
+
+def test_means_by_sex_is_mean_within_each_sex_and_server_reads_it() -> None:
     rows = make_rows()
-
-    curve = build_health_age_curve(spec, rows)
-
-    for label, code in (("MALE", 1.0), ("FEMALE", 2.0)):
-        group = [row for row in rows if row["sex"] == code]
-        assert [point["age"] for point in curve[label]] == list(CURVE_AGES)
-        for point in curve[label]:
-            expected = sum(model.probability(row | {"age": point["age"]}) for row in group) / len(group)
-            assert point["probability"] == pytest.approx(expected)
-
-
-def test_curve_needs_positive_age_coefficient_and_both_sexes() -> None:
-    with pytest.raises(ValueError):
-        build_health_age_curve(make_spec(coefficients=COEFFICIENTS | {"age": -0.01}), make_rows())
-    with pytest.raises(ValueError):
-        build_health_age_curve(make_spec(), [row for row in make_rows() if row["sex"] == 1.0])
-
-
-@pytest.mark.parametrize(
-    "broken",
-    [
-        {"FEMALE": None},  # 성별 빠짐
-        {"MALE": make_points([0.01 * (i + 1) for i in range(40)])[:-1]},  # 39개
-        {"MALE": make_points([0.01 * (i + 1) for i in range(39)] + [1.2])},  # 0~1 밖
-        {"MALE": make_points([0.01 * (i + 1) for i in range(39)] + [0.39])},  # 마지막이 앞과 같음
-    ],
-)
-def test_check_curve_rejects_broken(broken: dict[str, Any]) -> None:
-    good = make_points([0.01 * (i + 1) for i in range(40)])
-    curve: dict[str, Any] = {"MALE": good, "FEMALE": good} | broken
-    with pytest.raises(ValueError):
-        check_health_age_curve(curve)
-
-
-def test_means_by_sex_is_mean_within_each_sex() -> None:
-    rows = make_rows()
-    fields = health_age_fields(DIABETES_FAMILY_FIELDS)
+    fields = health_age_fields(Disease.DIABETES)
 
     means_by_sex = build_means_by_sex(rows, fields)
 
-    assert fields == (
-        "bmi",
-        "father_diabetes_history",
-        "mother_diabetes_history",
-        "sibling_diabetes_history",
-        "alcohol_frequency",
-        "alcohol_amount",
-        "smoking_current",
-    )
     for label, code in (("MALE", 1.0), ("FEMALE", 2.0)):
         group = [row for row in rows if row["sex"] == code]
         assert list(means_by_sex[label]) == list(fields)
         for name in fields:
             assert means_by_sex[label][name] == pytest.approx(sum(row[name] for row in group) / len(group))
+    # 서버가 읽는 방식 그대로 (성별 2개 × 7문항 검사)
+    parse_means_by_sex("diabetes_risk:test", Disease.DIABETES, means_by_sex)
 
 
-def test_means_by_sex_needs_both_sexes_and_seven_fields() -> None:
-    fields = health_age_fields(DIABETES_FAMILY_FIELDS)
+def test_means_by_sex_needs_both_sexes() -> None:
     with pytest.raises(ValueError):
-        build_means_by_sex([row for row in make_rows() if row["sex"] == 1.0], fields)
-    with pytest.raises(ValueError):
-        health_age_fields(DIABETES_FAMILY_FIELDS[:2])
+        build_means_by_sex([row for row in make_rows() if row["sex"] == 1.0], health_age_fields(Disease.DIABETES))
 
 
 def test_evaluate_score_rules_match_server() -> None:
