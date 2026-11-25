@@ -86,6 +86,35 @@ class PredictionService:
                     )
         return rows
 
+    async def retry_latest(self, user: User) -> dict[str, Any]:
+        """5-5 다시 계산: 최근 설문에 모델 예측이 없을 때(3-1·4-1 예측 실패)만 설문 날짜 기준으로 다시 예측."""
+        profile = await HealthProfileRepository().get_latest(user.id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
+
+        surveyed_on = profile.created_at.astimezone(KST).date()
+        age = calculate_age(user.birthday, surveyed_on)
+        plan = plan_predictions(
+            age=age,
+            is_pregnant=profile.is_pregnant,
+            is_hypertension_diagnosed=profile.is_hypertension_diagnosed,
+            is_diabetes_diagnosed=profile.is_diabetes_diagnosed,
+        )
+        existing = await self.prediction_repo.list_for_profile(profile.id)
+        if plan.diseases and any(row.method == PredictionMethod.MODEL for row in existing):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ALREADY_PREDICTED_DETAIL)
+
+        try:
+            rows = await self.predict(user, profile, plan, age, surveyed_on)
+        except Exception as error:
+            logger.exception("다시 계산 실패 health_profile_id=%s", profile.id)
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=RETRY_FAILED_DETAIL) from error
+        return {
+            "predictions": [summarize(row) for row in rows],
+            "managed_diseases": [disease.value for disease in plan.managed_diseases],
+            "skipped_reason": plan.skipped_reason.value if plan.skipped_reason else None,
+        }
+
     async def repredict_latest(self, user: User) -> dict[str, Any]:
         """4-1·4-4: 최근 설문 + 지금 가장 최근 검진으로 다시 예측. 응답은 3-1과 같은 예측 필드.
 
@@ -153,6 +182,8 @@ def summarize(prediction: RiskPrediction) -> dict[str, Any]:
 
 
 NO_SURVEY_DETAIL = "아직 설문 기록이 없어요."
+ALREADY_PREDICTED_DETAIL = "이미 계산된 위험도가 있어요."
+RETRY_FAILED_DETAIL = "위험도를 계산하지 못했어요. 잠시 후 다시 시도해 주세요."
 PREDICTION_NOT_FOUND_DETAIL = "예측 결과를 찾을 수 없어요."
 
 
