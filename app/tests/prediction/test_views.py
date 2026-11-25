@@ -55,3 +55,14 @@ def test_metabolic_response_lists_missing() -> None:
         "missing": ["triglyceride", "hdl_cholesterol"],
     }
     assert metabolic_to_response(None) is None
+
+
+def test_criteria_row_older_than_latest_model_row_is_hidden() -> None:
+    # 가장 최근 검진을 지우고 기준표 없이 다시 예측 → 지난 판정은 5-2에서 숨김
+    rows = [
+        fake_row(1, Disease.DIABETES, PredictionMethod.MODEL, 0),
+        fake_row(2, Disease.DIABETES, PredictionMethod.CHECKUP_CRITERIA, 0),
+        fake_row(3, Disease.DIABETES, PredictionMethod.MODEL, 10),  # 다시 예측 (기준표 없음)
+    ]
+
+    assert [row.id for row in pick_latest_rows(rows)] == [3]

@@ -419,20 +419,32 @@ S-07(직접 입력), S-08(결과지 인식, P2) · REQ-PROF-002·003
 - 저장 후 최근 설문 + 이 검진 기록으로 **예측을 다시 계산**(5장, `checkup_record_id` 채움)
   - 모델 점수 행(`MODEL`)은 항상 저장하고, 검진 수치가 있는 질환은 **기준표 판정 행(`CHECKUP_CRITERIA`)을 하나 더 저장** (정할 것 9번)
   - "관리 중"은 설문에서 진단 "예"일 때만 씀. 검진 수치가 기준 범위여도 "관리 중"으로 바꾸지 않음
-- 응답 201: 저장된 행 + 3-1과 같은 `predictions` / `managed_diseases` / `prediction_error`
+- `source`는 받지 않음: 4-6 결과지 인식 전까지 서버가 `MANUAL`로 저장
+- 응답 201: `{ "checkup_record": { 저장된 행 }, "predictions": [...], "managed_diseases": [...], "skipped_reason": null, "prediction_error": false }` (예측 필드는 3-1과 같음)
+  - 다시 예측은 **최근 설문 + 지금 가장 최근 검진(검진 날짜 기준)**으로 함. 예전 날짜 검진을 넣으면 기준표 행은 더 최근 검진으로 판정됨
+  - 설문이 아직 없으면 검진만 저장하고 `predictions: []` → 나중에 3-1을 저장할 때 이 검진을 읽어 같이 판정
+  - 검진 저장으로 같은 설문에 `MODEL` 행이 다시 생기므로, 5-3의 `previous`·`changed_inputs`는 **이전 설문**의 `MODEL` 행과 비교 (같은 설문끼리는 변화가 없어 보여서)
+- 400 문구: 날짜가 오늘 이후 `"검진 날짜는 오늘 이후로 입력할 수 없어요."` / 혈압 `"수축기 혈압(높은 값)이 이완기 혈압(낮은 값)보다 커야 해요."` / 수치 없음 위 문구. 검사 순서: 날짜 → 혈압 → 최소 1개, 첫 위반 하나만
 - 화면 표현은 "진단"이 아니라 "수치가 고혈압 범위예요, 병원 확인을 권해요" (S-09)
 
 ### 4-2. 목록 `GET /api/v1/checkup-records?limit=20&cursor=`
-- `checked_on` 최신순
+- `checked_on` 최신순 (같은 날이면 나중에 넣은 것 먼저). `limit` 1~50
+- 응답 `{ "items": [ 행 ], "next_cursor": 12 | null }`. 커서는 마지막 행의 id, 다음 페이지는 (검진 날짜, id)가 그 행보다 앞선 것
+- 남의 기록 id를 커서로 보내면 404
 
 ### 4-3. 한 건 `GET /api/v1/checkup-records/{id}`
+- 행 모양: `{ "id", "checked_on", "systolic_bp", "diastolic_bp", "fasting_glucose", "waist_cm", "triglyceride", "hdl_cholesterol", "hba1c", "source", "created_at", "updated_at" }`
+- 남의 것이면 404 `"검진 기록을 찾을 수 없어요."` (4-4·4-5도 같음)
 
 ### 4-4. 수정 `PATCH /api/v1/checkup-records/{id}`
 - 보낸 필드만 바꿈, 규칙은 4-1과 같음(수정 후에도 최소 1개). `updated_at` 갱신
 - 수정해도 **지난 예측 행은 그대로** 두고(`input_snapshot`에 당시 값이 있음), 이 기록이 가장 최근 검진이면 예측을 새로 한 번 계산
+- 수치에 null을 보내면 그 값을 지움. `checked_on`에 null이면 400 `"검진 날짜를 입력해 주세요."`, `source`는 못 바꿈
+- 응답 200: 4-1과 같은 모양. **수정 전이나 후에** 가장 최근 검진이면 다시 예측 (가장 최근 검진의 날짜를 예전으로 옮기면 다른 기록이 최근이 되므로), 아니면 `predictions: []`
 
 ### 4-5. 삭제 `DELETE /api/v1/checkup-records/{id}` → 204
 - 이 기록을 참조한 `risk_predictions.checkup_record_id`는 null로 (FK `ON DELETE SET NULL` 필요 → **정할 것 2번**)
+- 지운 기록이 가장 최근 검진이었으면 남은 최근 검진으로 다시 예측 (남은 검진이 없거나 1년이 지났으면 기준표 행 없이 → 5-2에서 지난 판정이 안 보임)
 
 ### 4-6. 결과지 인식 (P2, 12/4 이후, 김지연)
 - `POST /api/v1/checkup-records/ocr` (multipart 사진) → 202 `{ "task_id": "..." }` → SSE로 읽은 수치 → 사용자가 확인 후 4-1에 `source: "OCR"`로 저장
@@ -537,6 +549,7 @@ S-09, S-12 홈 카드
 - 질환별 가장 최근 `MODEL` 행 1개 + (있으면) `CHECKUP_CRITERIA` 행 1개
 - 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
 - `metabolic_syndrome`: 유효한 검진이 없으면 null
+- 기준표 행(`CHECKUP_CRITERIA`)은 같은 질환의 최신 `MODEL` 행과 같은 예측 때 만든 것만 보여줌 (더 오래됐으면 지난 판정이라 숨김: 가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
 - `health_age`: 건강 나이 (11/25 확정). 내 점수와 같은 확률이 나오는 "아직 진단받지 않은 같은 성별 또래"의 나이를 **10살 단위**로
   - `decade`: 40 = "40대 수준". 곡선 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
@@ -562,7 +575,7 @@ S-09 상세
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
-- `changed_inputs`: 같은 질환 직전 `MODEL` 행의 `input_snapshot.inputs`와 비교한 값 (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
+- `changed_inputs`: 같은 질환, **이전 설문**의 가장 최근 `MODEL` 행 `input_snapshot.inputs`와 비교한 값 (검진 저장으로 같은 설문에 생긴 행은 건너뜀, 4-1) (설문 값 11개만 비교, sex·age는 제외 — 생일이 지나도 나이가 변화로 안 보이게. 변환 전 값이라 몸무게 등 사용자 단위). "위험도가 낮아졌어요"는 score가 실제로 내려갔을 때만, 이 값과 같이 보여줌 (REQ-NFR-003)
 - `health_age`: 5-2와 같은 값·규칙
 - `CHECKUP_CRITERIA` 행이면 `factors`·`changed_inputs`·`previous`·`health_age`는 null, 대신 `input_snapshot`의 판정 수치를 `{ "used_values": { "fasting_glucose": 108 }, "checked_on": "2026-05-10" }`로 내려줌
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)

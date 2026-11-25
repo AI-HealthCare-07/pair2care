@@ -43,6 +43,15 @@ def pick_latest_rows(rows: Iterable[RiskPrediction]) -> list[RiskPrediction]:
         current = latest.get(key)
         if current is None or (row.created_at, row.id) > (current.created_at, current.id):
             latest[key] = row
+    # 기준표 행은 최신 MODEL 행과 같은 예측 때 만든 것만 (예측은 항상 MODEL → 기준표 순서로 같이 저장).
+    # 최신 MODEL 행보다 오래됐으면 지난 판정 → 숨김 (가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
+    for disease in DISEASE_ORDER:
+        model_row = latest.get((disease.value, PredictionMethod.MODEL.value))
+        criteria_row = latest.get((disease.value, PredictionMethod.CHECKUP_CRITERIA.value))
+        if model_row is not None and criteria_row is not None:
+            if (criteria_row.created_at, criteria_row.id) < (model_row.created_at, model_row.id):
+                del latest[(disease.value, PredictionMethod.CHECKUP_CRITERIA.value)]
+
     keys = [
         (disease.value, method.value)
         for disease in DISEASE_ORDER
