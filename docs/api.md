@@ -535,11 +535,11 @@ S-09, S-12 홈 카드
   "health_profile_id": 31,
   "predictions": [
     { "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
-      "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null }, "created_at": "2026-11-19T10:40:00+09:00" },
+      "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": 5 }, { "feature": "father_diabetes_history", "years": 5 } ] }, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8,
       "health_age": null, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW",
-      "health_age": { "decade": null, "actual_age": 45, "out_of_range": "BELOW" }, "created_at": "2026-11-19T10:40:00+09:00" }
+      "health_age": { "decade": null, "actual_age": 38, "out_of_range": "BELOW", "items": [ { "feature": "bmi", "years": -12 }, { "feature": "alcohol_frequency", "years": -3 } ] }, "created_at": "2026-11-19T10:40:00+09:00" }
   ],
   "managed_diseases": [],
   "skipped_reason": null,
@@ -550,12 +550,16 @@ S-09, S-12 홈 카드
 - 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
 - `metabolic_syndrome`: 유효한 검진이 없으면 null
 - 기준표 행(`CHECKUP_CRITERIA`)은 같은 질환의 최신 `MODEL` 행과 같은 예측 때 만든 것만 보여줌 (더 오래됐으면 지난 판정이라 숨김: 가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
-- `health_age`: 건강 나이 (11/25 확정). 내 점수와 같은 확률이 나오는 "아직 진단받지 않은 같은 성별 또래"의 나이를 **10살 단위**로
-  - `decade`: 40 = "40대 수준". 곡선 밖이면 null
+- `health_age`: 건강 나이 (11/25 멘토링 후 재결정, 성은·현영·지연). 자가검진 7문항으로 **같은 성별 평균인 사람**보다 몇 살 많거나 적은지 더해서 **10살 단위**로
+  - 산식: `건강 나이 = 실제 나이 + clamp(Σ 항목 가감 나이, −15, +15)`, `항목 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수` (새로 학습하지 않고 예측 모델 계수 그대로)
+  - 7문항: `bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환의 `father_*`·`mother_*`·`sibling_*_history`. 다른 질환 가족력은 평균으로 고정(가감 0, 당뇨 모델의 고혈압 가족력 계수가 음수라 넣으면 이상해짐). 성별은 같은 성별 평균과 비교하니 문항에서 뺌
+  - 같은 성별 평균: 모델 JSON의 `means_by_sex`(`MALE`·`FEMALE`마다 7문항 평균, 장성은). 남녀 합친 `means`를 쓰면 한쪽 성별이 일괄 많게·적게 나와서 안 씀
+  - `decade`: 건강 나이를 반올림한 정수의 10살 단위. 40 = "40대 수준". 범위 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
-  - `out_of_range`: null / `BELOW`("30세 미만 수준") / `ABOVE`("69세 초과 수준")
-  - 계산: 모델 JSON의 `health_age_curve`(성별마다 30~69세 확률 40개, 장성은)에서 `score / 100`과 같은 확률의 나이를 직선 보간 → 같은 점수면 언제나 같은 건강 나이
-  - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 곡선이 없음, 곡선을 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
+  - `out_of_range`: null / `BELOW`(반올림한 건강 나이 30 미만, "30세 미만 수준") / `ABOVE`(69 초과, "69세 초과 수준") — 학습 범위(30~69) 밖이라 숫자 대신 이 문구
+  - `items`: 항목별 가감 나이, 반올림한 정수가 0이 아닌 것만, 절댓값 큰 순 `[{ "feature": "bmi", "years": 5 }, { "feature": "smoking_current", "years": 5 }]` → 화면 "+5살". 문구는 factors와 같은 프론트 상수. 합계가 ±15를 넘으면 `decade`는 제한한 값이라 `items` 합과 다를 수 있음
+  - 화면 표시: 같은 10살 구간이면 "비슷한 수준", 다르면 "높게 / 낮게" (S-09 질환별, S-12 홈은 높은 쪽 하나, 진단받은 질환 숨김 — 11/25 결정)
+  - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 `means_by_sex`가 없거나 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
   - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
 
 ### 5-3. 예측 상세 `GET /api/v1/risk-predictions/{id}` ⚕️
@@ -571,7 +575,7 @@ S-09 상세
   "model_version": "diabetes_risk:v1",
   "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
   "previous": { "id": 40, "score": 37, "level": "CAUTION", "created_at": "2026-11-12T09:10:00+09:00" },
-  "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null },
+  "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null, "items": [ { "feature": "bmi", "years": 5 }, { "feature": "father_diabetes_history", "years": 5 } ] },
   "created_at": "2026-11-19T10:40:00+09:00"
 }
 ```
