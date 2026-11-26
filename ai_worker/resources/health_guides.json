@@ -56,5 +56,31 @@
       "is_diabetes_diagnosed",
       "carbs_g"
     ]
+  },
+  {
+    "id": "prevention_walk",
+    "title": "WHO - Physical activity",
+    "url": "https://www.who.int/news-room/fact-sheets/detail/physical-activity",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "WHO는 신체활동을 전혀 하지 않는 것보다 조금이라도 하는 것이 낫다고 설명하며 걷기도 신체활동에 포함한다.",
+    "action": "몸 상태가 허락한다면 오늘 안전한 곳에서 편한 속도로 잠깐 걸어 보는 건 어때요?",
+    "signals": [
+      "has_zero_walk_days"
+    ]
+  },
+  {
+    "id": "prevention_tobacco_support",
+    "title": "WHO - Quitting tobacco",
+    "url": "https://www.who.int/activities/quitting-tobacco",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "WHO는 금연을 돕는 방법으로 전문적인 상담을 권고한다.",
+    "action": "금연을 생각하고 있다면 오늘 이용할 수 있는 금연 상담 방법을 한 가지 찾아보는 건 어때요?",
+    "signals": [
+      "is_current_smoker"
+    ]
   }
 ]

@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from dataclasses import replace
@@ -94,6 +95,43 @@ class RecommendationTests(unittest.IsolatedAsyncioTestCase):
             {"is_diabetes_diagnosed": 0, "is_hypertension_diagnosed": False},
             {"is_hypertension_diagnosed": "someone@example.com"},
         ):
+            selector = FakeSelector()
+            result = await generate_recommendation("DAILY_ACTION", facts, selector=selector)
+            self.assertEqual(result.content, NO_EVIDENCE)
+            self.assertEqual(selector.calls, 0)
+
+    async def test_prevention_for_negative_diagnoses_with_walk_signal(self):
+        selector = AsyncMock()
+        selector.choose.return_value = ("prevention_walk", {"input_tokens": 7})
+        facts = {
+            "is_hypertension_diagnosed": False,
+            "is_diabetes_diagnosed": False,
+            "has_zero_walk_days": True,
+            "walk_days": 0,
+            "sodium_mg": 900,
+            "memo": "private memo",
+            "email": "private@example.com",
+        }
+        result = await generate_recommendation("DAILY_ACTION", facts, selector=selector)
+        selector.choose.assert_awaited_once()
+        prompt, ids = selector.choose.await_args.args
+        payload = json.loads(prompt)
+        self.assertEqual(payload["meal_facts"], {})
+        self.assertIn("prevention_walk", ids)
+        for private in ("walk_days", "sodium_mg", "diagnosed", "private", "has_zero_walk_days"):
+            self.assertNotIn(private, prompt)
+        self.assertTrue(result.called_model)
+        self.assertEqual(result.sources[0]["url"], "https://www.who.int/news-room/fact-sheets/detail/physical-activity")
+
+    async def test_prevention_signals_are_daily_only(self):
+        facts = {"has_zero_walk_days": True, "is_current_smoker": True}
+        guides = load_guides()
+        daily = retrieve_guides("DAILY_ACTION", facts, guides)
+        self.assertEqual({guide.id for guide in daily}, {"prevention_walk", "prevention_tobacco_support"})
+        self.assertEqual(retrieve_guides("MEAL_ALTERNATIVE", facts, guides), [])
+
+    async def test_missing_or_false_walk_signal_abstains(self):
+        for facts in ({"has_zero_walk_days": False}, {"walk_days": 0}, {"has_zero_walk_days": "0"}):
             selector = FakeSelector()
             result = await generate_recommendation("DAILY_ACTION", facts, selector=selector)
             self.assertEqual(result.content, NO_EVIDENCE)

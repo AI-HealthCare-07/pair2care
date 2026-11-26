@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
@@ -10,14 +11,16 @@ from tortoise.transactions import in_transaction
 
 from ai_worker.core import config
 from ai_worker.main import ensure_group, process_message
+from ai_worker.tasks.daily_action_facts import gather_daily_action_facts, week_start
 from ai_worker.tasks.llm_recommendation import NO_EVIDENCE, ClaudeCallError
 from ai_worker.tasks.recommendation_runner import run_recommendation
 from app.main import app
+from app.models.health_logs import HealthLog, HealthLogType
 from app.models.llm_usage_logs import LlmUsageLog
 from app.models.recommendations import Recommendation
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
-from shared.tasks import GROUP_NAME, RESULT_CHANNEL, STREAM_KEY, TaskMessage
+from shared.tasks import GROUP_NAME, KST, RESULT_CHANNEL, STREAM_KEY, TaskMessage
 
 DAILY = "/api/v1/recommendations/daily"
 EMAIL = "recommendation@example.com"
@@ -69,6 +72,53 @@ class TestRecommendations(TruncationTestCase):
         assert saved["content"] == NO_EVIDENCE
         assert saved["sources"] == []
         assert not await LlmUsageLog.filter(recommendation_id=task.target_id).exists()
+
+    async def test_daily_prevention_from_weekly_record(self) -> None:
+        user = await User.get(email=EMAIL)
+        current = week_start(datetime.now(KST).date())
+        await HealthLog.create(
+            user_id=user.id, log_type=HealthLogType.WALK_DAYS, value=0, measured_at=current, memo="private memo"
+        )
+        selector = AsyncMock(return_value=("prevention_walk", {"input_tokens": 7, "output_tokens": 2}))
+        self.enterContext(patch("ai_worker.tasks.llm_recommendation.AnthropicSelector.choose", selector))
+        response = await self.client.post(DAILY)
+        assert response.status_code == 202
+        message_id, fields = await read_task(self.redis)
+        await process_message(self.redis, message_id, fields)
+        saved = (await self.client.get(DAILY)).json()
+        assert saved["status"] == "COMPLETED"
+        assert saved["content"] != NO_EVIDENCE
+        assert saved["sources"][0]["url"] == "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+        selector.assert_awaited_once()
+        prompt, _ = selector.await_args.args
+        assert "private memo" not in prompt
+        assert "has_zero_walk_days" not in prompt
+        assert json.loads(prompt)["meal_facts"] == {}
+        assert await LlmUsageLog.filter(recommendation_id=saved["id"], is_success=True).count() == 1
+        assert (await self.client.post(DAILY)).status_code == 200
+        assert selector.await_count == 1
+
+    async def test_weekly_record_scope_and_fallback(self) -> None:
+        user = await User.get(email=EMAIL)
+        other_email = "other-recommendation@example.com"
+        signup = await self.client.post("/api/v1/auth/signup", json=make_signup_data(other_email))
+        assert signup.status_code == 201
+        other = await User.get(email=other_email)
+        today = datetime.now(KST).date()
+        current = week_start(today)
+        for owner, when in (
+            (other.id, current),
+            (user.id, current - timedelta(days=14)),
+            (user.id, current + timedelta(days=7)),
+        ):
+            await HealthLog.create(user_id=owner, log_type=HealthLogType.WALK_DAYS, value=0, measured_at=when)
+        assert await gather_daily_action_facts(user.id, today) == {}
+        await HealthLog.create(
+            user_id=user.id, log_type=HealthLogType.WALK_DAYS, value=0, measured_at=current - timedelta(days=7)
+        )
+        assert await gather_daily_action_facts(user.id, today) == {"has_zero_walk_days": True}
+        await HealthLog.create(user_id=user.id, log_type=HealthLogType.WALK_DAYS, value=3, measured_at=current)
+        assert await gather_daily_action_facts(user.id, today) == {}
 
     async def test_queue_error_does_not_count_as_model_failure(self) -> None:
         client = self.client
