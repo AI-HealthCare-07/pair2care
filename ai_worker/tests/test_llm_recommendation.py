@@ -121,7 +121,10 @@ class RecommendationTests(unittest.IsolatedAsyncioTestCase):
         for private in ("walk_days", "sodium_mg", "diagnosed", "private", "has_zero_walk_days"):
             self.assertNotIn(private, prompt)
         self.assertTrue(result.called_model)
-        self.assertEqual(result.sources[0]["url"], "https://www.who.int/news-room/fact-sheets/detail/physical-activity")
+        self.assertEqual(
+            result.sources[0]["url"],
+            "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=5293",
+        )
 
     async def test_prevention_signals_are_daily_only(self):
         facts = {"has_zero_walk_days": True, "is_current_smoker": True}
@@ -136,6 +139,25 @@ class RecommendationTests(unittest.IsolatedAsyncioTestCase):
             result = await generate_recommendation("DAILY_ACTION", facts, selector=selector)
             self.assertEqual(result.content, NO_EVIDENCE)
             self.assertEqual(selector.calls, 0)
+
+    async def test_general_prevention_candidates_and_privacy(self):
+        expected = {
+            "has_walk_days": "prevention_keep_walking",
+            "has_fewer_strength_days": "prevention_strength_plan",
+            "has_sleep_record": "prevention_sleep_routine",
+            "has_reported_alcohol": "prevention_alcohol_plan",
+        }
+        for signal, guide_id in expected.items():
+            selector = AsyncMock()
+            selector.choose.return_value = (guide_id, {})
+            facts = {"is_hypertension_diagnosed": False, "is_diabetes_diagnosed": False, signal: True}
+            result = await generate_recommendation("DAILY_ACTION", facts, selector=selector)
+            self.assertTrue(result.called_model)
+            prompt, allowed = selector.choose.await_args.args
+            self.assertEqual(allowed, [guide_id])
+            self.assertNotIn(signal, prompt)
+            self.assertEqual(json.loads(prompt)["meal_facts"], {})
+            self.assertEqual(retrieve_guides("MEAL_ALTERNATIVE", facts, load_guides()), [])
 
     async def test_anthropic_adapter_parses_response_and_rejects_unknown_id(self):
         response = SimpleNamespace(
