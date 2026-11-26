@@ -43,6 +43,13 @@ export const MANAGED_MESSAGE = '진단받은 질환은 위험도를 계산하지
 /** 질환 하나만 계산이 안 됐을 때 그 카드에 보이는 문구 */
 export const MISSING_MESSAGE = '이번에는 위험도를 계산하지 못했어요'
 
+// 예측 실패 화면 (5-5 다시 계산)
+export const FAILED_TITLE = '위험도를 계산하지 못했어요'
+export const FAILED_MESSAGE = '설문은 저장됐고, 위험도 계산만 실패했어요. 아래 버튼으로 다시 계산해 볼 수 있어요.'
+export const RETRY_BUTTON = '다시 계산하기'
+export const RETRY_BUSY = '계산하고 있어요'
+export const RETRY_FAILED_AGAIN = '지금은 계산할 수 없어요. 잠시 후 다시 시도해 주세요.'
+
 /**
  * 요인 문구 14개 (#107 성은 님 초안, #114에서 기준이 같은 성별 평균으로 바뀌어 체중·음주 4개 수정). 질환 소제목 아래라 질환 이름은 뺌.
  * 가족력은 질환 상관없이 "누구의 가족력"만: father_diabetes_history·father_hypertension_history → 'father'

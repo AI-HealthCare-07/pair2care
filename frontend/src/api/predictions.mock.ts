@@ -25,6 +25,8 @@ const CREATED_AT = '2026-11-19T10:40:00+09:00'
 const PREVIOUS_AT = '2026-11-12T09:10:00+09:00'
 
 let scenario: MockPredictionScenario = 'normal'
+// failed에서 "다시 계산"이 성공하면 true → 그 뒤 5-2·5-3은 normal 결과. 다른 경우로 바꾸면 처음 상태로
+let recovered = false
 
 /** 응답 지연(ms). 테스트에서 0으로 */
 export function setMockPredictionDelay(ms: number) {
@@ -33,8 +35,12 @@ export function setMockPredictionDelay(ms: number) {
 
 /** 가짜 응답 경우 바꾸기 (predictionsApi.setMockScenario로 부름). 모르는 이름은 'normal' */
 export function setMockPredictionScenario(next: string | null) {
-  scenario = (MOCK_PREDICTION_SCENARIOS as readonly string[]).includes(next ?? '') ? (next as MockPredictionScenario) : 'normal'
+  const known = (MOCK_PREDICTION_SCENARIOS as readonly string[]).includes(next ?? '') ? (next as MockPredictionScenario) : 'normal'
+  if (known !== scenario) recovered = false // 화면이 다시 불러올 때마다 같은 이름으로 부르므로, 바뀔 때만 되돌림
+  scenario = known
 }
+
+const current = (): MockPredictionScenario => (recovered ? 'normal' : scenario)
 
 function modelRow(id: number, disease: Disease, score: number, level: RiskLevel, health_age: HealthAge | null): LatestPrediction {
   return { id, disease, method: 'MODEL', score, level, health_age, created_at: CREATED_AT }
@@ -137,6 +143,7 @@ function build(name: MockPredictionScenario): MockData {
     case 'age_out':
       return { latest: empty({ skipped_reason: 'AGE_OUT_OF_RANGE' }), details: [] }
     case 'failed':
+    case 'failed_again':
       return { latest: empty(), details: [] }
     case 'partial_failed': {
       const htn = modelRow(92, 'HYPERTENSION', 45, 'CAUTION', AGE(50))
@@ -191,14 +198,24 @@ function build(name: MockPredictionScenario): MockData {
 
 export async function getLatestPredictions(): Promise<LatestPredictionsResponse> {
   await wait()
-  const { latest } = build(scenario)
+  const { latest } = build(current())
   if (latest === 'NO_SURVEY') throw new ApiError(404, '아직 설문 기록이 없어요.')
   return clone(latest)
 }
 
 export async function getPrediction(id: number): Promise<PredictionDetail> {
   await wait()
-  const found = build(scenario).details.find((d) => d.id === id)
+  const found = build(current()).details.find((d) => d.id === id)
   if (!found) throw new ApiError(404, '예측 기록을 찾을 수 없어요.')
   return clone(found)
+}
+
+/** 5-5 다시 계산. failed → 성공(이후 normal), failed_again → 503, 설문 없음 → 404, 이미 결과가 있으면 409 (api.md 5-5) */
+export async function retryPredictions(): Promise<void> {
+  await wait()
+  const { latest } = build(current())
+  if (latest === 'NO_SURVEY') throw new ApiError(404, '아직 설문 기록이 없어요.')
+  if (current() === 'failed_again') throw new ApiError(503, '위험도를 계산하지 못했어요. 잠시 후 다시 시도해 주세요.')
+  if (current() !== 'failed') throw new ApiError(409, '이미 계산된 위험도가 있어요.')
+  recovered = true
 }
