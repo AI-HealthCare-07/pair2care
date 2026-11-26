@@ -94,7 +94,7 @@ def retrieve_guides(kind: str, facts: dict[str, Any], guides: list[Evidence], li
             continue
         if kind == "MEAL_ALTERNATIVE":
             if guide.id == "htn_less_salt" and (
-                not facts.get("is_broth_dish") or facts.get("sodium_mg", 0) < MEAL_SODIUM_HIGH_MG
+                not facts.get("is_broth_dish") or (facts.get("sodium_mg") or 0) < MEAL_SODIUM_HIGH_MG
             ):
                 continue
             if guide.id == "dm_reduce_added_sugar" and not facts.get("is_drink"):
