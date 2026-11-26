@@ -11,7 +11,7 @@
 .auth__logo { position: relative; flex-shrink: 0; width: 56px; height: 32px; overflow: hidden; }
 .auth__logo img { position: absolute; top: -69.51%; left: -19.44%; width: 138.89%; height: 243.9%; max-width: none; }
 .auth__name { font-size: 22px; font-weight: 700; color: var(--color-text); }
-.auth__name-2 { color: var(--color-primary); }
+.auth__name-n { color: var(--color-primary); }
 
 /* P2C/title: Bold 28px / 행간 38px */
 .auth__greeting { margin: 0; font-size: 28px; font-weight: 700; line-height: 38px; color: var(--color-text); }

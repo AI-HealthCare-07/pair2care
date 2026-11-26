@@ -29,7 +29,7 @@ export default function AuthLayout({ title, greeting, onSubmit, children, action
               <img src={logo} alt="" />
             </span>
             <span className="auth__name">
-              Pair <span className="auth__name-2">2</span> Care
+              Pair <span className="auth__name-n">n</span> Care
             </span>
           </div>
           <h2 className="auth__greeting">
