@@ -46,11 +46,9 @@ export type SurveyErrorAction =
   | 'GO_HOME' // 409 ONBOARDING_ALREADY_DONE: 홈으로
   | 'FOCUS_FIELD' // 400 SURVEY_FIELD_INVALID: detail을 띄우고 field 문항으로 이동 (field가 정의에 없으면 detail만 위에)
   | 'RECHECK_INPUT' // 422: "입력값을 확인해 주세요"
-  | 'RELOGIN' // 401 (apiFetch가 갱신을 시도한 뒤에도 남은 경우)
-  | 'SHOW_MESSAGE' // 그 외: detail만 보여 줌
+  | 'SHOW_MESSAGE' // 그 외: detail만 보여 줌. 401(세션 만료)은 가드가 보던 화면(from)을 담아 /login으로 보냄 (#134)
 
 export function surveyErrorAction(err: ApiError): SurveyErrorAction {
-  if (err.status === 401) return 'RELOGIN'
   if (err.status === 422) return 'RECHECK_INPUT'
   if (err.status === 409) {
     if (err.code === 'SURVEY_VERSION_MISMATCH') return 'RELOAD_DEFINITION'

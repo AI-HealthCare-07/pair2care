@@ -290,7 +290,7 @@ describe('다시 계산 (5-5)', () => {
   it.each([
     [409, 'RELOAD'],
     [404, 'ONBOARDING'],
-    [401, 'LOGIN'],
+    [401, 'STAY_FAILED'], // 세션 만료는 가드가 /login으로 (#134)
     [503, 'STAY_FAILED'],
     [0, 'STAY_FAILED'], // 시간 초과(#130)
     [500, 'STAY_FAILED'],

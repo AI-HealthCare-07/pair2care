@@ -71,10 +71,7 @@ export default function PredictionPage() {
           navigate('/onboarding', { replace: true }) // 5-2 404 = 아직 설문 기록이 없음
           return
         }
-        if (err instanceof ApiError && err.status === 401) {
-          navigate('/login', { replace: true })
-          return
-        }
+        // 401(세션 만료)은 화면에서 옮기지 않음: AuthProvider가 guest로 바뀌고 RequireAuth가 보던 화면(from)을 담아 /login으로 보냄 (#134)
         setState({ status: 'error', message: '위험도를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 불러와 주세요.' })
       })
     return () => {
@@ -103,9 +100,6 @@ export default function PredictionPage() {
           break
         case 'ONBOARDING':
           navigate('/onboarding', { replace: true })
-          break
-        case 'LOGIN':
-          navigate('/login', { replace: true })
           break
         case 'STAY_FAILED':
           setRetryError(RETRY_FAILED_AGAIN)

@@ -75,15 +75,15 @@ export function factorLines(factors: Factor[] | null): FactorLine[] {
 /**
  * 5-5 다시 계산이 실패했을 때 화면이 할 일 (api.md 5-5)
  *  - 409 이미 계산됨(다른 탭·두 번 누름) → 5-2 다시 불러오기 (200과 같음)
- *  - 404 설문 없음 → 설문 / 401 → 로그인
+ *  - 404 설문 없음 → 설문
  *  - 503 또 실패 · 시간 초과 · 연결 끊김 등 → 실패 화면 그대로 + 안내 문구
+ *  - 401(세션 만료)은 따로 처리하지 않음: 가드가 보던 화면(from)을 담아 /login으로 보냄 (#134)
  */
-export type RetryFailureAction = 'RELOAD' | 'ONBOARDING' | 'LOGIN' | 'STAY_FAILED'
+export type RetryFailureAction = 'RELOAD' | 'ONBOARDING' | 'STAY_FAILED'
 
 export function retryFailureAction(err: unknown): RetryFailureAction {
   if (!(err instanceof ApiError)) return 'STAY_FAILED'
   if (err.status === 409) return 'RELOAD'
   if (err.status === 404) return 'ONBOARDING'
-  if (err.status === 401) return 'LOGIN'
   return 'STAY_FAILED'
 }
