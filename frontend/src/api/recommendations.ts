@@ -1,6 +1,6 @@
 // frontend/src/api/recommendations.ts
 // 11-1·11-2 오늘의 한 가지 (DAILY_ACTION). 저장본 조회(GET)가 먼저, 없을 때만 생성(POST) → 워커가 채움
-// 완료 알림 SSE(12-6)가 아직 없어서 화면은 PENDING·PROCESSING이면 GET을 다시 불러 확인함
+// PENDING·PROCESSING이면 화면이 SSE(12-6) 완료 알림을 기다렸다가 GET을 다시 불러 확인함 (api/events.ts)
 
 import { apiFetch, ApiError, toApiError } from './client'
 
