@@ -18,10 +18,11 @@ export default defineConfig({
         display: 'standalone',          // 주소창 없이 앱처럼 열리게 하는 값
         theme_color: '#1e3bd6',
         background_color: '#f4f5fc',
-        // 흰 배경 + 여백 넉넉히 → 안드로이드가 원·둥근 사각형으로 잘라도(maskable) 심볼이 안 잘림
+        // any: 투명 배경·여백 조금(크게 보임) / maskable: 흰 배경·넉넉한 여백(안드로이드가 원형으로 잘라도 안 잘림) (#145 현지 님 리뷰)
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
