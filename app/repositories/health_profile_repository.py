@@ -1,6 +1,7 @@
 from typing import Any
 
 from tortoise import BaseDBAsyncClient
+from tortoise.expressions import Q
 
 from app.models.health_profiles import HealthProfile, SurveyKind
 from app.services.survey.questions import QUESTIONS
@@ -16,6 +17,23 @@ class HealthProfileRepository:
         if using_db is not None:
             query = query.using_db(using_db)
         return await query.first()
+
+    async def get_for_user(self, user_id: int, profile_id: int) -> HealthProfile | None:
+        """내 설문 한 건. 남의 것이면 None (있는지 드러내지 않게 404로)."""
+        return await self._model.filter(id=profile_id, user_id=user_id).first()
+
+    async def list_page(
+        self, user_id: int, kind: SurveyKind | None, limit: int, cursor: HealthProfile | None
+    ) -> list[HealthProfile]:
+        """응답 시각 최신순, 같은 시각이면 나중에 넣은 것 먼저. cursor 행보다 뒤(오래된)부터."""
+        query = self._model.filter(user_id=user_id)
+        if kind is not None:
+            query = query.filter(kind=kind)
+        if cursor is not None:
+            query = query.filter(
+                Q(created_at__lt=cursor.created_at) | Q(created_at=cursor.created_at, id__lt=cursor.id)
+            )
+        return await query.order_by("-created_at", "-id").limit(limit)
 
     async def create(
         self,
