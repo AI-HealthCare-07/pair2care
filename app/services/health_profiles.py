@@ -2,10 +2,10 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Final
 from zoneinfo import ZoneInfo
 
-from fastapi import status
+from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
 
 from app.core import default_logger as logger
@@ -16,7 +16,7 @@ from app.models.users import User
 from app.repositories.health_profile_repository import HealthProfileRepository, to_answer_values
 from app.services.prediction.features import calculate_age
 from app.services.prediction.plan import plan_predictions
-from app.services.prediction.service import PredictionService, summarize
+from app.services.prediction.service import NO_SURVEY_DETAIL, PredictionService, summarize
 from app.services.survey.questions import QUESTIONS, SURVEY_VERSION, build_questions
 from app.services.survey.validation import resolve_answers
 
@@ -25,6 +25,12 @@ KST = ZoneInfo("Asia/Seoul")
 SURVEY_VERSION_MISMATCH_DETAIL = "설문 문항이 바뀌었어요. 다시 불러올게요."
 ONBOARDING_REQUIRED_DETAIL = "가입 설문을 먼저 해 주세요."
 ONBOARDING_ALREADY_DONE_DETAIL = "가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."
+
+
+NOT_FOUND_DETAIL: Final = "설문 기록을 찾을 수 없어요."
+DEFAULT_LIMIT: Final = 20
+MAX_LIMIT: Final = 50
+LIST_FIELDS: Final = ("id", "kind", "weight_kg", "waist_cm", "created_at")  # 3-3 가벼운 목록
 
 
 class HealthProfileService:
@@ -41,6 +47,38 @@ class HealthProfileService:
         if latest is None:
             raise onboarding_required()
         return build_questions(kind, to_answer_values(latest))
+
+    async def get_latest(self, user: User) -> dict[str, Any]:
+        """3-2. 설문이 없으면 404 → 프론트는 S-06으로."""
+        latest = await self.health_profile_repo.get_latest(user.id)
+        if latest is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_SURVEY_DETAIL)
+        return serialize_profile(latest)
+
+    async def list_profiles(
+        self, user: User, kind: SurveyKind | None, limit: int, cursor_id: int | None
+    ) -> dict[str, Any]:
+        """3-3. 커서는 마지막 id. 내 설문이 아니거나 없는 id면 처음부터가 아니라 404 (4-2와 같음)."""
+        cursor = None
+        if cursor_id is not None:
+            cursor = await self.get_own(user, cursor_id)
+        rows = await self.health_profile_repo.list_page(user.id, kind, limit + 1, cursor)
+        has_next = len(rows) > limit
+        rows = rows[:limit]
+        return {
+            "items": [summarize_profile(row) for row in rows],
+            "next_cursor": rows[-1].id if has_next else None,
+        }
+
+    async def get(self, user: User, profile_id: int) -> dict[str, Any]:
+        """3-5. 남의 것이면 404."""
+        return serialize_profile(await self.get_own(user, profile_id))
+
+    async def get_own(self, user: User, profile_id: int) -> HealthProfile:
+        profile = await self.health_profile_repo.get_for_user(user.id, profile_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND_DETAIL)
+        return profile
 
     async def create(self, user: User, data: HealthProfileCreateRequest) -> dict[str, Any]:
         """3-1. 검사 순서: 형식 422(DTO) → 버전·순서 409 → 성별·문항 400 → 저장 201."""
@@ -127,6 +165,12 @@ def serialize_profile(profile: HealthProfile) -> dict[str, Any]:
         body[question["field"]] = float(value) if isinstance(value, Decimal) else value
     body["created_at"] = to_kst_iso(profile.created_at)
     return body
+
+
+def summarize_profile(profile: HealthProfile) -> dict[str, Any]:
+    """3-3 목록 한 줄: id·종류·체중·허리둘레·응답 시각만 (상세는 3-5)."""
+    full = serialize_profile(profile)
+    return {field: full[field] for field in LIST_FIELDS}
 
 
 def to_kst_iso(value: datetime) -> str:

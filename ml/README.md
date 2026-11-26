@@ -14,7 +14,7 @@
 |---|---|
 | train.py | 원본 불러오기 → 대상·정답 → 입력 변환 → 평가 → 100% 재학습 → 서버 JSON + MLflow 기록 |
 | evaluate.py | AUROC·AUPRC·Brier·보정 기울기, 연령대별 AUROC, 위험 단계(30/60)별 비율·Recall·Precision, 계수 부호 확인 |
-| serving_json.py | 원래 단위 계수 → 서버 모델 JSON, 건강 나이 곡선 계산·검사 (표준 라이브러리만, CI 테스트) |
+| serving_json.py | 원래 단위 계수 → 서버 모델 JSON, 같은 성별 평균(건강 나이·요인 7문항, 서버 `ITEM_FIELDS_BY_DISEASE`와 같은 목록) (표준 라이브러리만, CI 테스트) |
 
 - 입력 변환은 서빙과 같은 `app/services/prediction/features.py`를 씀 (학습·서빙 어긋남 방지)
 - 테스트: `app/tests/ml_training/` (가상 데이터만)
@@ -40,7 +40,7 @@ flowchart LR
     D --> E[80% 학습 / 20% 평가<br/>층화, 시드 42]
     E --> F[학습 세트 5-fold CV<br/>평가 세트 지표·연령대별·단계별·보정]
     D --> G[100% 데이터로 다시 학습]
-    G --> H[원래 단위 계수 + 학습 평균<br/>+ 건강 나이 곡선]
+    G --> H[원래 단위 계수 + 학습 평균<br/>+ 같은 성별 평균 7문항]
     H --> I[서버 모델 JSON]
     F --> J[(MLflow<br/>params·metrics·artifacts)]
     I --> J
@@ -50,11 +50,11 @@ flowchart LR
 ```mermaid
 flowchart LR
     S[설문 답<br/>health_profiles] --> T[features.py<br/>입력 12개]
-    T --> M[모델 JSON<br/>계수·평균·곡선]
+    T --> M[모델 JSON<br/>계수·평균·같은 성별 평균]
     M --> P[확률 → score 0~100<br/>0.5 올림]
     P --> L[위험 단계<br/>30 미만 LOW / 60 이상 HIGH]
-    M --> FA[factors<br/>계수 × 값−평균 상위 3개]
-    P --> HA[건강 나이<br/>곡선에서 같은 확률의 나이 → 10살 단위]
+    M --> FA[factors 조회 때 계산<br/>7문항 가감 나이 큰 순 3개, 0살 제외]
+    M --> HA[건강 나이 조회 때 계산<br/>실제 나이 + 7문항 가감 ±15 → 10살 단위]
 ```
 
 ## 기준

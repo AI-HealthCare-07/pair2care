@@ -33,6 +33,9 @@ export const LEVEL_MESSAGE: Record<RiskLevel, string> = {
 /** 영향을 준 요인 카드 맨 아래 ℹ️ 안내 (#107, 요인 후보에서 나이를 뺀 이유) */
 export const AGE_IN_SCORE_NOTICE = '점수에는 나이도 반영돼요. 나이는 바꿀 수 없어서 요인에서는 뺐어요'
 
+/** 요인 줄의 "+5살"이 무슨 숫자인지 (#123 성은 님 제안). 숫자가 하나라도 보일 때만 ℹ️ 맨 위에 */
+export const YEARS_NOTICE = '숫자는 같은 성별 평균인 사람보다 건강 나이를 몇 살 높이거나 낮추는지예요'
+
 /** 관리 중 카드 (진단 "예" → 예측 안 함, api.md 5-0 managed_diseases) */
 export const MANAGED_TITLE = '관리 중'
 export const MANAGED_MESSAGE = '진단받은 질환은 위험도를 계산하지 않아요. 지금처럼 진료를 이어 가세요'
@@ -40,27 +43,52 @@ export const MANAGED_MESSAGE = '진단받은 질환은 위험도를 계산하지
 /** 질환 하나만 계산이 안 됐을 때 그 카드에 보이는 문구 */
 export const MISSING_MESSAGE = '이번에는 위험도를 계산하지 못했어요'
 
+// 예측 실패 화면 (5-5 다시 계산)
+export const FAILED_TITLE = '위험도를 계산하지 못했어요'
+export const FAILED_MESSAGE = '설문은 저장됐고, 위험도 계산만 실패했어요. 아래 버튼으로 다시 계산해 볼 수 있어요.'
+export const RETRY_BUTTON = '다시 계산하기'
+export const RETRY_BUSY = '계산하고 있어요'
+export const RETRY_FAILED_AGAIN = '지금은 계산할 수 없어요. 잠시 후 다시 시도해 주세요.'
+
 /**
- * 요인 문구 14개 (#107 성은 님 초안). 질환 소제목 아래에 보여서 질환 이름은 뺌.
+ * 요인 문구 14개 (#107 성은 님 초안, #114에서 기준이 같은 성별 평균으로 바뀌어 체중·음주 4개 수정). 질환 소제목 아래라 질환 이름은 뺌.
  * 가족력은 질환 상관없이 "누구의 가족력"만: father_diabetes_history·father_hypertension_history → 'father'
  * 술: 안 마시는 분은 빈도 1·양 0으로 들어가 둘 다 DOWN이 나올 수 있음 → DOWN은 안 마시는 분에게도 맞는 문장으로
  *     (양 DOWN은 "한 번에"를 뺌, 빈도 DOWN은 그대로도 맞음. UP은 마시는 분만 나옴, 성은 님 11/25)
  */
 const FACTOR_TEXT: Record<string, Record<Factor['direction'], string>> = {
-  bmi: { UP: '체중(BMI)이 평균보다 높아요', DOWN: '체중(BMI)이 평균보다 낮아요' },
+  bmi: { UP: '체중(BMI)이 같은 성별 평균보다 높아요', DOWN: '체중(BMI)이 같은 성별 평균보다 낮아요' },
   father: { UP: '아버지 가족력이 있어요', DOWN: '아버지 가족력이 없어요' },
   mother: { UP: '어머니 가족력이 있어요', DOWN: '어머니 가족력이 없어요' },
   sibling: { UP: '형제자매 가족력이 있어요', DOWN: '형제자매 가족력이 없어요' },
+  alcohol_frequency: { UP: '술 마시는 횟수가 같은 성별 평균보다 많아요', DOWN: '술 마시는 횟수가 같은 성별 평균보다 적어요' },
+  alcohol_amount: { UP: '한 번에 마시는 양이 같은 성별 평균보다 많아요', DOWN: '술 마시는 양이 같은 성별 평균보다 적어요' },
+  smoking_current: { UP: '지금 담배를 피워요', DOWN: '지금 담배를 피우지 않아요' },
+}
+
+/** 가감 나이 표시: 5 → "+5살", -1 → "−1살"(마이너스 기호 U+2212). null·0·숫자 아님은 null → 숨김 */
+export function yearsText(years: number | null | undefined): string | null {
+  if (typeof years !== 'number' || !Number.isFinite(years) || years === 0) return null
+  return years > 0 ? `+${years}살` : `\u2212${Math.abs(years)}살`
+}
+
+/**
+ * years가 null(또는 없음)이면 서버가 예측 때 저장한 옛 기준(남녀 합친 학습 평균) 요인을 줌 (means_by_sex 없음·예전 모델 행, api.md 5-3)
+ * → 체중·음주 3개만 "같은 성별" 없이 원래 문구(#107)로. 가족력·흡연은 평균과 상관없는 문장이라 그대로 (#123 현영 님)
+ */
+const LEGACY_AVERAGE_TEXT: Record<string, Record<Factor['direction'], string>> = {
+  bmi: { UP: '체중(BMI)이 평균보다 높아요', DOWN: '체중(BMI)이 평균보다 낮아요' },
   alcohol_frequency: { UP: '술 마시는 횟수가 평균보다 많아요', DOWN: '술 마시는 횟수가 평균보다 적어요' },
   alcohol_amount: { UP: '한 번에 마시는 양이 평균보다 많아요', DOWN: '술 마시는 양이 평균보다 적어요' },
-  smoking_current: { UP: '지금 담배를 피워요', DOWN: '지금 담배를 피우지 않아요' },
 }
 
 const FAMILY_FEATURE = /^(father|mother|sibling)_(diabetes|hypertension)_history$/
 
-/** 요인 한 개의 문구. 모르는 feature(예: #107 전에 저장된 age, sex)는 null → 화면에서 건너뜀 */
+/** 요인 한 개의 문구. 모르는 feature(예: #107 전에 저장된 age, sex)는 null → 화면에서 건너뜀. years 유무로 평균 기준 문구를 고름 */
 export function factorText(factor: Factor): string | null {
   const family = FAMILY_FEATURE.exec(factor.feature)
   const key = family ? family[1] : factor.feature
+  const sameSexBasis = typeof factor.years === 'number'
+  if (!sameSexBasis && LEGACY_AVERAGE_TEXT[key]) return LEGACY_AVERAGE_TEXT[key][factor.direction]
   return FACTOR_TEXT[key]?.[factor.direction] ?? null
 }

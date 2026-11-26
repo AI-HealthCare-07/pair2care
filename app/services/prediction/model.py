@@ -8,9 +8,9 @@
   "features": ["sex", "age", "bmi", ...],    # features.FEATURE_NAMES와 같은 12개, 같은 순서
   "intercept": -5.1,
   "coefficients": {"sex": 0.2, ...},         # 이름으로 짝지음 (순서 실수 방지)
-  "means": {"sex": 1.5, ...},                # factors 계산용 학습 데이터 평균
-  "health_age_curve": {                      # 선택. 없으면 건강 나이 null (health_age.py)
-    "MALE": [{"age": 30, "probability": 0.041}, ...], "FEMALE": [...]
+  "means": {"sex": 1.5, ...},                # 예측 때 저장하는 factors(기록용)의 학습 데이터 평균
+  "means_by_sex": {                          # 선택. 건강 나이·요인 가감 나이용 같은 성별 7문항 평균 (health_age.py)
+    "MALE": {"bmi": 24.6, ...}, "FEMALE": {"bmi": 23.1, ...}
   }
 }
 """
@@ -23,14 +23,12 @@ from functools import cache
 from pathlib import Path
 from typing import Any, Final
 
-from app.core import default_logger as logger
 from app.models.risk_predictions import Disease, RiskLevel
 from app.services.prediction.features import (
     DIABETES_FAMILY_FIELDS,
     FEATURE_NAMES,
     HYPERTENSION_FAMILY_FIELDS,
 )
-from app.services.prediction.health_age import HealthAgeCurve, parse_health_age_curve
 
 MODEL_DIR: Final = Path(__file__).parent / "model_files"
 MODEL_FILE_BY_DISEASE: Final = {Disease.DIABETES: "diabetes.json", Disease.HYPERTENSION: "hypertension.json"}
@@ -81,7 +79,10 @@ class LogisticModel:
         return 1 / (1 + math.exp(-logit))
 
     def factors(self, model_inputs: Mapping[str, float]) -> list[dict[str, str]]:
-        """계수 × (사용자 값 − 학습 평균)의 절댓값 상위 3개. 양수 UP / 음수 DOWN, 0은 뺌."""
+        """예측 때 저장하는 factors(기록용): 계수 × (사용자 값 − 학습 평균)의 절댓값 상위 3개.
+
+        응답의 factors는 조회 때 health_age.explain_row가 같은 성별 평균 기준으로 다시 계산함 (api.md 5-0, #114).
+        """
         excluded = FACTOR_EXCLUDED_BY_DISEASE[self.disease]
         contributions = [
             (name, self.coefficients[name] * (float(model_inputs[name]) - self.means[name]))
@@ -118,20 +119,3 @@ def read_model_file(disease: Disease) -> dict[str, Any]:
     path = MODEL_DIR / MODEL_FILE_BY_DISEASE[disease]
     data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return data
-
-
-@cache
-def load_health_age_curve(disease: Disease) -> HealthAgeCurve | None:
-    """건강 나이 곡선. 계수와 따로 읽어서, 곡선이 어긋나도 예측(점수·단계)은 그대로 나가게 함.
-
-    곡선이 없으면 None, 어긋나면 에러 로그만 남기고 None → 응답 health_age: null. 형식 검사는 CI(모델 파일 테스트)에서 막음.
-    """
-    try:
-        data = read_model_file(disease)
-        curve = data.get("health_age_curve")
-        if curve is None:
-            return None
-        return parse_health_age_curve(str(data["model_version"]), curve)
-    except (OSError, ValueError, KeyError, TypeError):
-        logger.exception("건강 나이 곡선을 읽지 못함 disease=%s", disease.value)
-        return None

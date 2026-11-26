@@ -9,7 +9,7 @@ from typing import Final
 
 from app.models.risk_predictions import Disease
 from app.services.prediction.features import FEATURE_NAMES
-from app.services.prediction.health_age import HealthAgeCurve, parse_health_age_curve
+from app.services.prediction.health_age import ITEM_FIELDS_BY_DISEASE, SexMeans
 from app.services.prediction.model import LogisticModel
 
 LOAD_MODEL_TARGET: Final = "app.services.prediction.service.load_model"
@@ -27,15 +27,26 @@ def fixed_model(disease: Disease) -> LogisticModel:
     )
 
 
-LOAD_CURVE_TARGET: Final = "app.services.prediction.service.load_health_age_curve"
+LOAD_SEX_MEANS_TARGET: Final = "app.services.prediction.service.load_sex_means"
+EXPLAIN_BMI_MEAN: Final = 24.3  # api.md 3-1 예시 답(172.5cm·78.2kg)의 bmi는 26.3 → 평균보다 2.0 높음
 
 
-def make_curve_points(slope: float = 0.01) -> list[dict[str, float]]:
-    """30세 0.01부터 한 살에 slope씩 커지는 곡선 (30~69세 40개). 확률 p → 나이 29 + p / 0.01."""
-    return [{"age": age, "probability": round(slope * (age - 29), 4)} for age in range(30, 70)]
+def explain_model(disease: Disease) -> LogisticModel:
+    """건강 나이·요인 API 테스트용: 나이 계수 0.05, bmi 계수 0.1 → bmi 2.0 높으면 +4살. 다른 문항 계수는 0.
+
+    점수는 나이에 따라 바뀌므로 이 모델을 쓰는 테스트는 점수를 확인하지 않음.
+    """
+    coefficients = dict.fromkeys(FEATURE_NAMES, 0.0) | {"age": 0.05, "bmi": 0.1}
+    return LogisticModel(
+        model_version=f"{disease.lower()}_risk:explain",
+        disease=disease,
+        intercept=-6.0,
+        coefficients=coefficients,
+        means=dict.fromkeys(FEATURE_NAMES, 0.0),
+    )
 
 
-def fixed_curve(disease: Disease) -> HealthAgeCurve:
-    """fixed_model과 같은 버전의 곡선: 당뇨 34점 → 63세 → 60대, 고혈압 21점 → 50세 → 50대."""
-    points = make_curve_points()
-    return parse_health_age_curve(f"{disease.lower()}_risk:fixed", {"MALE": points, "FEMALE": points})
+def explain_sex_means(disease: Disease) -> SexMeans:
+    """explain_model과 같은 버전의 같은 성별 평균 (bmi만 24.3, 나머지 0)."""
+    means = dict.fromkeys(ITEM_FIELDS_BY_DISEASE[disease], 0.0) | {"bmi": EXPLAIN_BMI_MEAN}
+    return SexMeans(model_version=f"{disease.lower()}_risk:explain", means={"MALE": means, "FEMALE": means})

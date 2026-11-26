@@ -1,0 +1,100 @@
+/* 홈 S-12 (Figma M05). 색·크기는 index.css 토큰과 공통 컴포넌트(common.css) 기준 */
+.home-page {
+  display: grid;
+  gap: 16px;
+  padding: 24px 16px 32px;
+}
+.home-page h2 { margin: 0; }
+.home-page p { margin: 0; }
+
+.home-header__date {
+  font-size: 15px;
+  color: var(--color-muted);
+}
+.home-header__title {
+  margin: 4px 0 0;
+  font-size: 24px;
+  line-height: 1.4;
+}
+
+.home-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+  background: var(--color-surface);
+}
+.home-card .ui-btn { justify-self: start; }
+.home-card__eyebrow {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.home-card--daily {
+  border-color: transparent;
+  background: var(--color-primary-weak, #e7eaff);
+}
+.home-daily__content {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.home-daily__sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+.home-daily__sources a { color: inherit; }
+
+.home-age__level {
+  font-size: 20px;
+  font-weight: 700;
+}
+.home-link {
+  justify-self: start;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.home-section-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+.home-condition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-muted {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.home-challenges {
+  display: grid;
+  gap: 10px;
+}
+.home-challenges__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.home-meal.ui-btn {
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+/* 불러오는 동안 자리만 잡는 회색 줄 */
+.home-placeholder {
+  display: block;
+  width: 40%;
+  border-radius: 8px;
+  background: var(--color-line);
+}

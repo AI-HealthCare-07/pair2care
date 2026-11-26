@@ -35,7 +35,7 @@
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열)<br>**프론트가 종류로 갈라 처리해야 하는 에러에만** `code`를 붙임: `{ "detail": "한국어 메시지", "code": "SURVEY_VERSION_MISMATCH" }` → 프론트는 문구 글자가 아니라 `code`로 분기 (문구는 바뀔 수 있음)<br>구현: `app/core/exceptions.py`의 `AppError` + 전용 핸들러 (`HTTPException(detail={...})`는 `detail`이 한 번 더 감싸져서 쓰지 않음). `code` 목록은 아래 표와 `ErrorCode`를 같이 고침 |
-| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) |
+| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) · `SIGNUP_UNDER_14` 400 (2-1, `field: birthday`) · `SIGNUP_TERMS_REQUIRED` 400 (2-1, `field: consents`) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
@@ -54,7 +54,7 @@ S-01~S-05, S-27 · REQ-USER-001~005
 | 생년월일 | 가입 `birth_date` / 수정 `birthday` | `birthday` 하나로 |
 | 이메일 길이 | 최대 40자 | 최대 255자 (ERD) |
 | 회원가입 응답 | `{"detail": "회원가입이 성공적으로 완료되었습니다."}` | 2-1처럼 토큰 + 회원 요약 |
-| 토큰 갱신 | `GET /auth/token/refresh` | `POST` (상태를 바꾸는 요청) |
+| 토큰 갱신 | `GET /auth/token/refresh` | `POST` (상태를 바꾸는 요청, 11/25 코드 반영) |
 | 로그아웃 | 없음 | 2-4 추가 |
 | 약관 동의 | 없음 | 가입 요청에 같이 받음 (2-1), 2-6 추가 |
 | 비밀번호 규칙 | 8자 이상 + 대·소문자·숫자·특수문자 각 1개 (`validate_password`) | **8자 이상 + 영문·숫자·특수문자 각 1개 이상** (11/20 변경. 11/19엔 가입 부담을 줄이려고 영문·숫자만 받기로 했으나 보안을 위해 특수문자 추가, 대·소문자 구분은 안 함) |
@@ -83,8 +83,8 @@ S-02, S-03 · REQ-USER-001·005 · 로그인 필요 없음
 | password | 8자 이상, 영문·숫자·특수문자 각 1개 이상. 특수문자는 키보드 기호(ASCII 문장부호 `!@#$%^&*` 등 32자), 공백·한글은 안 됨. 아니면 422. 화면은 칸 아래 안내 문구 "8자 이상, 영문+숫자+특수문자(!@#$ 등)"로 미리 알려 줌 (체크 목록 없음, S-02) |
 | nickname | 2~20자. 중복 허용 (짝꿍 화면엔 닉네임만 보여서 같은 이름이 있어도 됨) |
 | gender | `MALE` / `FEMALE` (예측 입력 sex, 설문 임신 문항, 대사증후군 기준에 씀) |
-| birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` |
-| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` → 정할 것 22번 |
+| birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` + `code: SIGNUP_UNDER_14`, `field: birthday` (날짜 형식이 틀리면 422) |
+| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` + `code: SIGNUP_TERMS_REQUIRED`, `field: consents` → 정할 것 22번. 검사 순서: 나이 → 약관 → 이메일 중복(409) |
 
 **처리 (한 트랜잭션)**: `users` 저장 → `user_consents` 3행 저장(`created_at` = 동의 시각) → 토큰 발급
 - 동의는 화면 S-03에서 받지만 저장은 가입과 한 번에 (동의 없이 가입만 된 계정이 생기지 않게)
@@ -114,7 +114,7 @@ S-04 · REQ-USER-002 · 로그인 필요 없음
 
 ### 2-3. 토큰 갱신 `POST /api/v1/auth/token/refresh` → 200
 - 요청 본문 없음, refresh 토큰 쿠키로 판단. 응답 `{ "access_token": "..." }`
-- 쿠키가 없거나 만료·위조면 **401** `"다시 로그인해 주세요."` → 프론트는 S-04로
+- 쿠키가 없거나 만료·위조면 **401** `"다시 로그인해 주세요."` → 프론트는 S-04로 (GET은 405)
 - 프론트는 API가 401을 주면 한 번 갱신하고 원래 요청을 다시 보냄 (갱신도 401이면 로그아웃 처리)
 
 ### 2-4. 로그아웃 `POST /api/v1/auth/logout` → 204
@@ -328,13 +328,15 @@ S-11 재설문 기본값 채우기, S-27 마이
 
 ### 3-3. 설문 이력 `GET /api/v1/health-profiles?kind=WEEKLY&limit=20&cursor=`
 - `kind` 생략 시 전체. 응답은 공통 목록 형식. 각 항목은 `id, kind, weight_kg, waist_cm, created_at`만(가벼운 목록), 상세는 3-5
+- 응답 시각 최신순, 같은 시각이면 나중에 넣은 것 먼저. `limit` 1~50(기본 20). 커서는 마지막 행의 id
+- 내 설문이 아니거나 없는 id를 커서로 보내면 처음부터가 아니라 **404** `"설문 기록을 찾을 수 없어요."` (4-2와 같음)
 
 ### 3-4. 가입 설문 정보 수정 (S-27)
 - 행을 고치지 않고 **새 행을 쌓는 게 원칙**(예측 이력의 `health_profile_id`가 가리키는 값이 바뀌면 안 됨)
 - 그래서 마이에서 "설문 수정" = `POST /health-profiles` with `kind: "WEEKLY"` + 키·가족력까지 모두 받는 전체 모드 → **정할 것 1번**
 
 ### 3-5. 설문 한 건 `GET /api/v1/health-profiles/{id}`
-- 응답 200: `health_profile` 형태. 남의 것이면 404
+- 응답 200: `health_profile` 형태. 남의 것이거나 없으면 **404** `"설문 기록을 찾을 수 없어요."`
 
 ### 3-6. 설문 문항 정의 `GET /api/v1/health-profiles/questions?kind=ONBOARDING`
 S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
@@ -471,8 +473,8 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 0.5 올림 정수 0~100 (model.py `to_score`: floor(확률 × 100 + 0.5), 파이썬 round 아님) |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 상위 3개 `[{"feature": "bmi", "direction": "UP"}]`. 로지스틱 계수 × (사용자 값 − 학습 데이터 평균)의 절댓값 상위 3개, 양수 `UP` / 음수 `DOWN`, 0은 뺌. 후보에서 성별·나이와 다른 질환 가족력은 뺌 (계산에는 그대로 씀). 성별·나이는 바꿀 수 없는 값이라 "바꿀 수 있는 것 → 챌린지"로 이어지는 자리에 안 맞고, 나이는 평균에서 멀면 거의 항상 1순위라 체중·음주·흡연이 밀려남 → 나이 비교는 건강 나이가 따로 보여 줌, 결과 화면에 "점수에는 나이도 반영돼요" 안내 (11/25 장성은). 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보임 (11/24). 학습 평균은 모델 JSON의 `means`에 저장. 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 차이 없음) |
-| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, `mlflow_run_id`와 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
+| factors | 저장값은 예측 때 기록용(옛 기준). **응답의 factors는 5-3 조회 때 `input_snapshot.model_inputs`로 다시 계산** (#114, 기준을 바꿔도 예전 행까지 한 번에 맞춤). 후보는 건강 나이와 같은 7문항(`bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환 가족력 3개). 성별·나이는 바꿀 수 없는 값이고 나이 비교는 건강 나이가 따로 보여 줌, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보여서 뺌 (계산에는 그대로 씀, 11/24·11/25 장성은). 항목마다 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수 → **반올림 전 값의 절댓값 큰 순으로 정렬 → `years` = 절댓값 기준 0.5 올림 정수(부호 대칭: +2.5 → +3, −2.5 → −3, to_score의 floor(x + 0.5)와 다름) → 0살은 빼고 앞에서 3개** (반올림 후 정렬하면 같은 살 수가 많아 순서가 흔들림), 양수 `UP` / 음수 `DOWN`. `[{"feature": "bmi", "direction": "UP", "years": 5}]`. 같은 성별 평균은 모델 JSON `means_by_sex` (5-2 `health_age`와 같은 기준이라 요인과 건강 나이가 항상 같은 말을 함). 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 유의한 차이 없음) |
+| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, 같은 성별 평균(`means_by_sex`: `MALE`·`FEMALE`마다 건강 나이·요인 7문항, #118)과 `mlflow_run_id`를 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
 
@@ -540,7 +542,7 @@ S-09, S-12 홈 카드
     { "id": 53, "disease": "DIABETES", "method": "CHECKUP_CRITERIA", "score": null, "level": "CAUTION", "checkup_record_id": 8,
       "health_age": null, "created_at": "2026-11-19T10:40:00+09:00" },
     { "id": 52, "disease": "HYPERTENSION", "method": "MODEL", "score": 21, "level": "LOW",
-      "health_age": { "decade": null, "actual_age": 45, "out_of_range": "BELOW" }, "created_at": "2026-11-19T10:40:00+09:00" }
+      "health_age": { "decade": 30, "actual_age": 45, "out_of_range": null }, "created_at": "2026-11-19T10:40:00+09:00" }
   ],
   "managed_diseases": [],
   "skipped_reason": null,
@@ -551,12 +553,15 @@ S-09, S-12 홈 카드
 - 설문이 없으면 **404** `"아직 설문 기록이 없어요."`
 - `metabolic_syndrome`: 유효한 검진이 없으면 null
 - 기준표 행(`CHECKUP_CRITERIA`)은 같은 질환의 최신 `MODEL` 행과 같은 예측 때 만든 것만 보여줌 (더 오래됐으면 지난 판정이라 숨김: 가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
-- `health_age`: 건강 나이 (11/25 확정). 내 점수와 같은 확률이 나오는 "아직 진단받지 않은 같은 성별 또래"의 나이를 **10살 단위**로
-  - `decade`: 40 = "40대 수준". 곡선 밖이면 null
+- `health_age`: 건강 나이 (11/25 멘토링 후 재결정, 성은·현영·지연). 자가검진 7문항으로 **같은 성별 평균인 사람**보다 몇 살 많거나 적은지 더해서 **10살 단위**로
+  - 산식: `건강 나이 = 실제 나이 + clamp(Σ 항목 가감 나이, −15, +15)`, `항목 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수` (새로 학습하지 않고 예측 모델 계수 그대로)
+  - 7문항: `bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환의 `father_*`·`mother_*`·`sibling_*_history`. 다른 질환 가족력은 평균으로 고정(가감 0, 당뇨 모델의 고혈압 가족력 계수가 음수라 넣으면 이상해짐). 성별은 같은 성별 평균과 비교하니 문항에서 뺌
+  - 같은 성별 평균: 모델 JSON의 `means_by_sex`(`MALE`·`FEMALE`마다 7문항 평균, 장성은). 남녀 합친 `means`를 쓰면 한쪽 성별이 일괄 많게·적게 나와서 안 씀
+  - `decade`: 건강 나이를 반올림한 정수의 10살 단위. 40 = "40대 수준". 범위 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
-  - `out_of_range`: null / `BELOW`("30세 미만 수준") / `ABOVE`("69세 초과 수준")
-  - 계산: 모델 JSON의 `health_age_curve`(성별마다 30~69세 확률 40개, 장성은)에서 `score / 100`과 같은 확률의 나이를 직선 보간 → 같은 점수면 언제나 같은 건강 나이
-  - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 곡선이 없음, 곡선을 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
+  - `out_of_range`: null / `BELOW`(반올림한 건강 나이 30 미만, "30세 미만 수준") / `ABOVE`(69 초과, "69세 초과 수준") — 학습 범위(30~69) 밖이라 숫자 대신 이 문구. ±15 제한 때문에 `BELOW`는 실제 나이 44세 이하, `ABOVE`는 55세 이상에서만 나옴 (예: 38세 −15 → 23 → `BELOW`)
+  - 항목별 가감 나이는 따로 내려 주지 않고 5-3 `factors[].years`로 보여 줌 (같은 7문항·같은 기준, #114 합의). 건강 나이는 7문항 전부의 합(반올림 전)을 ±15로 자른 값이라 화면의 요인 3개 합과 다를 수 있음 → 화면은 합계 숫자를 안 쓰고 10살 단위 줄만
+  - null인 경우: `CHECKUP_CRITERIA` 행, 모델 JSON에 `means_by_sex`가 없거나 읽지 못함(에러 로그만 남기고 점수·단계는 그대로), 행의 `model_version`이 지금 모델과 다름 → 화면은 건강 나이 줄을 숨김
   - 문구는 프론트: 실제 나이와 같은 10살 구간이면 "비슷한 수준", 다를 때만 "높게 / 낮게". S-09는 질환별, S-12 홈은 높은 쪽 하나(priority_disease 규칙), 진단받은 질환은 행이 없어서 안 보임
 
 ### 5-3. 예측 상세 `GET /api/v1/risk-predictions/{id}` ⚕️
@@ -565,9 +570,9 @@ S-09 상세
 {
   "id": 51, "disease": "DIABETES", "method": "MODEL", "score": 34, "level": "CAUTION",
   "factors": [
-    { "feature": "bmi", "direction": "UP" },
-    { "feature": "father_diabetes_history", "direction": "UP" },
-    { "feature": "alcohol_frequency", "direction": "DOWN" }
+    { "feature": "bmi", "direction": "UP", "years": 5 },
+    { "feature": "father_diabetes_history", "direction": "UP", "years": 5 },
+    { "feature": "alcohol_frequency", "direction": "DOWN", "years": -1 }
   ],
   "model_version": "diabetes_risk:v1",
   "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
@@ -588,7 +593,8 @@ S-09 상세
 }
 ```
 - `factors`의 feature → 화면 문구(예: `bmi` → "체중")는 프론트 상수 (프론트와 목록 맞춤)
-- 요인 크기 숫자는 내려주지 않음 (방향만)
+- 요인 크기는 `years`(가감 나이 정수)만 내려 줌. 확률·계수 같은 숫자는 안 내려 줌 (11/25 #114: 건강 나이 항목과 합침). 화면은 "영향을 준 요인" 카드 줄 오른쪽에 "+5살 / −1살"
+- `model_version`이 지금 모델과 다르거나 `means_by_sex`를 읽지 못하면 저장된 factors를 그대로 내려 주고 `years`는 null (방향만)
 - 남의 것이면 404
 
 ### 5-4. 습관 시뮬레이션 `POST /api/v1/risk-predictions/simulate` ⚕️
@@ -599,9 +605,14 @@ S-10 · **저장하지 않음** (`risk_predictions`에 행 안 생김)
 { "changes": { "weight_kg": 75.0, "alcohol_frequency": 3, "alcohol_amount": 2, "smoking_current": 3 } }
 ```
 - 바꿀 수 있는 값: `weight_kg`, `alcohol_frequency`, `alcohol_amount`, `smoking_current` (위험도를 바꾸는 생활 요인 = 체중·음주·흡연)
-- 그 외 필드를 보내면 **400** `"체중·음주·흡연만 바꿔 볼 수 있어요."`
-- 보낸 값만 최근 설문 값 위에 덮어서 계산. 값 범위·건너뛰기 규칙은 3-1과 같음 (예: 음주 빈도 1이면 양은 8로 서버가 채움)
-- - 최근 설문에서 비해당인 문항은 바꿀 수 없음 → **400** `"지금 해당하지 않는 습관은 바꿔 볼 수 없어요."` (예: 음주 경험 "없다"인 사람이 `alcohol_frequency`를 보냄, 흡연한 적 없는 사람이 `smoking_current`를 보냄). S-10 화면은 해당하는 습관만 보여줌
+- 검사 순서: ① 필드 400 → ② 형식 422 → ③ 설문 없음 404 → ④ 해당 여부·음주 규칙 400
+  - ① `changes`가 비었거나 그 외 필드가 있으면 **400** `"체중·음주·흡연만 바꿔 볼 수 있어요."`
+  - ② 값 범위는 3-1과 같음 (체중 25.0~300.0 소수 한 자리, 음주 빈도 1~6, 음주량 1~5, 현재 흡연 1~3). 비해당 8은 보낼 수 없음. 틀리면 **422**
+  - ③ 설문이 없으면 **404**
+  - ④ 최근 설문에서 비해당인 문항은 바꿀 수 없음 → **400** `"지금 해당하지 않는 습관은 바꿔 볼 수 없어요."` (예: 음주 경험 "없다"인 사람이 `alcohol_frequency`를 보냄, 흡연한 적 없는 사람이 `smoking_current`를 보냄). S-10 화면은 해당하는 습관만 보여줌
+- 보낸 값만 최근 설문 값 위에 덮어서 계산. 음주는 3-1 건너뛰기 규칙과 같음
+  - 덮은 뒤 음주 빈도가 1이면 양은 서버가 8로 채움. 양을 같이 보내면 **400** `"최근 1년간 술을 마시지 않았다면 한 번 음주량은 보낼 수 없어요."`
+  - 최근 설문의 음주 빈도 1을 2 이상으로 바꾸면 `alcohol_amount`도 같이 보내야 함. 없으면 **400** `"한 번에 마시는 양을 골라 주세요."`
 
 **응답 200**
 ```json
@@ -614,11 +625,10 @@ S-10 · **저장하지 않음** (`risk_predictions`에 행 안 생김)
   "skipped_reason": null
 }
 ```
-- `before` = 최근 `MODEL` 행 점수. 없으면(예측 실패 등) 최근 설문으로 그 자리에서 계산
+- `before` = 최근 `MODEL` 행 점수. 없거나(예측 실패 등) 그 행의 `model_version`이 지금 모델과 다르면 최근 설문으로 그 자리에서 계산 (같은 모델끼리 비교)
 - 진단 "예"·임신·나이 밖은 5-0과 같이 빠짐
 - 고혈압은 금연해도 점수가 거의 안 바뀜 → 화면에서 "고혈압 위험도 점수엔 변화가 거의 없어요" 안내 (흡연은 모델 입력에 들어가지만 고혈압 쪽 영향이 작음, 금연 효과가 없다는 뜻이 아님). S-10 와이어프레임과 같은 문구
 - 운동은 직접 바꾸지 않고 체중 변화로 보여줌 (variables.md 2장 논의 B)
-- 설문이 없으면 404
 
 ---
 

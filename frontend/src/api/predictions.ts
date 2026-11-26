@@ -48,10 +48,15 @@ export interface LatestPredictionsResponse {
   metabolic_syndrome: MetabolicSyndrome | null // 유효한 검진이 없으면 null
 }
 
-/** 요인 (5-3). 크기 숫자는 안 옴. UP = 위험을 높이는 쪽 */
+/**
+ * 요인 (5-3). UP = 위험을 높이는 쪽.
+ * years: 같은 성별 평균인 사람보다 건강 나이를 몇 살 올리거나 내리는지 (정수, 0살은 서버가 뺌, #114·#121).
+ *        means_by_sex를 못 쓰거나 예전 모델 행이면 null(방향만) → 화면은 숫자를 숨김. 예전 응답처럼 키가 없을 수도 있음
+ */
 export interface Factor {
   feature: string // bmi · father_diabetes_history … (모르는 값은 화면에서 건너뜀)
   direction: 'UP' | 'DOWN'
+  years?: number | null
 }
 
 export interface ChangedInput {
@@ -108,6 +113,16 @@ async function request<T>(path: string): Promise<T> {
 /** 5-2 최근 예측. 설문이 없으면 404 ApiError */
 export function getLatestPredictions(): Promise<LatestPredictionsResponse> {
   return request<LatestPredictionsResponse>('/risk-predictions/latest')
+}
+
+/**
+ * 5-5 다시 계산 (S-09 예측 실패 화면). 요청 본문 없음.
+ * 200 본문(3-1 예측 필드와 같은 모양)은 쓰지 않음: 200·409 모두 화면이 5-2를 다시 부름.
+ * 409 이미 계산됨 · 503 또 실패 · 404 설문 없음 → ApiError
+ */
+export async function retryPredictions(): Promise<void> {
+  const res = await apiFetch('/risk-predictions/retry', { method: 'POST' })
+  if (!res.ok) throw await toApiError(res)
 }
 
 /** 5-3 예측 상세 */

@@ -1,7 +1,7 @@
 """Pair2Care LLM 추천 핵심: 검증된 근거 후보 중 한 가지를 Claude가 선택한다.
 
 의료 문구를 LLM이 자유 작성하지 않도록 공식 출처에 묶인 action만 반환한다.
-개인식별정보는 호출 전에 제거하고, 근거가 없거나 프로필이 없으면 추천을 만들지 않는다.
+개인식별정보는 호출 전에 제거하고, 적용 가능한 근거가 없으면 추천을 만들지 않는다.
 """
 
 import asyncio
@@ -14,12 +14,19 @@ from pathlib import Path
 from typing import Any, Protocol
 
 MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-5-5")
-PROMPT_VERSION = "llm_verified_actions_v2"
+PROMPT_VERSION = "llm_verified_actions_v3"
 NO_EVIDENCE = "지금은 근거가 충분하지 않아 추천하기 어려워요."
 GUIDES_PATH = Path(__file__).resolve().parent.parent / "resources" / "health_guides.json"
 # 동시 Claude 요청 상한 (프로세스별); 워커의 3회 재시도는 별도 처리한다.
 _SEMAPHORE = asyncio.Semaphore(3)
-_BOOLEAN_FACTS = {"is_hypertension_diagnosed", "is_diabetes_diagnosed", "is_drink", "is_broth_dish"}
+_BOOLEAN_FACTS = {
+    "is_hypertension_diagnosed",
+    "is_diabetes_diagnosed",
+    "is_drink",
+    "is_broth_dish",
+    "has_zero_walk_days",
+    "is_current_smoker",
+}
 _NUMERIC_FACTS = {"sodium_mg", "sugar_g", "carbs_g", "portion"}
 SYSTEM_PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "recommendation.txt"
 
@@ -97,7 +104,9 @@ def retrieve_guides(kind: str, facts: dict[str, Any], guides: list[Evidence], li
 
 def build_prompt(kind: str, facts: dict[str, Any], candidates: list[Evidence]) -> str:
     # 진단 여부는 서버에서 근거 검색에만 사용한다.
-    meal_facts = {key: value for key, value in facts.items() if key in _NUMERIC_FACTS}
+    meal_facts = (
+        {key: value for key, value in facts.items() if key in _NUMERIC_FACTS} if kind == "MEAL_ALTERNATIVE" else {}
+    )
     return json.dumps(
         {
             "kind": kind,

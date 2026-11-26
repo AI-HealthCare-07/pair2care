@@ -1,7 +1,7 @@
 // frontend/src/pages/SignupPage.tsx
 // S-02 회원가입 + S-03 약관 동의 (Figma M01은 한 화면). 가입되면 바로 로그인 상태 → S-06 가입 설문으로
 
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/auth/AuthLayout'
 import Button from '../components/common/Button'
@@ -9,8 +9,10 @@ import Checkbox from '../components/common/Checkbox'
 import Chip from '../components/common/Chip'
 import Input from '../components/common/Input'
 import Select from '../components/common/Select'
+import { moveRadioFocus } from '../components/common/radioKeys'
 import { signup, TERMS_VERSION, type Agreement, type Gender } from '../api/auth'
 import { ApiError } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 
 // 서버 규칙과 같음 (api.md 2-1): 8자 이상, 영문·숫자·특수문자(키보드 기호) 각 1개 이상, 공백·한글 안 됨
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[!-~]{8,}$/
@@ -26,6 +28,13 @@ const TERMS: { key: Agreement; label: string }[] = [
 type Field = 'email' | 'password' | 'nickname' | 'gender' | 'birthday' | 'terms'
 type Errors = Partial<Record<Field, string>>
 
+// 화면 순서. 제출했을 때 오류가 있으면 이 순서로 첫 칸에 포커스 (스크린리더·키보드 사용자가 어디가 틀렸는지 바로 알게)
+const FIELD_ORDER: Field[] = ['email', 'password', 'nickname', 'gender', 'birthday', 'terms']
+const GENDERS: { value: Gender; label: string }[] = [
+  { value: 'MALE', label: '남성' },
+  { value: 'FEMALE', label: '여성' },
+]
+
 const thisYear = new Date().getFullYear()
 // 만 14세 미만은 서버가 400 → 목록도 14년 전까지만 (같은 해 생일 전은 서버가 막음)
 const YEARS = Array.from({ length: thisYear - 14 - 1920 + 1 }, (_, i) => String(thisYear - 14 - i))
@@ -33,7 +42,9 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1))
 
 export default function SignupPage() {
   const navigate = useNavigate()
+  const { reload } = useAuth()
   const genderLabelId = useId()
+  const genderErrorId = useId()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -72,7 +83,7 @@ export default function SignupPage() {
     setPasswordTouched(true)
     setAlert(null)
     const found = validate()
-    setErrors(found)
+    showErrors(found)
     if (Object.keys(found).length > 0) return
 
     setLoading(true)
@@ -86,6 +97,7 @@ export default function SignupPage() {
         birthday,
         consents: TERMS.map((t) => ({ agreement: t.key, version: TERMS_VERSION, is_agreed: true })),
       })
+      await reload() // 가드가 새 로그인 상태를 알게 (안 하면 /login으로 튕김)
       navigate(result.has_health_profile ? '/home' : '/onboarding', { replace: true })
     } catch (err) {
       applyServerError(err)
@@ -100,11 +112,38 @@ export default function SignupPage() {
       setAlert('가입하지 못했어요. 잠시 후 다시 시도해 주세요.')
       return
     }
-    if (err.status === 409) return setErrors({ email: err.message }) // 이미 가입된 이메일
-    if (err.status === 400 && err.message.includes('14세')) return setErrors({ birthday: err.message })
-    if (err.status === 400) return setErrors({ terms: err.message }) // 약관 동의·버전
+    // 문구 글자가 아니라 code로 칸을 고름 (api.md 1장·2-1)
+    if (err.status === 409) return showErrors({ email: err.message }) // 이미 가입된 이메일
+    if (err.code === 'SIGNUP_UNDER_14') return showErrors({ birthday: err.message })
+    if (err.code === 'SIGNUP_TERMS_REQUIRED') return showErrors({ terms: err.message }) // 약관 동의·버전
     if (err.status === 422) return setAlert('입력값을 확인해 주세요.')
     setAlert('가입하지 못했어요. 잠시 후 다시 시도해 주세요.')
+  }
+
+  /** 오류 문구를 띄우고 첫 오류 칸으로 포커스 (그린 뒤에 옮겨야 해서 다음 프레임에) */
+  function showErrors(found: Errors) {
+    setErrors(found)
+    const first = FIELD_ORDER.find((field) => found[field])
+    if (!first) return
+    requestAnimationFrame(() => document.getElementById(focusTargetId(first))?.focus())
+  }
+
+  /** 생년월일은 아직 안 고른 칸부터, 성별은 고른 칩(없으면 첫 칩) */
+  function focusTargetId(field: Field): string {
+    if (field === 'birthday') return !year ? 'signup-year' : !month ? 'signup-month' : 'signup-day'
+    if (field === 'gender') return `signup-gender-${gender ?? GENDERS[0].value}`
+    return `signup-${field}`
+  }
+
+  function chooseGender(value: Gender) {
+    setGender(value)
+    clearError('gender')
+  }
+
+  /** 성별 칩: 방향키로 옮기면 바로 선택 (설문 보기와 같은 키보드 규칙) */
+  function handleGenderKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const next = moveRadioFocus(e)
+    if (next !== null) chooseGender(GENDERS[next].value)
   }
 
   /** 칸을 고치면 그 칸의 오류 문구는 바로 지움 (다음 제출 때 다시 검사) */
@@ -141,6 +180,7 @@ export default function SignupPage() {
       }
     >
       <Input
+        id="signup-email"
         label="이메일"
         type="email"
         name="email"
@@ -158,6 +198,7 @@ export default function SignupPage() {
       {/* 비밀번호 규칙은 처음부터 보여 주고, 안 맞으면 같은 문구가 빨갛게 바뀜 (S-02) */}
       <div className="auth__group">
         <Input
+          id="signup-password"
           label="비밀번호"
           type="password"
           name="new-password"
@@ -179,6 +220,7 @@ export default function SignupPage() {
       </div>
 
       <Input
+        id="signup-nickname"
         label="닉네임"
         name="nickname"
         autoComplete="nickname"
@@ -196,27 +238,41 @@ export default function SignupPage() {
         <span id={genderLabelId} className="auth__legend">
           성별
         </span>
-        <div className="auth__row" role="radiogroup" aria-labelledby={genderLabelId}>
-          <Chip mode="radio" selected={gender === 'MALE'} onClick={() => {
-              setGender('MALE')
-              clearError('gender')
-            }}>
-            남성
-          </Chip>
-          <Chip mode="radio" selected={gender === 'FEMALE'} onClick={() => {
-              setGender('FEMALE')
-              clearError('gender')
-            }}>
-            여성
-          </Chip>
+        <div
+          className="auth__row"
+          role="radiogroup"
+          aria-labelledby={genderLabelId}
+          // 오류 표시는 칩(radio)이 아니라 묶음(radiogroup)에. 문구를 이어 둬서 스크린리더가 오류까지 같이 읽음
+          aria-invalid={errors.gender ? true : undefined}
+          aria-describedby={errors.gender ? genderErrorId : undefined}
+          onKeyDown={handleGenderKeyDown}
+        >
+          {GENDERS.map((option) => (
+            <Chip
+              key={option.value}
+              id={`signup-gender-${option.value}`}
+              mode="radio"
+              selected={gender === option.value}
+              // 탭으로는 고른 칩(없으면 첫 칩) 하나만 들어오고, 그 안에서는 방향키로 옮김
+              tabIndex={(gender ?? GENDERS[0].value) === option.value ? 0 : -1}
+              onClick={() => chooseGender(option.value)}
+            >
+              {option.label}
+            </Chip>
+          ))}
         </div>
-        {errors.gender && <p className="auth__hint is-error" role="alert">{errors.gender}</p>}
+        {errors.gender && (
+          <p id={genderErrorId} className="auth__hint is-error" role="alert">
+            {errors.gender}
+          </p>
+        )}
       </div>
 
       <fieldset className="auth__fieldset">
         <legend className="auth__legend">생년월일</legend>
         <div className="auth__row auth__birth">
           <Select
+            id="signup-year"
             aria-label="태어난 해"
             placeholder="년"
             value={year}
@@ -230,6 +286,7 @@ export default function SignupPage() {
             options={YEARS.map((y) => ({ value: y, label: `${y}년` }))}
           />
           <Select
+            id="signup-month"
             aria-label="태어난 달"
             placeholder="월"
             value={month}
@@ -241,6 +298,7 @@ export default function SignupPage() {
             options={MONTHS.map((m) => ({ value: m, label: `${m}월` }))}
           />
           <Select
+            id="signup-day"
             aria-label="태어난 날"
             placeholder="일"
             value={day}
@@ -255,7 +313,7 @@ export default function SignupPage() {
       </fieldset>
 
       <div className="auth__terms">
-        <Checkbox strong checked={allAgreed} onChange={toggleAll}>
+        <Checkbox id="signup-terms" strong checked={allAgreed} onChange={toggleAll}>
           전체 동의
         </Checkbox>
         <hr />

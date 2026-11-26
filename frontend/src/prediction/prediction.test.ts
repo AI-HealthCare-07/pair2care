@@ -1,19 +1,29 @@
 // frontend/src/prediction/prediction.test.ts
 // S-09 화면 상태(view)·건강 나이 문구(healthAge)·요인 문구(labels)·가짜 API 모양
-// 근거: api.md 5-2·5-3, #102(건강 나이), #107(요인에서 나이 제외·문구 14개), 11/25 팀장님·현영 님·성은 님 답
+// 근거: api.md 5-2·5-3·5-5, #102(건강 나이), #107(요인에서 나이 제외·문구 14개), 11/25 팀장님·현영 님·성은 님 답
 
 import { beforeAll, describe, expect, it } from 'vitest'
+import { ApiError } from '../api/client'
 import type { HealthAge, LatestPrediction, LatestPredictionsResponse } from '../api/predictions'
 import {
   getLatestPredictions,
   getPrediction,
+  retryPredictions,
   setMockPredictionDelay,
   setMockPredictionScenario,
 } from '../api/predictions.mock'
 import { MOCK_PREDICTION_SCENARIOS } from '../api/predictions.mockScenarios'
 import { decadeOf, healthAgeLine } from './healthAge'
-import { DISEASE_ORDER, factorText, LEVEL_LABEL } from './labels'
-import { buildPredictionView, CAUTION_MIN_SCORE, factorLines, GAUGE_LABEL_PERCENT, gaugePercent, HIGH_MIN_SCORE } from './view'
+import { DISEASE_ORDER, FAILED_MESSAGE, factorText, LEVEL_LABEL, yearsText } from './labels'
+import {
+  buildPredictionView,
+  CAUTION_MIN_SCORE,
+  factorLines,
+  GAUGE_LABEL_PERCENT,
+  gaugePercent,
+  HIGH_MIN_SCORE,
+  retryFailureAction,
+} from './view'
 
 const row = (overrides: Partial<LatestPrediction>): LatestPrediction => ({
   id: 1,
@@ -178,9 +188,9 @@ describe('요인 문구 (#107)', () => {
   })
 
   it('술 DOWN은 안 마시는 분에게도 맞는 문장 (양은 "한 번에" 없음)', () => {
-    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN' })).toBe('술 마시는 양이 평균보다 적어요')
-    expect(factorText({ feature: 'alcohol_amount', direction: 'UP' })).toBe('한 번에 마시는 양이 평균보다 많아요')
-    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN' })).toBe('술 마시는 횟수가 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN', years: -1 })).toBe('술 마시는 양이 같은 성별 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'UP', years: 1 })).toBe('한 번에 마시는 양이 같은 성별 평균보다 많아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN', years: -1 })).toBe('술 마시는 횟수가 같은 성별 평균보다 적어요')
   })
 
   it('age·sex·모르는 값은 null → 건너뜀 (#107 전에 저장된 행)', () => {
@@ -195,9 +205,44 @@ describe('요인 문구 (#107)', () => {
       { feature: 'bmi', direction: 'UP' },
       { feature: 'smoking_current', direction: 'DOWN' },
     ])
-    expect(lines.map((l) => l.text)).toEqual(['체중(BMI)이 평균보다 높아요', '지금 담배를 피우지 않아요'])
+    expect(lines.map((l) => l.text)).toEqual(['체중(BMI)이 평균보다 높아요', '지금 담배를 피우지 않아요']) // years 없음 = 옛 기준
     expect(factorLines(null)).toEqual([])
     expect(factorLines([])).toEqual([])
+  })
+})
+
+describe('가감 나이 years (#114·#121)', () => {
+  it('yearsText: 양수 "+5살", 음수 "−1살"(U+2212), 0·null·없음은 숨김', () => {
+    expect(yearsText(5)).toBe('+5살')
+    expect(yearsText(-1)).toBe('\u22121살')
+    expect(yearsText(0)).toBeNull()
+    expect(yearsText(null)).toBeNull()
+    expect(yearsText(undefined)).toBeNull()
+  })
+
+  it('체중·음주 4개는 "같은 성별 평균", 가족력·흡연은 그대로 (#114 성은 님)', () => {
+    expect(factorText({ feature: 'bmi', direction: 'DOWN', years: -2 })).toBe('체중(BMI)이 같은 성별 평균보다 낮아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'UP', years: 1 })).toBe('술 마시는 횟수가 같은 성별 평균보다 많아요')
+    expect(factorText({ feature: 'father_diabetes_history', direction: 'UP' })).toBe('아버지 가족력이 있어요')
+    expect(factorText({ feature: 'smoking_current', direction: 'DOWN' })).toBe('지금 담배를 피우지 않아요')
+  })
+
+  it('years가 null·없음이면 옛 기준(남녀 합친 평균)이라 체중·음주는 "같은 성별" 없이 (#123 현영 님)', () => {
+    expect(factorText({ feature: 'bmi', direction: 'UP', years: null })).toBe('체중(BMI)이 평균보다 높아요')
+    expect(factorText({ feature: 'alcohol_frequency', direction: 'DOWN' })).toBe('술 마시는 횟수가 평균보다 적어요')
+    expect(factorText({ feature: 'alcohol_amount', direction: 'DOWN', years: null })).toBe('술 마시는 양이 평균보다 적어요')
+    expect(factorText({ feature: 'mother_diabetes_history', direction: 'UP', years: null })).toBe('어머니 가족력이 있어요')
+    expect(factorText({ feature: 'smoking_current', direction: 'UP', years: null })).toBe('지금 담배를 피워요')
+  })
+
+  it('factorLines가 years를 붙이고, null·키 없음(예전 응답)이면 숫자 없이', () => {
+    const lines = factorLines([
+      { feature: 'father_diabetes_history', direction: 'UP', years: 5 },
+      { feature: 'smoking_current', direction: 'DOWN', years: -2 },
+      { feature: 'bmi', direction: 'UP', years: null },
+      { feature: 'alcohol_frequency', direction: 'UP' },
+    ])
+    expect(lines.map((l) => l.years)).toEqual(['+5살', '\u22122살', null])
   })
 })
 
@@ -236,5 +281,50 @@ describe('가짜 API (predictions.mock)', () => {
   it('없는 id는 404', async () => {
     setMockPredictionScenario('normal')
     await expect(getPrediction(999)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('다시 계산 (5-5)', () => {
+  beforeAll(() => setMockPredictionDelay(0))
+
+  it.each([
+    [409, 'RELOAD'],
+    [404, 'ONBOARDING'],
+    [401, 'LOGIN'],
+    [503, 'STAY_FAILED'],
+    [0, 'STAY_FAILED'], // 시간 초과(#130)
+    [500, 'STAY_FAILED'],
+  ] as const)('%i → %s', (status, action) => {
+    expect(retryFailureAction(new ApiError(status, '문구'))).toBe(action)
+  })
+
+  it('ApiError가 아니면(연결 끊김 등) 실패 화면 그대로', () => {
+    expect(retryFailureAction(new TypeError('Failed to fetch'))).toBe('STAY_FAILED')
+  })
+
+  it('문구에 "준비 중"이 남아 있지 않음', () => {
+    expect(FAILED_MESSAGE).not.toContain('준비 중')
+  })
+
+  it('가짜 failed: 다시 계산 성공 → 5-2가 결과로 바뀌고, 다시 부르면 409', async () => {
+    setMockPredictionScenario('failed')
+    setMockPredictionScenario('normal')
+    setMockPredictionScenario('failed') // 다른 경우를 거쳐 처음 상태로
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('FAILED')
+    await retryPredictions()
+    setMockPredictionScenario('failed') // 화면이 다시 불러올 때처럼 같은 이름으로 불러도 유지
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('RESULT')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('가짜 failed_again: 503이고 실패 그대로', async () => {
+    setMockPredictionScenario('failed_again')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 503 })
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('FAILED')
+  })
+
+  it('가짜 no_survey: 404', async () => {
+    setMockPredictionScenario('no_survey')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 404 })
   })
 })

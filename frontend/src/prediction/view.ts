@@ -1,8 +1,9 @@
 // frontend/src/prediction/view.ts
 // 5-2 응답 → S-09가 그릴 화면 상태. 화면 컴포넌트는 이 결과만 보고 그림 (API 규칙 해석은 여기 한 곳에서).
 
+import { ApiError } from '../api/client'
 import type { Disease, Factor, LatestPrediction, LatestPredictionsResponse, SkippedReason } from '../api/predictions'
-import { DISEASE_ORDER, factorText } from './labels'
+import { DISEASE_ORDER, factorText, yearsText } from './labels'
 
 export type DiseaseCard =
   | { kind: 'RESULT'; disease: Disease; model: LatestPrediction; checkup: LatestPrediction | null }
@@ -11,7 +12,7 @@ export type DiseaseCard =
 
 export type PredictionView =
   | { kind: 'GENERAL'; reason: SkippedReason } // M04-b 일반 안내
-  | { kind: 'FAILED' } // 예측 실패: 다시 불러와도 그대로라 1차는 안내만 (다시 예측 API 생기면 버튼)
+  | { kind: 'FAILED' } // 예측 실패: 5-2를 다시 불러도 그대로라 "다시 계산"(5-5) 버튼
   | { kind: 'RESULT'; cards: DiseaseCard[] } // M04
 
 /**
@@ -58,6 +59,7 @@ export interface FactorLine {
   feature: string
   direction: Factor['direction']
   text: string
+  years: string | null // "+5살" · "−1살", 없으면 null (숫자 숨김)
 }
 
 /** 요인 → 화면 줄. 모르는 feature는 건너뜀, 최대 3개 (빈 배열이면 화면에서 요인 부분 숨김) */
@@ -65,7 +67,23 @@ export function factorLines(factors: Factor[] | null): FactorLine[] {
   const lines: FactorLine[] = []
   for (const factor of factors ?? []) {
     const text = factorText(factor)
-    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text })
+    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text, years: yearsText(factor.years) })
   }
   return lines.slice(0, 3)
+}
+
+/**
+ * 5-5 다시 계산이 실패했을 때 화면이 할 일 (api.md 5-5)
+ *  - 409 이미 계산됨(다른 탭·두 번 누름) → 5-2 다시 불러오기 (200과 같음)
+ *  - 404 설문 없음 → 설문 / 401 → 로그인
+ *  - 503 또 실패 · 시간 초과 · 연결 끊김 등 → 실패 화면 그대로 + 안내 문구
+ */
+export type RetryFailureAction = 'RELOAD' | 'ONBOARDING' | 'LOGIN' | 'STAY_FAILED'
+
+export function retryFailureAction(err: unknown): RetryFailureAction {
+  if (!(err instanceof ApiError)) return 'STAY_FAILED'
+  if (err.status === 409) return 'RELOAD'
+  if (err.status === 404) return 'ONBOARDING'
+  if (err.status === 401) return 'LOGIN'
+  return 'STAY_FAILED'
 }

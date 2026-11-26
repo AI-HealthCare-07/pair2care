@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth'
 import { healthProfilesApi } from '../api/healthProfilesApi'
 import { ApiError } from '../api/client'
 import { surveyErrorAction } from '../api/healthProfiles'
@@ -62,6 +63,7 @@ export default function SurveyPage() {
 
 function SurveyFlow({ gender }: { gender: Gender }) {
   const navigate = useNavigate()
+  const { reload } = useAuth()
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   const [def, setDef] = useState<SurveyDefinition>(SURVEY_DEFINITION_ONBOARDING)
@@ -122,6 +124,7 @@ function SurveyFlow({ gender }: { gender: Gender }) {
     setServerError(null)
     try {
       await healthProfilesApi.postHealthProfile(buildSurveyRequest(currentDef, currentAnswers, gender))
+      await reload() // has_health_profile이 true로 바뀌어야 가드가 다시 설문으로 안 보냄
       navigate(AFTER_SURVEY_PATH, { replace: true })
     } catch (err) {
       await handleSubmitError(err)
@@ -155,6 +158,7 @@ function SurveyFlow({ gender }: { gender: Gender }) {
         return
       }
       case 'GO_HOME':
+        await reload() // 이미 설문함(409) → 내 정보를 다시 받아야 홈에서 안 튕김
         navigate('/home')
         return
       case 'RELOGIN':

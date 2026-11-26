@@ -66,6 +66,9 @@ export async function login(email: string, password: string): Promise<LoginResul
 
 /** 로그아웃 (api.md 2-4): 로그인 없이 항상 204, 서버가 refresh 쿠키를 지움 */
 export async function logout(): Promise<void> {
-  await postJson<void>('/auth/logout')
-  setAccessToken(null) // 메모리의 access 토큰도 비워서 "로그인 안 한 상태"로 되돌림
+  try {
+    await postJson<void>('/auth/logout')
+  } finally {
+    setAccessToken(null) // 서버 요청이 실패해도 메모리의 access 토큰은 비워서 "로그인 안 한 상태"로 되돌림
+  }
 }

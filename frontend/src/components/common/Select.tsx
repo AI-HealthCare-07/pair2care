@@ -7,6 +7,8 @@ import chevronIcon from '../../assets/icon-chevron-down.svg'
 import './common.css'
 
 interface Props extends SelectHTMLAttributes<HTMLSelectElement> {
+  /** 화면에 라벨 글자가 따로 없어서 스크린리더용 이름이 꼭 필요함 ("태어난 해") */
+  'aria-label': string
   placeholder: string                          // 안 골랐을 때 보이는 글자 ("년")
   options: { value: string; label: string }[]
 }

@@ -1,4 +1,4 @@
-# frontend — Pair 2 Care 웹 (React + Vite + PWA)
+# frontend — Pair n Care 웹 (React + Vite + PWA)
 
 모바일 우선 PWA. 화면 폭 375px 기준, PC에서는 가운데 정렬로 같은 화면을 보여 줌 (`docs/wireframe.md` 1장).
 

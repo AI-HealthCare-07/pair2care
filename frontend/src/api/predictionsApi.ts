@@ -13,6 +13,7 @@ export const predictionsApi = {
     useMock ? loadMock().then((m) => m.getLatestPredictions(...args)) : real.getLatestPredictions(...args),
   getPrediction: (...args: Parameters<typeof real.getPrediction>) =>
     useMock ? loadMock().then((m) => m.getPrediction(...args)) : real.getPrediction(...args),
+  retryPredictions: () => (useMock ? loadMock().then((m) => m.retryPredictions()) : real.retryPredictions()),
 
   /** 가짜 모드인지 (화면의 개발용 안내 표시용) */
   isMock: useMock,

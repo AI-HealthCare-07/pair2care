@@ -11,7 +11,7 @@
 .auth__logo { position: relative; flex-shrink: 0; width: 56px; height: 32px; overflow: hidden; }
 .auth__logo img { position: absolute; top: -69.51%; left: -19.44%; width: 138.89%; height: 243.9%; max-width: none; }
 .auth__name { font-size: 22px; font-weight: 700; color: var(--color-text); }
-.auth__name-2 { color: var(--color-primary); }
+.auth__name-n { color: var(--color-primary); }
 
 /* P2C/title: Bold 28px / 행간 38px */
 .auth__greeting { margin: 0; font-size: 28px; font-weight: 700; line-height: 38px; color: var(--color-text); }
@@ -48,3 +48,7 @@
 .auth__links a { color: var(--color-primary); font-weight: 500; text-decoration: none; }
 .auth__links a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 2px; }
 .auth .is-invalid .ui-field__input { border-color: var(--ui-error, #b3261e); } /* 비밀번호 규칙이 안 맞을 때 칸 테두리도 빨갛게 */
+/* 링크처럼 보이는 버튼 (비밀번호 찾기 준비 중 안내) */
+.auth__link-button { padding: 0; border: 0; background: none; font: inherit; color: var(--color-primary); font-weight: 500; cursor: pointer; }
+.auth__link-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 2px; }
+.auth__note { margin: 0; font-size: 15px; line-height: 22px; color: var(--color-muted); text-align: center; }

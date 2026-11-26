@@ -194,6 +194,18 @@
 }
 
 .pred-factors__arrow { flex-shrink: 0; font-size: 14px; }
+.pred-factors__text { flex: 1; min-width: 0; }
+
+/* 가감 나이 "+5살": 줄 오른쪽, 화살표와 같은 색 */
+.pred-factors__years {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pred-factors__years--UP { color: var(--pred-caution-text); }
+.pred-factors__years--DOWN { color: var(--pred-low-text); }
 .pred-factors__arrow--UP { color: var(--pred-caution-text); }
 .pred-factors__arrow--DOWN { color: var(--pred-low-text); }
 
@@ -206,6 +218,8 @@
   line-height: 1.55;
   color: var(--color-muted);
 }
+
+.pred-info + .pred-info { margin-top: 6px; } /* ℹ️ 두 줄이면 붙여서 */
 
 .pred-info__icon {
   flex-shrink: 0;

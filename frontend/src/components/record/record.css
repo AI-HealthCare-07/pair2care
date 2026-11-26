@@ -1,0 +1,88 @@
+/* frontend/src/components/record/record.css — 기록 탭 (Figma M07·M07-c). 색은 index.css 토큰 */
+
+.record-page {
+  padding: 56px 24px 24px; /* 식단 탭(meal-page)과 같은 위 여백 → 탭을 오가도 화면이 안 튐 */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--color-text);
+}
+
+.record-page__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ───── 항목 탭 (가로 스크롤) ───── */
+.record-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #e8eaf8;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.record-tabs::-webkit-scrollbar { display: none; }
+
+.record-tab {
+  flex: 0 0 auto;
+  min-width: 64px; /* Figma 탭 폭 64 */
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.record-tab--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.record-tab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* ───── 카드 ───── */
+.record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+.record-card__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.record-card__title { margin: 0; font-size: 18px; font-weight: 700; }
+
+.record-muted { margin: 0; color: var(--color-muted); font-size: 15px; }
+.record-card > .ui-btn { text-decoration: none; } /* Link에 버튼 모양을 입힌 것 → 밑줄 없앰 */
+.record-link { padding: 0; border: 0; background: none; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* ───── 그래프 ───── */
+.record-chart { margin: 0; }
+.record-chart svg { display: block; width: 100%; height: 120px; overflow: visible; }
+.record-chart__line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.record-chart__line--0 { stroke: var(--color-primary); }
+.record-chart__line--1 { stroke: var(--color-accent); }
+.record-chart__legend { display: flex; gap: 16px; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
+.record-chart__dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: middle; }
+.record-chart__dot--0 { background: var(--color-primary); }
+.record-chart__dot--1 { background: var(--color-accent); }
+
+/* ───── 최근 기록 목록 ───── */
+.record-list { margin: 0; padding: 0; list-style: none; }
+.record-list__row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--color-line); font-size: 16px; }
+.record-list__row:first-child { border-top: 0; }
+
+/* ───── 입력 화면 (M07-c, 하단 탭 없음) ───── */
+.record-form-screen { min-height: 100dvh; background: var(--color-bg); }
+.record-form { display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+.record-form__title { margin: 0; font-size: 24px; font-weight: 700; }
+.record-form__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.record-form__error { margin: 0; color: #b3261e; font-size: 15px; }
+
+/* 식단 탭(현지 님 MealsPage)은 flex 간격이 없어서 탭 아래만 띄움 */
+.meal-page > .record-tabs { margin-bottom: 16px; }
