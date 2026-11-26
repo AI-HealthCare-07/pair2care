@@ -21,7 +21,7 @@ function refreshAccessToken(): Promise<boolean> {
 
 async function requestRefresh(): Promise<boolean> {
   const res = await fetch(`${API_BASE}/auth/token/refresh`, {
-    method: 'GET',              // 지금 백엔드 기준. api.md 2-3대로 POST로 바뀌면 같이 바꿈
+    method: 'POST',             // 상태를 바꾸는 요청 (api.md 2-3)
     credentials: 'include',     // 쿠키(refresh_token)를 같이 보내라는 값
   })
   if (!res.ok) return false

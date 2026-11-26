@@ -60,14 +60,22 @@ async def login(
     return resp
 
 
-@auth_router.get("/token/refresh", response_model=TokenRefreshResponse, status_code=status.HTTP_200_OK)
+REFRESH_FAILED_DETAIL = "다시 로그인해 주세요."
+
+
+@auth_router.post("/token/refresh", response_model=TokenRefreshResponse, status_code=status.HTTP_200_OK)
 async def token_refresh(
     jwt_service: Annotated[JwtService, Depends(JwtService)],
     refresh_token: Annotated[str | None, Cookie()] = None,
 ) -> Response:
+    """2-3. 상태를 바꾸는 요청이라 POST. 쿠키가 없거나·만료·위조면 모두 401 → 프론트는 로그인 화면으로."""
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token is missing.")
-    access_token = jwt_service.refresh_jwt(refresh_token)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=REFRESH_FAILED_DETAIL)
+    try:
+        access_token = jwt_service.refresh_jwt(refresh_token)
+    except HTTPException:
+        # verify_jwt는 위조 토큰을 400으로 주는데, 갱신에선 만료와 똑같이 "다시 로그인" (api.md 2-3)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=REFRESH_FAILED_DETAIL) from None
     return Response(
         content=TokenRefreshResponse(access_token=str(access_token)).model_dump(), status_code=status.HTTP_200_OK
     )
