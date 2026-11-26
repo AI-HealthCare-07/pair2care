@@ -45,6 +45,7 @@ echo ""
 echo "${COLOR_BLUE}Docker login${COLOR_NC}"
 if ! docker login -u ${docker_user} -p ${docker_pw} ; then
   echo "${COLOR_RED}도커 로그인에 실패했습니다. 도커 유저네임과 비밀번호를 확인해주세요.${COLOR_NC}"
+  exit 1
 fi
 echo "${COLOR_GREEN}도커 로그인 성공!${COLOR_NC}"
 echo ""
@@ -72,12 +73,15 @@ for choice in $selections; do
       echo "${COLOR_BLUE}FastAPI 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "FastAPI 앱 버젼: " fastapi_version
       build_and_push ${docker_user} ${docker_repo} "FastAPI" ${fastapi_version} "app/Dockerfile" "."
+      # EC2 compose는 .env의 APP_VERSION 태그를 받으므로, 방금 올린 버전으로 맞춤 (안 맞추면 옛 이미지가 뜸)
+      sed -i '' "s/^APP_VERSION=.*/APP_VERSION=${fastapi_version}/" envs/.prod.env
       DEPLOY_SERVICES+=("fastapi")
       ;;
     2)
       echo "${COLOR_BLUE}AI-worker 앱의 배포 버젼을 입력하세요(ex. v1.0.0)${COLOR_NC}"
       read -p "AI-worker 앱 버젼: " ai_version
       build_and_push ${docker_user} ${docker_repo} "AI Worker" ${ai_version} "ai_worker/Dockerfile" "."
+      sed -i '' "s/^AI_WORKER_VERSION=.*/AI_WORKER_VERSION=${ai_version}/" envs/.prod.env
       DEPLOY_SERVICES+=("ai-worker")
       ;;
     3)
@@ -114,19 +118,26 @@ read -p "선택(ex. 1): " is_https
 echo ""
 
 # ---------- EC2 내에 배포 준비 파일 복사  ----------
+# 첫 배포면 폴더가 없어서 scp가 실패함 → 먼저 만듦
+ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} "mkdir -p ~/project/nginx ~/project/frontend"
 scp -i ~/.ssh/${ssh_key_file} envs/.prod.env ubuntu@${ec2_ip}:~/project/.env
 scp -i ~/.ssh/${ssh_key_file} infra/docker/docker-compose.prod.yml ubuntu@${ec2_ip}:~/project/docker-compose.yml
+# nginx 설정 복사본 (스크립트가 끝나면 지움)
+nginx_conf=$(mktemp)
+trap 'rm -f "${nginx_conf}"' EXIT
 if [[ "$is_https" == "1" ]] ; then
-  # ---------- prod_http.conf 파일의 server_name 자동 수정 ----------
-  sed -i '' "s/server_name .*/server_name ${ec2_ip};/g" infra/nginx/prod_http.conf
-  scp -i ~/.ssh/${ssh_key_file} infra/nginx/prod_http.conf ubuntu@${ec2_ip}:~/project/nginx/default.conf
+  # ---------- prod_http.conf의 server_name을 IP로 바꾼 복사본을 보냄 ----------
+  # 원본(git 추적 파일)을 직접 고치면 배포할 때마다 변경이 남아서 실수로 커밋될 수 있음 → 임시 파일에만 반영
+  sed "s/server_name .*/server_name ${ec2_ip};/g" infra/nginx/prod_http.conf > "${nginx_conf}"
+  scp -i ~/.ssh/${ssh_key_file} "${nginx_conf}" ubuntu@${ec2_ip}:~/project/nginx/default.conf
 else
   echo "${COLOR_BLUE} 사용중인 도메인을 입력하세요. (ex. api.ozcoding.site)${COLOR_NC}"
   read -p "Domain: " domain
-  # ---------- prod_https.conf 파일의 server_name, ssl_certificate 자동 수정 ----------
-  sed -i '' "s/server_name .*/server_name ${domain};/g" infra/nginx/prod_https.conf
-  sed -i '' "s|/etc/letsencrypt/live/[^/]*|/etc/letsencrypt/live/${domain}|g" infra/nginx/prod_https.conf
-  scp -i ~/.ssh/${ssh_key_file} infra/nginx/prod_https.conf ubuntu@${ec2_ip}:~/project/nginx/default.conf
+  # ---------- prod_https.conf의 server_name·인증서 경로를 도메인으로 바꾼 복사본을 보냄 (원본은 그대로) ----------
+  sed -e "s/server_name .*/server_name ${domain};/g" \
+      -e "s|/etc/letsencrypt/live/[^/]*|/etc/letsencrypt/live/${domain}|g" \
+      infra/nginx/prod_https.conf > "${nginx_conf}"
+  scp -i ~/.ssh/${ssh_key_file} "${nginx_conf}" ubuntu@${ec2_ip}:~/project/nginx/default.conf
 fi
 
 # ---------- 프론트 빌드 결과 복사 (3번 선택 시) ----------
@@ -150,10 +161,18 @@ ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} \
   echo "Docker login"
   docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PAT"
 
-  echo "Deploying services: $DEPLOY_SERVICES"
-  if [[ -n "$DEPLOY_SERVICES" ]]; then
+  if [[ -z "$(docker compose ps -q)" ]]; then
+    # 첫 배포(떠 있는 컨테이너 없음): mysql·redis까지 전부 띄움
+    echo "First deploy: starting all services"
+    docker compose up -d --pull always
+  elif [[ -n "$DEPLOY_SERVICES" ]]; then
+    echo "Deploying services: $DEPLOY_SERVICES"
     docker compose up -d --pull always --no-deps $DEPLOY_SERVICES
   fi
+
+  # 새 마이그레이션 반영. 이미 다 적용됐으면 아무것도 안 해서 매번 돌려도 안전함
+  echo "aerich upgrade"
+  docker compose exec -T fastapi uv run --no-sync aerich upgrade
 
   # 새 nginx 설정·프론트 마운트를 반영하려고 nginx 컨테이너를 항상 다시 만듦 (몇 초 끊김)
   docker compose up -d --no-deps --force-recreate nginx
