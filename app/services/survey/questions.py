@@ -273,13 +273,17 @@ def is_not_applicable_code(field: str, value: Any) -> bool:
     return value == skipped_code(field)
 
 
+# 21문항을 전부 묻는 설문 (EDIT는 가입 설문과 같은 문항·같은 검사, 정할 것 1번)
+FULL_SURVEY_KINDS: Final = frozenset({SurveyKind.ONBOARDING, SurveyKind.EDIT})
+
+
 def build_questions(kind: SurveyKind, previous: dict[str, Any] | None = None) -> dict[str, Any]:
     """3-6 응답 본문을 만든다.
 
-    WEEKLY는 재설문 문항만 남기고, 13·16번에 직전 행을 보고 ask_when_applicable을 붙인다.
+    ONBOARDING·EDIT는 21문항 전부, WEEKLY는 재설문 문항만 남기고 13·16번에 직전 행을 보고 ask_when_applicable을 붙인다.
     previous: 사용자의 직전 설문 행 값 (WEEKLY에 필요, 없는 경우는 호출 쪽에서 409로 막음)
     """
-    if kind == SurveyKind.ONBOARDING:
+    if kind in FULL_SURVEY_KINDS:
         questions = copy.deepcopy(QUESTIONS)
     else:
         if previous is None:

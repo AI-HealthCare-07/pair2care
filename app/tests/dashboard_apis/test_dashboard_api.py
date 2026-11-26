@@ -64,6 +64,7 @@ class TestDashboardAPI(TestCase):
                 "level": "CAUTION",
                 "prediction_id": survey.json()["predictions"][0]["id"],
                 "criteria_level": None,
+                "survey_kind": "ONBOARDING",
             }
         ]
         assert hypertension["points"][0]["score"] == 21
