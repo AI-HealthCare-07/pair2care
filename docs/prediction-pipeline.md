@@ -19,7 +19,7 @@ flowchart LR
     end
 
     subgraph G3["모델"]
-        M["로지스틱 JSON<br/>diabetes_risk:v1<br/>hypertension_risk:v1"]
+        M["로지스틱 JSON<br/>diabetes_risk:v2<br/>hypertension_risk:v2"]
         C["기준표 판정<br/>criteria.py<br/>검진 1년 이내만"]
     end
 

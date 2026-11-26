@@ -6,7 +6,8 @@
     uv run --env-file envs/.local.env --group ml python -m ml.compare
 
 - 데이터·분할은 train.py와 같은 함수(select_target·build_xy, 층화 80/20, 시드 42)를 그대로 씀
-- 비교 모델: 로지스틱(12개 입력) / 나이만 / 나이+BMI / XGBoost
+- 비교 모델: 로지스틱 / 나이만 / 나이+BMI / XGBoost. 로지스틱·XGBoost는 질환별 입력 9개
+  (train.py DiseaseConfig.features, 다른 질환 가족력 제외 — 서버 모델과 같은 입력이라야 공정한 비교)
 - 지표: 학습 세트 5-fold CV AUROC, 평가 세트 AUROC(부트스트랩 95% 신뢰구간)·AUPRC·Brier·보정 기울기,
   성별별 AUROC(신뢰구간), 위험 단계 지표(evaluate.level_metrics), 로지스틱 대비 AUROC 차이(짝지은 부트스트랩)
 - 원본·개별 자료는 출력·MLflow에 남기지 않음. 집계 숫자만
@@ -69,7 +70,7 @@ def make_xgboost() -> object:
     )
 
 
-# 모델 이름 → (쓸 입력 컬럼, 모델 만드는 함수). None이면 12개 입력 전부
+# 모델 이름 → (쓸 입력 컬럼, 모델 만드는 함수). None이면 넘겨받은 입력 전부 (main에서는 질환별 9개)
 MODELS: Final[dict[str, tuple[tuple[str, ...] | None, ModelFactory]]] = {
     BASE_MODEL: (None, make_logit),
     "age_only": (("age",), make_simple_logit),
@@ -235,6 +236,7 @@ def main() -> None:
 
     for disease, cfg in DISEASES.items():
         x, y = build_xy(select_target(raw, disease))
+        x = x[list(cfg.features)]  # 서버 모델과 같은 입력 9개 (로지스틱·XGBoost)
         with mlflow.start_run(run_name=f"compare:{cfg.model_version}"):
             results = compare_models(x, y)
             mlflow.log_params({"disease": cfg.code, "models": ",".join(MODELS), "n_bootstrap": N_BOOTSTRAP})

@@ -7,6 +7,8 @@
       → 학습 세트 5-fold CV + 평가 세트 지표 → 100% 재학습 → 서버 JSON(+ 같은 성별 평균) → MLflow
 - 원본·개별 자료는 레포·MLflow에 남기지 않음. 출력·기록은 인원·비율·지표·계수만
 - 결과 JSON은 MLflow artifacts(mlruns/, .gitignore)에 저장. 레포 model_files/ 교체는 따로 PR
+- 질환별 입력 9개: 다른 질환 가족력은 학습에서 빼고, 서버 JSON은 12개 틀을 유지한 채 그 3개만 계수 0
+  (11/26 v2. 노트북 셀 22–28: 성능 같음, 다른 질환 가족력의 작은 음수가 "위험을 낮춤" 계산을 만들어서 뺌)
 """
 
 import argparse
@@ -70,12 +72,20 @@ class DiseaseConfig:
     model_version: str
     file_name: str
     own_family_fields: tuple[str, ...]
+    other_family_fields: tuple[str, ...]  # 다른 질환 가족력: 학습에서 빼고 JSON에는 계수 0
+
+    @property
+    def features(self) -> tuple[str, ...]:
+        """이 질환 모델이 실제로 쓰는 입력 9개 (FEATURE_NAMES 순서에서 다른 질환 가족력만 뺌)."""
+        return tuple(name for name in FEATURE_NAMES if name not in self.other_family_fields)
 
 
 DISEASES: Final = {
-    "diabetes": DiseaseConfig("DIABETES", "diabetes_risk:v1", "diabetes.json", DIABETES_FAMILY_FIELDS),
+    "diabetes": DiseaseConfig(
+        "DIABETES", "diabetes_risk:v2", "diabetes.json", DIABETES_FAMILY_FIELDS, HYPERTENSION_FAMILY_FIELDS
+    ),
     "hypertension": DiseaseConfig(
-        "HYPERTENSION", "hypertension_risk:v1", "hypertension.json", HYPERTENSION_FAMILY_FIELDS
+        "HYPERTENSION", "hypertension_risk:v2", "hypertension.json", HYPERTENSION_FAMILY_FIELDS, DIABETES_FAMILY_FIELDS
     ),
 }
 
@@ -143,16 +153,14 @@ def make_logit() -> Pipeline:
     return make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=2000))
 
 
-def to_original_units(model: Pipeline) -> tuple[float, dict[str, float], dict[str, float]]:
-    """표준화한 계수 → 원래 단위 계수 (서버는 표준화 없이 계산). means = 학습 데이터 평균 (factors용)."""
+def to_original_units(model: Pipeline, names: list[str]) -> tuple[float, dict[str, float]]:
+    """표준화한 계수 → 원래 단위 계수 (서버는 표준화 없이 계산). names = 학습에 쓴 입력 (순서 같게)."""
     scaler, logit = model[0], model[-1]
     coef_scaled = logit.coef_[0]
     coef = coef_scaled / scaler.scale_
     intercept = float(logit.intercept_[0] - np.sum(coef_scaled * scaler.mean_ / scaler.scale_))
-    names = list(FEATURE_NAMES)
     coefficients = {name: float(value) for name, value in zip(names, coef, strict=True)}
-    means = {name: float(value) for name, value in zip(names, scaler.mean_, strict=True)}
-    return intercept, coefficients, means
+    return intercept, coefficients
 
 
 def server_probability(spec: dict[str, Any], x: pd.DataFrame) -> np.ndarray:
@@ -186,8 +194,12 @@ def evaluate_holdout(x: pd.DataFrame, y: pd.Series) -> dict[str, float]:
 
 def fit_final(x: pd.DataFrame, y: pd.Series, cfg: DiseaseConfig, run_id: str) -> dict[str, Any]:
     """100% 데이터로 다시 학습 → 서버 JSON. JSON 계산이 sklearn과 같은지 확인."""
-    model = make_logit().fit(x, y)
-    intercept, coefficients, means = to_original_units(model)
+    used = list(cfg.features)
+    model = make_logit().fit(x[used], y)
+    intercept, used_coefficients = to_original_units(model, used)
+    # 서버 JSON은 12개 틀 유지 (features.py FEATURE_NAMES): 안 쓰는 다른 질환 가족력은 계수 0
+    coefficients = {name: used_coefficients.get(name, 0.0) for name in FEATURE_NAMES}
+    means = {name: float(x[name].mean()) for name in FEATURE_NAMES}  # 학습 데이터 평균 (factors용)
     spec = to_server_json(
         model_version=cfg.model_version,
         disease=cfg.code,
@@ -196,7 +208,7 @@ def fit_final(x: pd.DataFrame, y: pd.Series, cfg: DiseaseConfig, run_id: str) ->
         means=means,
         mlflow_run_id=run_id,
     )
-    gap = float(np.abs(server_probability(spec, x) - model.predict_proba(x)[:, 1]).max())
+    gap = float(np.abs(server_probability(spec, x) - model.predict_proba(x[used])[:, 1]).max())
     if gap > 1e-9:
         raise ValueError(f"{cfg.code}: JSON 계산이 sklearn과 다름 (최대 차이 {gap:.2e})")
     return spec
@@ -208,7 +220,11 @@ def train_one(
 ) -> None:
     x, y = build_xy(select_target(raw, disease))
     with mlflow.start_run(run_name=cfg.model_version) as run:
-        metrics = {"n_total": float(len(x)), "positive_rate": float(y.mean()), **evaluate_holdout(x, y)}
+        metrics = {
+            "n_total": float(len(x)),
+            "positive_rate": float(y.mean()),
+            **evaluate_holdout(x[list(cfg.features)], y),
+        }
         spec = fit_final(x, y, cfg, run.info.run_id)
         wrong = count_wrong_sign(spec["coefficients"], cfg.own_family_fields)
         metrics["wrong_sign_count"] = float(wrong)
@@ -222,7 +238,7 @@ def train_one(
                 "seed": SEED,
                 "test_size": TEST_SIZE,
                 "C": C,
-                "features": ",".join(FEATURE_NAMES),
+                "features": ",".join(cfg.features),
             }
         )
         mlflow.set_tags(data_tags)
