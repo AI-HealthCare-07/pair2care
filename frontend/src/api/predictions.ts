@@ -115,6 +115,16 @@ export function getLatestPredictions(): Promise<LatestPredictionsResponse> {
   return request<LatestPredictionsResponse>('/risk-predictions/latest')
 }
 
+/**
+ * 5-5 다시 계산 (S-09 예측 실패 화면). 요청 본문 없음.
+ * 200 본문(3-1 예측 필드와 같은 모양)은 쓰지 않음: 200·409 모두 화면이 5-2를 다시 부름.
+ * 409 이미 계산됨 · 503 또 실패 · 404 설문 없음 → ApiError
+ */
+export async function retryPredictions(): Promise<void> {
+  const res = await apiFetch('/risk-predictions/retry', { method: 'POST' })
+  if (!res.ok) throw await toApiError(res)
+}
+
 /** 5-3 예측 상세 */
 export function getPrediction(id: number): Promise<PredictionDetail> {
   return request<PredictionDetail>(`/risk-predictions/${encodeURIComponent(String(id))}`)

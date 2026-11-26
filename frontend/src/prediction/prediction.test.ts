@@ -1,19 +1,29 @@
 // frontend/src/prediction/prediction.test.ts
 // S-09 화면 상태(view)·건강 나이 문구(healthAge)·요인 문구(labels)·가짜 API 모양
-// 근거: api.md 5-2·5-3, #102(건강 나이), #107(요인에서 나이 제외·문구 14개), 11/25 팀장님·현영 님·성은 님 답
+// 근거: api.md 5-2·5-3·5-5, #102(건강 나이), #107(요인에서 나이 제외·문구 14개), 11/25 팀장님·현영 님·성은 님 답
 
 import { beforeAll, describe, expect, it } from 'vitest'
+import { ApiError } from '../api/client'
 import type { HealthAge, LatestPrediction, LatestPredictionsResponse } from '../api/predictions'
 import {
   getLatestPredictions,
   getPrediction,
+  retryPredictions,
   setMockPredictionDelay,
   setMockPredictionScenario,
 } from '../api/predictions.mock'
 import { MOCK_PREDICTION_SCENARIOS } from '../api/predictions.mockScenarios'
 import { decadeOf, healthAgeLine } from './healthAge'
-import { DISEASE_ORDER, factorText, LEVEL_LABEL, yearsText } from './labels'
-import { buildPredictionView, CAUTION_MIN_SCORE, factorLines, GAUGE_LABEL_PERCENT, gaugePercent, HIGH_MIN_SCORE } from './view'
+import { DISEASE_ORDER, FAILED_MESSAGE, factorText, LEVEL_LABEL, yearsText } from './labels'
+import {
+  buildPredictionView,
+  CAUTION_MIN_SCORE,
+  factorLines,
+  GAUGE_LABEL_PERCENT,
+  gaugePercent,
+  HIGH_MIN_SCORE,
+  retryFailureAction,
+} from './view'
 
 const row = (overrides: Partial<LatestPrediction>): LatestPrediction => ({
   id: 1,
@@ -271,5 +281,50 @@ describe('가짜 API (predictions.mock)', () => {
   it('없는 id는 404', async () => {
     setMockPredictionScenario('normal')
     await expect(getPrediction(999)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('다시 계산 (5-5)', () => {
+  beforeAll(() => setMockPredictionDelay(0))
+
+  it.each([
+    [409, 'RELOAD'],
+    [404, 'ONBOARDING'],
+    [401, 'LOGIN'],
+    [503, 'STAY_FAILED'],
+    [0, 'STAY_FAILED'], // 시간 초과(#130)
+    [500, 'STAY_FAILED'],
+  ] as const)('%i → %s', (status, action) => {
+    expect(retryFailureAction(new ApiError(status, '문구'))).toBe(action)
+  })
+
+  it('ApiError가 아니면(연결 끊김 등) 실패 화면 그대로', () => {
+    expect(retryFailureAction(new TypeError('Failed to fetch'))).toBe('STAY_FAILED')
+  })
+
+  it('문구에 "준비 중"이 남아 있지 않음', () => {
+    expect(FAILED_MESSAGE).not.toContain('준비 중')
+  })
+
+  it('가짜 failed: 다시 계산 성공 → 5-2가 결과로 바뀌고, 다시 부르면 409', async () => {
+    setMockPredictionScenario('failed')
+    setMockPredictionScenario('normal')
+    setMockPredictionScenario('failed') // 다른 경우를 거쳐 처음 상태로
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('FAILED')
+    await retryPredictions()
+    setMockPredictionScenario('failed') // 화면이 다시 불러올 때처럼 같은 이름으로 불러도 유지
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('RESULT')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('가짜 failed_again: 503이고 실패 그대로', async () => {
+    setMockPredictionScenario('failed_again')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 503 })
+    expect(buildPredictionView(await getLatestPredictions()).kind).toBe('FAILED')
+  })
+
+  it('가짜 no_survey: 404', async () => {
+    setMockPredictionScenario('no_survey')
+    await expect(retryPredictions()).rejects.toMatchObject({ status: 404 })
   })
 })

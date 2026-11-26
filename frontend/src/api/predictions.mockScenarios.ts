@@ -10,7 +10,8 @@ export const MOCK_PREDICTION_SCENARIOS = [
   'managed_both', // 둘 다 관리 중
   'pregnant', // 일반 안내 (M04-b)
   'age_out', // 일반 안내 (M04-b)
-  'failed', // 예측 실패 (행 없음 + 관리 중 없음 + skipped_reason null)
+  'failed', // 예측 실패 (행 없음 + 관리 중 없음 + skipped_reason null). "다시 계산"하면 성공 → normal 결과
+  'failed_again', // 예측 실패 + "다시 계산"도 503 → 실패 화면 그대로 + 안내 문구
   'partial_failed', // 고혈압만 행이 있고 당뇨는 실패
   'checkup', // 기준표 행 + 대사증후군 (12/4 범위 확인용)
   'no_survey', // 5-2 404
