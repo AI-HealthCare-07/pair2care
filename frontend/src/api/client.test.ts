@@ -2,7 +2,7 @@
 // apiFetch 시간 제한: 서버가 멈추면 ApiError(0, TIMEOUT), 화면이 취소한 건 그대로 AbortError
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiFetch, onSessionExpired, TIMEOUT_DETAIL } from './client'
+import { anySignal, ApiError, apiFetch, onSessionExpired, TIMEOUT_DETAIL } from './client'
 
 // 응답 없이 멈춘 서버: signal이 끊길 때만 reject
 function hangingFetch(_url: string, init: RequestInit): Promise<Response> {
@@ -75,5 +75,37 @@ describe('세션 만료 알림', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect((await apiFetch('/users/me')).status).toBe(200)
     expect(listener).not.toHaveBeenCalled()
+  })
+})
+
+describe('anySignal (AbortSignal.any 없는 브라우저)', () => {
+  function withoutAny(run: () => void) {
+    const original = AbortSignal.any
+    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true })
+    try {
+      run()
+    } finally {
+      Object.defineProperty(AbortSignal, 'any', { value: original, configurable: true })
+    }
+  }
+
+  it('둘 중 먼저 끊긴 쪽의 이유로 끊김', () => {
+    withoutAny(() => {
+      const a = new AbortController()
+      const b = new AbortController()
+      const merged = anySignal([a.signal, b.signal])
+      expect(merged.aborted).toBe(false)
+      b.abort('timeout')
+      expect(merged.aborted).toBe(true)
+      expect(merged.reason).toBe('timeout')
+    })
+  })
+
+  it('이미 끊긴 신호가 있으면 바로 끊김', () => {
+    withoutAny(() => {
+      const a = new AbortController()
+      a.abort('gone')
+      expect(anySignal([a.signal, new AbortController().signal]).reason).toBe('gone')
+    })
   })
 })

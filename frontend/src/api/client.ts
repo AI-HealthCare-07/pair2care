@@ -5,10 +5,24 @@ const TIMEOUT_MS = 10_000
 const UPLOAD_TIMEOUT_MS = 30_000
 export const TIMEOUT_DETAIL = '서버 응답이 늦어요. 잠시 후 다시 시도해 주세요.'
 
+// AbortSignal.any는 Safari 17.4부터라, 없으면 컨트롤러 하나에 두 신호를 이어 붙임 (#130 현지 님 리뷰)
+export function anySignal(signals: AbortSignal[]): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any(signals)
+  const controller = new AbortController()
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      break
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+  }
+  return controller.signal
+}
+
 // 화면이 넘긴 signal(페이지 이동 취소)과 시간 제한 중 먼저 오는 쪽으로 끊음. 시간 초과만 ApiError(0, TIMEOUT)로 바꿈
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const timeout = AbortSignal.timeout(timeoutMs)
-  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+  const signal = init.signal ? anySignal([init.signal, timeout]) : timeout
   try {
     return await fetch(url, { ...init, signal })
   } catch (problem) {
