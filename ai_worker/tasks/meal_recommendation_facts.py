@@ -23,5 +23,12 @@ BROTH_MODEL_LABELS = frozenset(
 )
 
 
+NON_BROTH_MODEL_LABELS = frozenset({"간장게장", "닭볶음탕"})
+
+
+def is_non_broth_model_label(label: str | None) -> bool:
+    return label in NON_BROTH_MODEL_LABELS
+
+
 def is_broth_model_label(label: str | None) -> bool:
     return label in BROTH_MODEL_LABELS

@@ -18,7 +18,7 @@ from tortoise.transactions import in_transaction
 from ai_worker.core import config
 from ai_worker.tasks.daily_action_facts import gather_daily_action_facts
 from ai_worker.tasks.llm_recommendation import MODEL, ClaudeCallError, RecommendationResult, generate_recommendation
-from ai_worker.tasks.meal_recommendation_facts import is_broth_model_label
+from ai_worker.tasks.meal_recommendation_facts import is_broth_model_label, is_non_broth_model_label
 from app.core.db.databases import TORTOISE_ORM
 from app.models.llm_usage_logs import LlmUsageLog
 from app.models.recommendations import GenerationStatus, Recommendation, RecommendationType
@@ -75,6 +75,7 @@ async def _gather_facts(rec: Recommendation) -> dict[str, Any]:
     )
     facts["is_drink"] = row["category"] == "DRINK"
     facts["is_broth_dish"] = is_broth_model_label(row["model_label"])
+    facts["is_non_broth_dish"] = is_non_broth_model_label(row["model_label"])
     facts["portion"] = row["portion"]
     return facts
 
