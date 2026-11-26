@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_RECORD_KIND, formatLogValue, parseFieldValue, RECORD_TYPES, recordTypeOf } from './recordTypes'
-import { chartLines, logTimeLabel, nowInSeoulInput } from './recordView'
+import { chartLines, dayPosition, logTimeLabel, nowInSeoulInput } from './recordView'
 
 describe('recordTypes', () => {
   it('탭 순서는 Figma M07 (혈압·혈당·체중·걸음·운동·음주), 기본은 혈압', () => {
@@ -32,15 +32,31 @@ describe('recordTypes', () => {
 })
 
 describe('chartLines', () => {
-  it('두 줄을 같은 눈금으로 (큰 값이 위)', () => {
-    const [systolic, diastolic] = chartLines([[140, 120], [90, 80]], 100, 100, 0)
+  it('두 줄을 같은 눈금으로 (큰 값이 위), x는 날짜 위치', () => {
+    const [systolic, diastolic] = chartLines(
+      [
+        [{ x: 0, y: 140 }, { x: 1, y: 120 }],
+        [{ x: 0, y: 90 }, { x: 1, y: 80 }],
+      ],
+      100,
+      100,
+      0,
+    )
     expect(systolic).toBe('0,0 100,33.3')
     expect(diastolic).toBe('0,83.3 100,100')
   })
 
-  it('점 하나·같은 값이면 가운데, 기록이 없으면 빈 줄', () => {
-    expect(chartLines([[70]], 100, 60, 0)).toEqual(['50,30'])
+  it('같은 값이면 가운데 높이, 기록이 없으면 빈 줄', () => {
+    expect(chartLines([[{ x: 0.5, y: 70 }]], 100, 60, 0)).toEqual(['50,30'])
     expect(chartLines([[]], 100, 60)).toEqual([''])
+  })
+})
+
+describe('dayPosition (빠진 날은 간격이 벌어짐, #139 리뷰)', () => {
+  it('시작일 0, 13일째 1, 그 사이는 비율', () => {
+    expect(dayPosition('2026-11-13', '2026-11-13')).toBe(0)
+    expect(dayPosition('2026-11-26', '2026-11-13')).toBe(1)
+    expect(dayPosition('2026-11-19', '2026-11-13')).toBeCloseTo(6 / 13)
   })
 })
 
