@@ -1,7 +1,8 @@
 // frontend/src/api/predictions.mock.ts
 // 백엔드 없이 S-09를 만들 때 쓰는 가짜 예측 API (predictions.ts와 함수 이름·시그니처가 같음).
 // 응답 모양은 api.md 5-2·5-3과 서버 views.py 그대로. 점수·요인·건강 나이는 화면 확인용 가짜 값.
-// 요인 예시는 #107에서 진짜 v1 모델로 계산한 45세 남성 결과(bmi → 아버지/어머니 가족력 → 음주 빈도)를 따름.
+// 요인 예시는 #121에서 진짜 v1 모델로 계산한 45세 남성 당뇨 결과(아버지 가족력 +5 → bmi +3 …)를 따름.
+// years: 조회 때 계산한 가감 나이. means_by_sex가 없거나 예전 행이면 null (similar·health_age_null 경우)
 
 import { ApiError } from './client'
 import type {
@@ -84,14 +85,14 @@ function build(name: MockPredictionScenario): MockData {
         latest: empty({ predictions: [dm, htn] }),
         details: [
           modelDetail(dm, [
-            { feature: 'bmi', direction: 'UP' },
-            { feature: 'father_diabetes_history', direction: 'UP' },
-            { feature: 'smoking_current', direction: 'DOWN' },
+            { feature: 'father_diabetes_history', direction: 'UP', years: 5 },
+            { feature: 'bmi', direction: 'UP', years: 3 },
+            { feature: 'smoking_current', direction: 'DOWN', years: -2 },
           ], true),
           modelDetail(htn, [
-            { feature: 'bmi', direction: 'UP' },
-            { feature: 'mother_hypertension_history', direction: 'UP' },
-            { feature: 'alcohol_frequency', direction: 'UP' },
+            { feature: 'bmi', direction: 'UP', years: 4 },
+            { feature: 'mother_hypertension_history', direction: 'UP', years: 3 },
+            { feature: 'alcohol_frequency', direction: 'UP', years: 1 },
           ], true),
         ],
       }
@@ -103,7 +104,7 @@ function build(name: MockPredictionScenario): MockData {
         latest: empty({ predictions: [dm, htn] }),
         details: [
           // age는 #107 전에 저장된 행처럼 섞어 둠 → 화면은 건너뛰어야 함
-          modelDetail(dm, [{ feature: 'age', direction: 'UP' }, { feature: 'bmi', direction: 'UP' }]),
+          modelDetail(dm, [{ feature: 'age', direction: 'UP', years: null }, { feature: 'bmi', direction: 'UP', years: null }]),
           modelDetail(htn, []),
         ],
       }
@@ -115,10 +116,10 @@ function build(name: MockPredictionScenario): MockData {
         latest: empty({ predictions: [dm, htn] }),
         details: [
           modelDetail(dm, [
-            { feature: 'bmi', direction: 'UP' },
-            { feature: 'alcohol_amount', direction: 'DOWN' },
+            { feature: 'bmi', direction: 'UP', years: null },
+            { feature: 'alcohol_amount', direction: 'DOWN', years: null },
           ]),
-          modelDetail(htn, [{ feature: 'sibling_hypertension_history', direction: 'DOWN' }]),
+          modelDetail(htn, [{ feature: 'sibling_hypertension_history', direction: 'DOWN', years: null }]),
         ],
       }
     }
@@ -126,7 +127,7 @@ function build(name: MockPredictionScenario): MockData {
       const htn = modelRow(82, 'HYPERTENSION', 31, 'CAUTION', AGE(40))
       return {
         latest: empty({ predictions: [htn], managed_diseases: ['DIABETES'] }),
-        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }, { feature: 'alcohol_amount', direction: 'UP' }])],
+        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP', years: 2 }, { feature: 'alcohol_amount', direction: 'UP', years: 1 }])],
       }
     }
     case 'managed_both':
@@ -141,7 +142,7 @@ function build(name: MockPredictionScenario): MockData {
       const htn = modelRow(92, 'HYPERTENSION', 45, 'CAUTION', AGE(50))
       return {
         latest: empty({ predictions: [htn] }),
-        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }])],
+        details: [modelDetail(htn, [{ feature: 'bmi', direction: 'UP', years: 3 }])],
       }
     }
     case 'checkup': {
@@ -163,8 +164,8 @@ function build(name: MockPredictionScenario): MockData {
           metabolic_syndrome: { status: 'UNKNOWN', met_count: 2, missing: ['triglyceride', 'hdl_cholesterol'] },
         }),
         details: [
-          modelDetail(dm, [{ feature: 'bmi', direction: 'UP' }]),
-          modelDetail(htn, [{ feature: 'bmi', direction: 'UP' }, { feature: 'father_hypertension_history', direction: 'UP' }]),
+          modelDetail(dm, [{ feature: 'bmi', direction: 'UP', years: 2 }]),
+          modelDetail(htn, [{ feature: 'father_hypertension_history', direction: 'UP', years: 4 }, { feature: 'bmi', direction: 'UP', years: 2 }]),
           {
             id: 103,
             disease: 'HYPERTENSION',

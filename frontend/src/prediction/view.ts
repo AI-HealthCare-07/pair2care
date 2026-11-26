@@ -2,7 +2,7 @@
 // 5-2 응답 → S-09가 그릴 화면 상태. 화면 컴포넌트는 이 결과만 보고 그림 (API 규칙 해석은 여기 한 곳에서).
 
 import type { Disease, Factor, LatestPrediction, LatestPredictionsResponse, SkippedReason } from '../api/predictions'
-import { DISEASE_ORDER, factorText } from './labels'
+import { DISEASE_ORDER, factorText, yearsText } from './labels'
 
 export type DiseaseCard =
   | { kind: 'RESULT'; disease: Disease; model: LatestPrediction; checkup: LatestPrediction | null }
@@ -58,6 +58,7 @@ export interface FactorLine {
   feature: string
   direction: Factor['direction']
   text: string
+  years: string | null // "+5살" · "−1살", 없으면 null (숫자 숨김)
 }
 
 /** 요인 → 화면 줄. 모르는 feature는 건너뜀, 최대 3개 (빈 배열이면 화면에서 요인 부분 숨김) */
@@ -65,7 +66,7 @@ export function factorLines(factors: Factor[] | null): FactorLine[] {
   const lines: FactorLine[] = []
   for (const factor of factors ?? []) {
     const text = factorText(factor)
-    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text })
+    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text, years: yearsText(factor.years) })
   }
   return lines.slice(0, 3)
 }
