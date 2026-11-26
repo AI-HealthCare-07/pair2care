@@ -328,13 +328,15 @@ S-11 재설문 기본값 채우기, S-27 마이
 
 ### 3-3. 설문 이력 `GET /api/v1/health-profiles?kind=WEEKLY&limit=20&cursor=`
 - `kind` 생략 시 전체. 응답은 공통 목록 형식. 각 항목은 `id, kind, weight_kg, waist_cm, created_at`만(가벼운 목록), 상세는 3-5
+- 응답 시각 최신순, 같은 시각이면 나중에 넣은 것 먼저. `limit` 1~50(기본 20). 커서는 마지막 행의 id
+- 내 설문이 아니거나 없는 id를 커서로 보내면 처음부터가 아니라 **404** `"설문 기록을 찾을 수 없어요."` (4-2와 같음)
 
 ### 3-4. 가입 설문 정보 수정 (S-27)
 - 행을 고치지 않고 **새 행을 쌓는 게 원칙**(예측 이력의 `health_profile_id`가 가리키는 값이 바뀌면 안 됨)
 - 그래서 마이에서 "설문 수정" = `POST /health-profiles` with `kind: "WEEKLY"` + 키·가족력까지 모두 받는 전체 모드 → **정할 것 1번**
 
 ### 3-5. 설문 한 건 `GET /api/v1/health-profiles/{id}`
-- 응답 200: `health_profile` 형태. 남의 것이면 404
+- 응답 200: `health_profile` 형태. 남의 것이거나 없으면 **404** `"설문 기록을 찾을 수 없어요."`
 
 ### 3-6. 설문 문항 정의 `GET /api/v1/health-profiles/questions?kind=ONBOARDING`
 S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
