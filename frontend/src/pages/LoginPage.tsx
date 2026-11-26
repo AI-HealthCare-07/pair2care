@@ -2,17 +2,20 @@
 // S-04 로그인 (Figma M14). 실패하면 비밀번호 아래 주의 문구, 성공하면 설문 여부에 따라 S-06 또는 홈
 
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/auth/AuthLayout'
 import Button from '../components/common/Button'
 import Input from '../components/common/Input'
 import { login } from '../api/auth'
 import { ApiError } from '../api/client'
+import { afterLoginPath, fromState } from '../auth/redirect'
 import { useAuth } from '../auth/useAuth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { reload } = useAuth()
+  const [forgotOpen, setForgotOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [alert, setAlert] = useState<string[] | null>(null) // 오류 문구 줄들
@@ -29,7 +32,7 @@ export default function LoginPage() {
     try {
       const result = await login(email.trim(), password)
       await reload()
-      navigate(result.has_health_profile ? '/home' : '/onboarding', { replace: true })
+      navigate(afterLoginPath(fromState(location.state), result.has_health_profile), { replace: true }) // 보려던 화면이 있으면 거기로
     } catch (err) {
       setAlert(toAlert(err))
     } finally {
@@ -48,11 +51,18 @@ export default function LoginPage() {
             {loading ? '로그인하고 있어요' : '로그인'}
           </Button>
           <div className="auth__links auth__links--spread">
-            {/* shortcut: 비밀번호 찾기(S-05, P2) 화면은 아직 없어서 404로 감. S-05 만들 때 연결 */}
-            <Link to="/password/forgot">비밀번호를 잊으셨나요?</Link>
+            {/* 비밀번호 찾기(S-05, P2) 화면이 생기기 전까지는 404 대신 준비 중 안내 */}
+            <button type="button" className="auth__link-button" aria-expanded={forgotOpen} onClick={() => setForgotOpen(true)}>
+              비밀번호를 잊으셨나요?
+            </button>
             <span aria-hidden="true">·</span>
             <Link to="/signup">회원가입</Link>
           </div>
+          {forgotOpen && (
+            <p className="auth__note" role="status">
+              비밀번호 찾기는 준비 중이에요. 운영진에게 문의해 주세요.
+            </p>
+          )}
         </>
       }
     >
