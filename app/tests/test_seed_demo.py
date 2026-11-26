@@ -1,14 +1,18 @@
 """scripts/seed_demo.py: 데모 시드가 서비스 규칙이 바뀌어도 계속 돌아가는지 (가상 데이터, 테스트 DB)."""
 
+import asyncio
+import os
 from datetime import datetime
+from unittest.mock import patch
 
+import pytest
 from tortoise.contrib.test import TestCase
 
 from app.models.health_logs import HealthLog, HealthLogType
 from app.models.risk_predictions import Disease, PredictionMethod, RiskPrediction
 from app.models.users import User
 from app.services.health_log_rules import KST
-from scripts.seed_demo import DEMO_EMAIL, seed
+from scripts.seed_demo import DEMO_EMAIL, main, seed
 
 NOW = datetime(2026, 11, 26, 10, 0, tzinfo=KST)
 
@@ -37,3 +41,11 @@ class TestSeedDemo(TestCase):
         steps = await HealthLog.filter(user_id=second.user_id, log_type=HealthLogType.STEPS).count()
         assert steps == 29  # 28일 전 ~ 오늘, 하루 1행
         assert all(log.measured_at <= NOW for log in await HealthLog.filter(user_id=second.user_id))
+
+
+def test_main_stops_without_demo_password() -> None:
+    # 공개 레포라 비밀번호 기본값을 두지 않음 → 없으면 DB에 닿기 전에 멈춤
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("DEMO_PASSWORD", None)
+        with pytest.raises(SystemExit, match="DEMO_PASSWORD"):
+            asyncio.run(main())

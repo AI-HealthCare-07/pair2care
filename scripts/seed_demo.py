@@ -3,10 +3,10 @@
 **가상 데이터만** 넣음 (실제 사람·국건영 원본 아님). 로컬·스테이징 전용이라 ENV=prod면 실행하지 않음.
 
 실행 (레포 루트, MySQL이 떠 있고 aerich upgrade를 마친 상태):
-    DB_HOST=localhost uv run --env-file envs/.local.env python -m scripts.seed_demo
+    DEMO_PASSWORD='원하는 비밀번호' DB_HOST=localhost uv run --env-file envs/.local.env python -m scripts.seed_demo
 
 - 같은 이메일의 데모 사용자가 있으면 지우고 다시 만듦 (몇 번 돌려도 결과가 같음)
-- 비밀번호는 DEMO_PASSWORD 환경 변수, 없으면 기본값 (로컬 데모용. 배포 DB에선 꼭 바꿔서 실행)
+- 비밀번호는 DEMO_PASSWORD 환경 변수로만 받음 (레포가 공개라 코드에 두지 않음, 없으면 멈춤)
 - 설문·검진은 서비스(3-1·4-1)로 저장해서 실제 모델로 예측한 뒤, 저장 시각만 과거로 옮김
 - 건강 기록은 4주치를 바로 넣음 (6-4 주간 기록은 API로는 이번 주·지난주만 저장돼서)
 """
@@ -40,8 +40,7 @@ from app.services.health_log_rules import KST, RULES
 from app.services.health_profiles import HealthProfileService
 from app.services.survey.questions import SURVEY_VERSION, WEEKLY_FIELDS
 
-DEMO_EMAIL: Final = "demo@pair2care.dev"
-DEFAULT_DEMO_PASSWORD: Final = "Demo1234!"  # 로컬 데모용 공개 값. 배포 DB에선 DEMO_PASSWORD로 바꿔서
+DEMO_EMAIL: Final = "demo@example.com"  # 예약 도메인 (실제로 등록될 수 없는 주소)
 WEEKS: Final = 4
 RANDOM_SEED: Final = 42
 
@@ -82,7 +81,7 @@ CHECKUP_DAYS_AGO: Final = 26
 CHECKUP_VALUES: Final[dict[str, Any]] = {
     "systolic_bp": 136,
     "diastolic_bp": 86,
-    "fasting_glucose": 98,
+    "fasting_glucose": 104,  # 공복혈당장애(100~125) → 당뇨 기준표도 "주의" (설문 모델 높음과 같은 방향)
     "waist_cm": 94.0,
 }
 
@@ -244,9 +243,12 @@ async def seed(now: datetime, password: str) -> SeedSummary:
 async def main() -> None:
     if config.ENV == Env.PROD:
         raise SystemExit("ENV=prod에서는 데모 시드를 넣지 않아요.")
+    password = os.environ.get("DEMO_PASSWORD")
+    if not password:
+        raise SystemExit("DEMO_PASSWORD 환경 변수가 없어요. 데모 계정 비밀번호를 정해서 같이 넘겨 주세요.")
     await Tortoise.init(config=TORTOISE_ORM)
     try:
-        summary = await seed(datetime.now(KST), os.environ.get("DEMO_PASSWORD", DEFAULT_DEMO_PASSWORD))
+        summary = await seed(datetime.now(KST), password)
     finally:
         await Tortoise.close_connections()
     logger.info(
