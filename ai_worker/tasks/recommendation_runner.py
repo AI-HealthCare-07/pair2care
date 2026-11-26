@@ -16,6 +16,7 @@ from tortoise.exceptions import OperationalError
 from tortoise.transactions import in_transaction
 
 from ai_worker.core import config
+from ai_worker.tasks.daily_action_facts import gather_daily_action_facts
 from ai_worker.tasks.llm_recommendation import MODEL, ClaudeCallError, RecommendationResult, generate_recommendation
 from app.core.db.databases import TORTOISE_ORM
 from app.models.llm_usage_logs import LlmUsageLog
@@ -45,17 +46,11 @@ def _estimated_cost(result: RecommendationResult) -> Decimal | None:
 
 
 async def _gather_facts(rec: Recommendation) -> dict[str, Any]:
+    if rec.rec_type == RecommendationType.DAILY_ACTION:
+        return await gather_daily_action_facts(rec.user_id, rec.target_on)
+
     db = Recommendation._meta.db
     try:
-        if rec.rec_type == RecommendationType.DAILY_ACTION:
-            # TODO: health_logs 모델이 병합되면 최근 생활 기록도 추천 입력에 포함한다.
-            rows = await db.execute_query_dict(
-                """SELECT is_hypertension_diagnosed, is_diabetes_diagnosed
-                   FROM health_profiles WHERE user_id=%s ORDER BY created_at DESC, id DESC LIMIT 1""",
-                [rec.user_id],
-            )
-            return rows[0] if rows else {}
-
         rows = await db.execute_query_dict(
             """SELECT f.name, m.category, m.portion, m.nutrients
                FROM meals m JOIN foods f ON f.id=m.food_id
@@ -63,7 +58,7 @@ async def _gather_facts(rec: Recommendation) -> dict[str, Any]:
             [rec.meal_id, rec.user_id],
         )
     except OperationalError as exc:
-        # develop에 팀의 테이블이 들어오기 전까지는 근거 부족으로 처리한다.
+        # 식단 테이블이 아직 들어오지 않은 경우에만 근거 부족으로 처리한다.
         if exc.args and getattr(exc.args[0], "args", ())[:1] == (1146,):
             return {}
         raise
