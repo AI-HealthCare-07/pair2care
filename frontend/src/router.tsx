@@ -10,6 +10,7 @@ import ChallengesPage from './pages/ChallengesPage'
 import ChallengeDetailPage from './pages/ChallengeDetailPage'
 import PairsPage from './pages/PairsPage'
 import RecordsPage from './pages/RecordsPage'
+import RecordFormPage from './pages/RecordFormPage'
 import MealsPage from './pages/MealsPage'
 import MealPickPage from './pages/MealPickPage'
 import MyPage from './pages/MyPage'
@@ -39,11 +40,13 @@ export const router = createBrowserRouter([
           { path: '/challenges/:id', element: <ChallengeDetailPage /> },
           { path: '/pairs', element: <PairsPage /> },
           { path: '/records', element: <RecordsPage /> },
+          { path: '/records/:kind', element: <RecordsPage /> },        // S-19 항목별 탭 (식단은 아래 /records/meals가 먼저 잡음)
           { path: '/records/meals', element: <MealsPage /> },
           { path: '/my', element: <MyPage /> },
         ],
       },
       { path: '/records/meals/:id', element: <MealPickPage /> },
+      { path: '/records/:kind/new', element: <RecordFormPage /> },   // 기록 입력 (M07-c, 하단 탭 없음)
     ],
   },
   { path: '*', element: <NotFoundPage /> },   // 위에 없는 "모든 주소"
