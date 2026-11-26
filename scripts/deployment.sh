@@ -122,17 +122,22 @@ echo ""
 ssh -i ~/.ssh/${ssh_key_file} ubuntu@${ec2_ip} "mkdir -p ~/project/nginx ~/project/frontend"
 scp -i ~/.ssh/${ssh_key_file} envs/.prod.env ubuntu@${ec2_ip}:~/project/.env
 scp -i ~/.ssh/${ssh_key_file} infra/docker/docker-compose.prod.yml ubuntu@${ec2_ip}:~/project/docker-compose.yml
+# nginx 설정 복사본 (스크립트가 끝나면 지움)
+nginx_conf=$(mktemp)
+trap 'rm -f "${nginx_conf}"' EXIT
 if [[ "$is_https" == "1" ]] ; then
-  # ---------- prod_http.conf 파일의 server_name 자동 수정 ----------
-  sed -i '' "s/server_name .*/server_name ${ec2_ip};/g" infra/nginx/prod_http.conf
-  scp -i ~/.ssh/${ssh_key_file} infra/nginx/prod_http.conf ubuntu@${ec2_ip}:~/project/nginx/default.conf
+  # ---------- prod_http.conf의 server_name을 IP로 바꾼 복사본을 보냄 ----------
+  # 원본(git 추적 파일)을 직접 고치면 배포할 때마다 변경이 남아서 실수로 커밋될 수 있음 → 임시 파일에만 반영
+  sed "s/server_name .*/server_name ${ec2_ip};/g" infra/nginx/prod_http.conf > "${nginx_conf}"
+  scp -i ~/.ssh/${ssh_key_file} "${nginx_conf}" ubuntu@${ec2_ip}:~/project/nginx/default.conf
 else
   echo "${COLOR_BLUE} 사용중인 도메인을 입력하세요. (ex. api.ozcoding.site)${COLOR_NC}"
   read -p "Domain: " domain
-  # ---------- prod_https.conf 파일의 server_name, ssl_certificate 자동 수정 ----------
-  sed -i '' "s/server_name .*/server_name ${domain};/g" infra/nginx/prod_https.conf
-  sed -i '' "s|/etc/letsencrypt/live/[^/]*|/etc/letsencrypt/live/${domain}|g" infra/nginx/prod_https.conf
-  scp -i ~/.ssh/${ssh_key_file} infra/nginx/prod_https.conf ubuntu@${ec2_ip}:~/project/nginx/default.conf
+  # ---------- prod_https.conf의 server_name·인증서 경로를 도메인으로 바꾼 복사본을 보냄 (원본은 그대로) ----------
+  sed -e "s/server_name .*/server_name ${domain};/g" \
+      -e "s|/etc/letsencrypt/live/[^/]*|/etc/letsencrypt/live/${domain}|g" \
+      infra/nginx/prod_https.conf > "${nginx_conf}"
+  scp -i ~/.ssh/${ssh_key_file} "${nginx_conf}" ubuntu@${ec2_ip}:~/project/nginx/default.conf
 fi
 
 # ---------- 프론트 빌드 결과 복사 (3번 선택 시) ----------
