@@ -159,12 +159,12 @@ class TestRecommendations(TruncationTestCase):
         user = await User.get(email=EMAIL)
         await db.execute_script(
             """
-            CREATE TABLE foods (id BIGINT PRIMARY KEY, name VARCHAR(150) NOT NULL);
+            CREATE TABLE foods (id BIGINT PRIMARY KEY, name VARCHAR(150) NOT NULL, model_label VARCHAR(50) NOT NULL);
             CREATE TABLE meals (
                 id BIGINT PRIMARY KEY, user_id BIGINT NOT NULL, food_id BIGINT,
                 eaten_at DATETIME NOT NULL, category VARCHAR(10), portion DECIMAL(2,1), nutrients JSON
             );
-            INSERT INTO foods VALUES (1, '국밥');
+            INSERT INTO foods VALUES (1, '육개장_간편조리세트_닭개장', '닭개장');
             """
         )
         try:
@@ -210,7 +210,8 @@ class TestRecommendations(TruncationTestCase):
             selector.assert_awaited_once()
             prompt, _ = selector.await_args.args
             assert json.loads(prompt)["meal_facts"] == {"sodium_mg": 900, "portion": 1.5}
-            assert "국밥" not in prompt
+            assert "육개장_간편조리세트_닭개장" not in prompt
+            assert "닭개장" not in prompt
             result = (await client.get("/api/v1/meals/1/recommendation")).json()
             assert result["status"] == "COMPLETED"
             assert result["target_on"] == "2026-11-20"
