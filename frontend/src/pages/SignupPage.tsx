@@ -44,6 +44,7 @@ export default function SignupPage() {
   const navigate = useNavigate()
   const { reload } = useAuth()
   const genderLabelId = useId()
+  const genderErrorId = useId()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -237,7 +238,15 @@ export default function SignupPage() {
         <span id={genderLabelId} className="auth__legend">
           성별
         </span>
-        <div className="auth__row" role="radiogroup" aria-labelledby={genderLabelId} onKeyDown={handleGenderKeyDown}>
+        <div
+          className="auth__row"
+          role="radiogroup"
+          aria-labelledby={genderLabelId}
+          // 오류 표시는 칩(radio)이 아니라 묶음(radiogroup)에. 문구를 이어 둬서 스크린리더가 오류까지 같이 읽음
+          aria-invalid={errors.gender ? true : undefined}
+          aria-describedby={errors.gender ? genderErrorId : undefined}
+          onKeyDown={handleGenderKeyDown}
+        >
           {GENDERS.map((option) => (
             <Chip
               key={option.value}
@@ -246,14 +255,17 @@ export default function SignupPage() {
               selected={gender === option.value}
               // 탭으로는 고른 칩(없으면 첫 칩) 하나만 들어오고, 그 안에서는 방향키로 옮김
               tabIndex={(gender ?? GENDERS[0].value) === option.value ? 0 : -1}
-              aria-invalid={errors.gender ? true : undefined}
               onClick={() => chooseGender(option.value)}
             >
               {option.label}
             </Chip>
           ))}
         </div>
-        {errors.gender && <p className="auth__hint is-error" role="alert">{errors.gender}</p>}
+        {errors.gender && (
+          <p id={genderErrorId} className="auth__hint is-error" role="alert">
+            {errors.gender}
+          </p>
+        )}
       </div>
 
       <fieldset className="auth__fieldset">
