@@ -24,6 +24,14 @@ export function setAccessToken(token: string | null) {
   accessToken = token
 }
 
+// 쓰다가 refresh까지 실패(세션 만료)하면 AuthProvider가 guest로 바뀌도록 알림.
+// 안 알리면 인증 상태가 authed로 남아서, 화면이 /login으로 보내도 GuestOnly가 /home으로 되돌려 보냄
+let sessionExpiredListener: (() => void) | null = null
+
+export function onSessionExpired(listener: (() => void) | null) {
+  sessionExpiredListener = listener
+}
+
 // 동시에 401이 여러 개 와도 refresh는 한 번만 나가도록, 진행 중인 요청을 같이 기다림
 let refreshing: Promise<boolean> | null = null
 
@@ -67,6 +75,7 @@ export async function apiFetch(path: string, options: RequestInit = {}, isRetry 
     const ok = await refreshAccessToken()
     if (ok) return apiFetch(path, options, true)
     setAccessToken(null)
+    sessionExpiredListener?.()
   }
   return res
 }

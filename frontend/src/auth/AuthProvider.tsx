@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { fetchMe } from '../api/users'
-import { ApiError } from '../api/client'
+import { ApiError, onSessionExpired } from '../api/client'
 import { AuthContext, type AuthState } from './authContext'
 
 async function loadState(): Promise<AuthState> {
@@ -20,6 +20,12 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const clear = useCallback(() => setState({ status: 'guest', loggedOut: true }), [])
+
+  // 세션 만료(refresh 실패) → guest. loggedOut이 아니라서 가드가 보던 화면을 from에 담아 로그인 뒤 돌려보냄
+  useEffect(() => {
+    onSessionExpired(() => setState((prev) => (prev.status === 'guest' ? prev : { status: 'guest' })))
+    return () => onSessionExpired(null)
+  }, [])
 
   useEffect(() => {
     let ignore = false
