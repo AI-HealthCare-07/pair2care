@@ -1,4 +1,4 @@
-![Pair 2 Care — 만성질환 생활습관 챌린지 AI](docs/images/banner_pair2care.png)
+![Pair n Care — 만성질환 생활습관 챌린지 AI](docs/images/banner_pair-n-care.png)
 
 <p align="center">
   <b>[오즈코딩스쿨 AI 헬스케어 7기]</b> · 2026.11.16 ~ 12.30 
