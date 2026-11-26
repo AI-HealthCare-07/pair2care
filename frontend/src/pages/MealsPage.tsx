@@ -1,13 +1,13 @@
 // frontend/src/pages/MealsPage.tsx
 // S-21 기록 > 식단 탭 (Figma M07-b) · REQ-FOOD-001 · api.md 10-1, 10-3
-// ⚠️ 기록 화면의 탭(혈압·혈당·…·식단)은 RecordsPage 담당 영역이라 여기엔 넣지 않았음.
-//    탭이 생기면 아래 <section> 안쪽(카드)만 식단 탭 안으로 옮기면 됨.
+// 기록 화면의 항목 탭(혈압·혈당·…·식단)은 RecordTabs 공통 컴포넌트 (식단 탭을 누르면 이 화면)
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { mealsApi } from '../api/mealsApi'
 import { MealApiError, type MealListResponse } from '../api/meals'
 import Button from '../components/common/Button'
+import RecordTabs from '../components/record/RecordTabs'
 import MedicalNotice from '../components/common/MedicalNotice'
 import {
   DAILY_KCAL,
@@ -117,6 +117,7 @@ export default function MealsPage() {
   return (
     <div className="meal-page">
       <h1 className="meal-page__title">기록</h1>
+      <RecordTabs />
 
       <section className="meal-card" aria-labelledby="meal-today-title">
         <div className="meal-card__head">
