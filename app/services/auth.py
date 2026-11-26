@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi.exceptions import HTTPException
 from pydantic import EmailStr
 from redis.asyncio import Redis
@@ -6,8 +8,10 @@ from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
 
 from app.core import config
+from app.core.exceptions import AppError, ErrorCode
 from app.core.jwt.tokens import AccessToken, RefreshToken
 from app.core.utils.security import hash_password, verify_password
+from app.core.validators import validate_birthday
 from app.dtos.auth import ConsentItem, LoginRequest, SignUpRequest
 from app.models.user_consents import Agreement
 from app.models.users import User
@@ -19,6 +23,8 @@ LOGIN_FAIL_KEY_PREFIX = "login_fail:"
 LOGIN_FAIL_LIMIT = 5
 LOGIN_LOCK_SECONDS = 10 * 60
 LOGIN_LOCKED_DETAIL = "로그인을 5번 틀려서 10분 뒤에 다시 시도할 수 있어요."
+UNDER_14_DETAIL = "만 14세 미만은 가입할 수 없어요."
+TERMS_REQUIRED_DETAIL = "필수 약관에 모두 동의해 주세요."
 
 
 class AuthService:
@@ -28,11 +34,12 @@ class AuthService:
         self.jwt_service = JwtService()
 
     async def signup(self, data: SignUpRequest) -> User:
+        # 입력만으로 판단하는 400 먼저 (만 14세 → 약관), 그다음 DB를 보는 409 (api.md 2-1)
+        self.check_age(data.birthday)
+        self.check_required_consents(data.consents)
+
         # 이메일 중복 체크
         await self.check_email_exists(data.email)
-
-        # 필수 약관 3종 동의·버전 확인 (api.md 2-1)
-        self.check_required_consents(data.consents)
 
         # 회원 + 동의 기록을 한 트랜잭션으로 저장 (동의 없이 가입만 된 계정이 생기지 않게)
         # 같은 이메일로 동시에 가입하면 둘 다 위 중복 체크를 통과할 수 있음 → DB unique 위반을 409로
@@ -92,4 +99,15 @@ class AuthService:
     def check_required_consents(consents: list[ConsentItem]) -> None:
         agreed = {c.agreement for c in consents if c.is_agreed and c.version == config.TERMS_VERSION}
         if agreed != set(Agreement):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="필수 약관에 모두 동의해 주세요.")
+            raise AppError(
+                status.HTTP_400_BAD_REQUEST, TERMS_REQUIRED_DETAIL, ErrorCode.SIGNUP_TERMS_REQUIRED, field="consents"
+            )
+
+    @staticmethod
+    def check_age(birthday: date) -> None:
+        try:
+            validate_birthday(birthday)
+        except ValueError:
+            raise AppError(
+                status.HTTP_400_BAD_REQUEST, UNDER_14_DETAIL, ErrorCode.SIGNUP_UNDER_14, field="birthday"
+            ) from None

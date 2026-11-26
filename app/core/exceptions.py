@@ -22,6 +22,8 @@ class ErrorCode(StrEnum):
     ONBOARDING_REQUIRED = "ONBOARDING_REQUIRED"  # 3-1·3-6 WEEKLY인데 가입 설문 없음 → S-06
     ONBOARDING_ALREADY_DONE = "ONBOARDING_ALREADY_DONE"  # 3-1 가입 설문 두 번 → 홈
     SURVEY_FIELD_INVALID = "SURVEY_FIELD_INVALID"  # 3-1 문항 규칙 위반, field 문항으로 이동
+    SIGNUP_UNDER_14 = "SIGNUP_UNDER_14"  # 2-1 만 14세 미만, field=birthday
+    SIGNUP_TERMS_REQUIRED = "SIGNUP_TERMS_REQUIRED"  # 2-1 필수 약관 미동의·옛 버전, field=consents
 
 
 class AppError(Exception):

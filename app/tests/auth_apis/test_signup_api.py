@@ -67,15 +67,33 @@ class TestSignupAPI(TestCase):
             response = await client.post(SIGNUP_URL, json=make_signup_data("consent@example.com", consents=consents))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert response.json()["detail"] == "필수 약관에 모두 동의해 주세요."
+        assert response.json() == {
+            "detail": "필수 약관에 모두 동의해 주세요.",
+            "code": "SIGNUP_TERMS_REQUIRED",
+            "field": "consents",
+        }
 
     async def test_signup_old_terms_version(self):
         data = make_signup_data("old@example.com", consents=make_consents(version="v0.9"))
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(SIGNUP_URL, json=data)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["code"] == "SIGNUP_TERMS_REQUIRED"
 
     async def test_signup_under_14(self):
+        # 422(형식 오류)가 아니라 400 + code·field → 화면이 생년월일 칸 아래에 문구를 띄움 (api.md 2-1)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(SIGNUP_URL, json=make_signup_data("kid@example.com", birthday="2020-01-01"))
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json() == {
+            "detail": "만 14세 미만은 가입할 수 없어요.",
+            "code": "SIGNUP_UNDER_14",
+            "field": "birthday",
+        }
+
+    async def test_signup_bad_birthday_format_is_422(self):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                SIGNUP_URL, json=make_signup_data("bad-date@example.com", birthday="1990-13-40")
+            )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
