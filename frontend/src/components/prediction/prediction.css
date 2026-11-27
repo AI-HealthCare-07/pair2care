@@ -196,7 +196,7 @@
 .pred-factors__arrow { flex-shrink: 0; font-size: 14px; }
 .pred-factors__text { flex: 1; min-width: 0; }
 
-/* 가감 나이 "+5살": 줄 오른쪽, 화살표와 같은 색 */
+/* 가감 나이 "+5~9살": 줄 오른쪽, 화살표와 같은 색. "+20살 이상"도 한 줄(nowrap) */
 .pred-factors__years {
   flex-shrink: 0;
   font-size: 15px;

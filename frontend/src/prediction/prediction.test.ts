@@ -24,7 +24,9 @@ import {
   factorText,
   LEVEL_LABEL,
   metabolicMessage,
+  yearsSpoken,
   yearsText,
+  YEARS_NOTICE,
 } from './labels'
 import {
   buildPredictionView,
@@ -227,12 +229,43 @@ describe('요인 문구 (#107)', () => {
 })
 
 describe('가감 나이 years (#114·#121)', () => {
-  it('yearsText: 양수 "+5살", 음수 "−1살"(U+2212), 0·null·없음은 숨김', () => {
-    expect(yearsText(5)).toBe('+5살')
-    expect(yearsText(-1)).toBe('\u22121살')
+  it('yearsText: 구간 1~4 / 5~9 / 10~19 / 20 이상, 음수는 "−"(U+2212), 0·null·없음은 숨김 (11/27 범위 표시)', () => {
+    expect(yearsText(5)).toBe('+5~9살')
+    expect(yearsText(-1)).toBe('\u22121~4살')
     expect(yearsText(0)).toBeNull()
     expect(yearsText(null)).toBeNull()
     expect(yearsText(undefined)).toBeNull()
+  })
+
+  it('구간 경계 (서버 반올림 경계 4.5·9.5·19.5와 같음)', () => {
+    expect([1, 4, 5, 9, 10, 19, 20, 60].map(yearsText)).toEqual([
+      '+1~4살',
+      '+1~4살',
+      '+5~9살',
+      '+5~9살',
+      '+10~19살',
+      '+10~19살',
+      '+20살 이상',
+      '+20살 이상',
+    ])
+    expect([-4, -5, -19, -20].map(yearsText)).toEqual(['\u22121~4살', '\u22125~9살', '\u221210~19살', '\u221220살 이상'])
+  })
+
+  it('정수가 아니어도 반올림해서 같은 구간 (서버는 정수, 방어용)', () => {
+    expect(yearsText(4.4)).toBe('+1~4살')
+    expect(yearsText(4.5)).toBe('+5~9살')
+    expect(yearsText(0.4)).toBeNull()
+  })
+
+  it('화면 읽기용 문장은 "~"·"−" 없이 말로', () => {
+    expect(yearsSpoken(7)).toBe('5에서 9살 정도 높여요')
+    expect(yearsSpoken(-2)).toBe('1에서 4살 정도 낮춰요')
+    expect(yearsSpoken(25)).toBe('20살 이상 높여요')
+    expect(yearsSpoken(0)).toBeNull()
+  })
+
+  it('ℹ️ 안내에 "정도"가 들어감 (범위 표시와 맞춤)', () => {
+    expect(YEARS_NOTICE).toContain('몇 살 정도')
   })
 
   it('체중·음주 4개는 "같은 성별 평균", 가족력·흡연은 그대로 (#114 성은 님)', () => {
@@ -257,7 +290,8 @@ describe('가감 나이 years (#114·#121)', () => {
       { feature: 'bmi', direction: 'UP', years: null },
       { feature: 'alcohol_frequency', direction: 'UP' },
     ])
-    expect(lines.map((l) => l.years)).toEqual(['+5살', '\u22122살', null])
+    expect(lines.map((l) => l.years)).toEqual(['+5~9살', '\u22121~4살', null])
+    expect(lines.map((l) => l.yearsSpoken)).toEqual(['5에서 9살 정도 높여요', '1에서 4살 정도 낮춰요', null])
   })
 })
 

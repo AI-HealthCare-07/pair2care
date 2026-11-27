@@ -33,8 +33,8 @@ export const LEVEL_MESSAGE: Record<RiskLevel, string> = {
 /** 영향을 준 요인 카드 맨 아래 ℹ️ 안내 (#107, 요인 후보에서 나이를 뺀 이유) */
 export const AGE_IN_SCORE_NOTICE = '점수에는 나이도 반영돼요. 나이는 바꿀 수 없어서 요인에서는 뺐어요'
 
-/** 요인 줄의 "+5살"이 무슨 숫자인지 (#123 성은 님 제안). 숫자가 하나라도 보일 때만 ℹ️ 맨 위에 */
-export const YEARS_NOTICE = '숫자는 같은 성별 평균인 사람보다 건강 나이를 몇 살 높이거나 낮추는지예요'
+/** 요인 줄의 "+5~9살"이 무슨 숫자인지 (#123 성은 님 제안, 11/27 범위 표시로 "정도" 추가). 숫자가 하나라도 보일 때만 ℹ️ 맨 위에 */
+export const YEARS_NOTICE = '숫자는 같은 성별 평균인 사람보다 건강 나이를 몇 살 정도 높이거나 낮추는지예요'
 
 /** 관리 중 카드 (진단 "예" → 예측 안 함, api.md 5-0 managed_diseases) */
 export const MANAGED_TITLE = '관리 중'
@@ -66,10 +66,37 @@ const FACTOR_TEXT: Record<string, Record<Factor['direction'], string>> = {
   smoking_current: { UP: '지금 담배를 피워요', DOWN: '지금 담배를 피우지 않아요' },
 }
 
-/** 가감 나이 표시: 5 → "+5살", -1 → "−1살"(마이너스 기호 U+2212). null·0·숫자 아님은 null → 숨김 */
+/**
+ * 가감 나이 구간 (11/27 성은 님 안건 확정, 경계는 api.md 5장): 1~4 / 5~9 / 10~19 / 20 이상.
+ * 서버 years는 정수 그대로 받고 화면에서만 나눔. 서버 반올림 경계(4.5·9.5·19.5)와 구간 경계가 같아 결과가 같음.
+ * 체중 0.5kg 같은 작은 변화에 숫자가 바뀌지 않게 하려는 것 (바뀌는 사람 50% → 16~18%)
+ */
+export type YearsRange = { min: number; max: number | null } // max null = "이상"
+
+export function yearsRange(years: number | null | undefined): YearsRange | null {
+  if (typeof years !== 'number' || !Number.isFinite(years)) return null
+  const n = Math.round(Math.abs(years))
+  if (n === 0) return null
+  if (n <= 4) return { min: 1, max: 4 }
+  if (n <= 9) return { min: 5, max: 9 }
+  if (n <= 19) return { min: 10, max: 19 }
+  return { min: 20, max: null }
+}
+
+/** 가감 나이 표시: 5 → "+5~9살", -2 → "−1~4살"(마이너스 기호 U+2212), 23 → "+20살 이상". null·0·숫자 아님은 null → 숨김 */
 export function yearsText(years: number | null | undefined): string | null {
-  if (typeof years !== 'number' || !Number.isFinite(years) || years === 0) return null
-  return years > 0 ? `+${years}살` : `\u2212${Math.abs(years)}살`
+  const range = yearsRange(years)
+  if (!range) return null
+  const sign = (years as number) > 0 ? '+' : '\u2212'
+  return range.max === null ? `${sign}${range.min}살 이상` : `${sign}${range.min}~${range.max}살`
+}
+
+/** 화면 읽기 프로그램용 ("+5~9살"의 "~"·"−"를 말로): "5~9살 정도 높여요" / "20살 이상 낮춰요" */
+export function yearsSpoken(years: number | null | undefined): string | null {
+  const range = yearsRange(years)
+  if (!range) return null
+  const verb = (years as number) > 0 ? '높여요' : '낮춰요'
+  return range.max === null ? `${range.min}살 이상 ${verb}` : `${range.min}에서 ${range.max}살 정도 ${verb}`
 }
 
 /**
