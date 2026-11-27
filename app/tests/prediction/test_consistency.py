@@ -35,4 +35,4 @@ def test_reloading_model_file_gives_same_score(disease: Disease) -> None:
     scores = {to_score(LogisticModel.from_dict(read_model_file(disease)).probability(inputs)) for _ in range(10)}
 
     assert len(scores) == 1
-    assert data["model_version"].endswith(":v1")
+    assert data["model_version"].endswith(":v2")

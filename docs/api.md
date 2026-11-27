@@ -473,13 +473,14 @@ S-09(예측 결과), S-10(습관 시뮬레이션) · REQ-PRED-001~004 · 근거:
 |---|---|
 | score | 모델 확률 × 100, 0.5 올림 정수 0~100 (model.py `to_score`: floor(확률 × 100 + 0.5), 파이썬 round 아님) |
 | level | `LOW` / `CAUTION` / `HIGH`. 두 질환 같은 기준: score 30 미만 `LOW` / 30–59 `CAUTION` / 60 이상 `HIGH` (11/24 확정, 학습 세트 out-of-fold 점수로 정함). 판정은 반올림한 score로 함 (확률 0.296 → score 30 → `CAUTION`, 화면 숫자와 단계가 어긋나지 않게) |
-| factors | 저장값은 예측 때 기록용(옛 기준). **응답의 factors는 5-3 조회 때 `input_snapshot.model_inputs`로 다시 계산** (#114, 기준을 바꿔도 예전 행까지 한 번에 맞춤). 후보는 건강 나이와 같은 7문항(`bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환 가족력 3개). 성별·나이는 바꿀 수 없는 값이고 나이 비교는 건강 나이가 따로 보여 줌, 다른 질환 가족력은 계수가 작은 음수라 "위험을 낮춤"처럼 보여서 뺌 (계산에는 그대로 씀, 11/24·11/25 장성은). 항목마다 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수 → **반올림 전 값의 절댓값 큰 순으로 정렬 → `years` = 절댓값 기준 0.5 올림 정수(부호 대칭: +2.5 → +3, −2.5 → −3, to_score의 floor(x + 0.5)와 다름) → 0살은 빼고 앞에서 3개** (반올림 후 정렬하면 같은 살 수가 많아 순서가 흔들림), 양수 `UP` / 음수 `DOWN`. `[{"feature": "bmi", "direction": "UP", "years": 5}]`. 같은 성별 평균은 모델 JSON `means_by_sex` (5-2 `health_age`와 같은 기준이라 요인과 건강 나이가 항상 같은 말을 함). 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 유의한 차이 없음) |
-| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v1`, `hypertension_risk:v1`). 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, 같은 성별 평균(`means_by_sex`: `MALE`·`FEMALE`마다 건강 나이·요인 7문항, #118)과 `mlflow_run_id`를 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
+| factors | 저장값은 예측 때 기록용(옛 기준). **응답의 factors는 5-3 조회 때 `input_snapshot.model_inputs`로 다시 계산** (#114, 기준을 바꿔도 예전 행까지 한 번에 맞춤). 후보는 건강 나이와 같은 7문항(`bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환 가족력 3개). 성별·나이는 바꿀 수 없는 값이고 나이 비교는 건강 나이가 따로 보여 줌, 다른 질환 가족력은 v2부터 모델에서 빠져 계수 0 (11/26, 그 전 v1에서는 계수가 작은 음수라 "위험을 낮춤"처럼 보여서 후보에서만 뺐음). 항목마다 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수 → **반올림 전 값의 절댓값 큰 순으로 정렬 → `years` = 절댓값 기준 0.5 올림 정수(부호 대칭: +2.5 → +3, −2.5 → −3, to_score의 floor(x + 0.5)와 다름) → 0살은 빼고 앞에서 3개** (반올림 후 정렬하면 같은 살 수가 많아 순서가 흔들림), 양수 `UP` / 음수 `DOWN`. `[{"feature": "bmi", "direction": "UP", "years": 5}]`. 같은 성별 평균은 모델 JSON `means_by_sex` (5-2 `health_age`와 같은 기준이라 요인과 건강 나이가 항상 같은 말을 함). 최종 모델은 로지스틱으로 확정 (11/24, XGBoost와 유의한 차이 없음) |
+| model_version | MLflow 등록 이름:버전 (`diabetes_risk:v2`, `hypertension_risk:v2`). v2(11/26): 질환마다 다른 질환 가족력 3개를 빼고 입력 9개로 학습, JSON은 12개 틀을 유지하고 그 3개만 계수 0 (v1과 성능 같음, 노트북 셀 22–29·MLflow). 버전이 바뀌면 옛 행은 건강 나이·`years`가 null. 모델 JSON(`app/services/prediction/model_files/`)에 절편·계수(`coefficients`)·평균(`means`)을 입력 이름 키로, 같은 성별 평균(`means_by_sex`: `MALE`·`FEMALE`마다 건강 나이·요인 7문항, #118)과 `mlflow_run_id`를 같이 저장. 위험 단계 기준값 30 / 60은 서버 코드 상수 |
 | checkup_record_id | null |
 | input_snapshot | `inputs`(변환 전: 설문 값 11개 — height_cm, weight_kg, 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current — + sex(users.gender 그대로)·age) + `model_inputs`(모델에 넣은 값, 변환 후 12개). 예: `{"inputs": {"height_cm": 172.5, "weight_kg": 78.2, "father_diabetes_history": 1, ..., "smoking_current": 8, "sex": "MALE", "age": 45}, "model_inputs": {"sex": 1, "age": 45, "bmi": 26.3, ...}}` |
 
 **입력 변환**
 - 모델 입력 12개: sex, age, bmi(키·몸무게로 계산), 가족력 6개, alcohol_frequency, alcohol_amount, smoking_current
+  - v2부터 질환별 모델은 다른 질환 가족력 3개의 계수가 0 → 실제로 점수에 쓰는 입력은 9개. 변환·`input_snapshot.model_inputs`는 그대로 12개
 - 변환은 학습 전처리와 같은 함수를 씀 (학습·서빙 따로 짜지 않음)
 - 변환 규칙 (11/23 확정, 근거: 입력 변환 실험)
 
@@ -555,7 +556,7 @@ S-09, S-12 홈 카드
 - 기준표 행(`CHECKUP_CRITERIA`)은 같은 질환의 최신 `MODEL` 행과 같은 예측 때 만든 것만 보여줌 (더 오래됐으면 지난 판정이라 숨김: 가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우)
 - `health_age`: 건강 나이 (11/25 멘토링 후 재결정, 성은·현영·지연). 자가검진 7문항으로 **같은 성별 평균인 사람**보다 몇 살 많거나 적은지 더해서 **10살 단위**로
   - 산식: `건강 나이 = 실제 나이 + clamp(Σ 항목 가감 나이, −15, +15)`, `항목 가감 나이 = 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수` (새로 학습하지 않고 예측 모델 계수 그대로)
-  - 7문항: `bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환의 `father_*`·`mother_*`·`sibling_*_history`. 다른 질환 가족력은 평균으로 고정(가감 0, 당뇨 모델의 고혈압 가족력 계수가 음수라 넣으면 이상해짐). 성별은 같은 성별 평균과 비교하니 문항에서 뺌
+  - 7문항: `bmi`, `smoking_current`, `alcohol_frequency`, `alcohol_amount`, 그 질환의 `father_*`·`mother_*`·`sibling_*_history`. 다른 질환 가족력은 v2부터 계수 0이라 가감 0. 성별은 같은 성별 평균과 비교하니 문항에서 뺌
   - 같은 성별 평균: 모델 JSON의 `means_by_sex`(`MALE`·`FEMALE`마다 7문항 평균, 장성은). 남녀 합친 `means`를 쓰면 한쪽 성별이 일괄 많게·적게 나와서 안 씀
   - `decade`: 건강 나이를 반올림한 정수의 10살 단위. 40 = "40대 수준". 범위 밖이면 null
   - `actual_age`: 예측할 때 만 나이 (`input_snapshot.inputs.age`)
@@ -574,7 +575,7 @@ S-09 상세
     { "feature": "father_diabetes_history", "direction": "UP", "years": 5 },
     { "feature": "alcohol_frequency", "direction": "DOWN", "years": -1 }
   ],
-  "model_version": "diabetes_risk:v1",
+  "model_version": "diabetes_risk:v2",
   "changed_inputs": [ { "feature": "weight_kg", "before": 80.0, "after": 78.2 } ],
   "previous": { "id": 40, "score": 37, "level": "CAUTION", "created_at": "2026-11-12T09:10:00+09:00" },
   "health_age": { "decade": 50, "actual_age": 45, "out_of_range": null },

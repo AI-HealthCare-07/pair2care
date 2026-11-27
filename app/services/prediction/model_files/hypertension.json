@@ -1,6 +1,6 @@
 {
-  "model_version": "hypertension_risk:v1",
-  "mlflow_run_id": "a5744ad9a7c04cd69bd91a5f669ad9e5",
+  "model_version": "hypertension_risk:v2",
+  "mlflow_run_id": "760aeaf1d2f64a72beebf9e0c0390c23",
   "disease": "HYPERTENSION",
   "features": [
     "sex",
@@ -16,20 +16,20 @@
     "alcohol_amount",
     "smoking_current"
   ],
-  "intercept": -5.6049853206597575,
+  "intercept": -5.555646503689638,
   "coefficients": {
-    "sex": -0.6398414697775698,
-    "age": 0.042448690069319193,
-    "bmi": 0.12228785666738212,
-    "father_diabetes_history": 0.05121706121981627,
-    "mother_diabetes_history": -0.11869458031904939,
-    "sibling_diabetes_history": -0.1558516927782386,
-    "father_hypertension_history": 0.2015088049527113,
-    "mother_hypertension_history": 0.34503006672422015,
-    "sibling_hypertension_history": 0.32249571183948317,
-    "alcohol_frequency": 0.11748002028874939,
-    "alcohol_amount": 0.10099306710669385,
-    "smoking_current": 0.05476208637755872
+    "sex": -0.6467791473448362,
+    "age": 0.041574442361568986,
+    "bmi": 0.1217512269080147,
+    "father_diabetes_history": 0.0,
+    "mother_diabetes_history": 0.0,
+    "sibling_diabetes_history": 0.0,
+    "father_hypertension_history": 0.2132501411229777,
+    "mother_hypertension_history": 0.3269292767442854,
+    "sibling_hypertension_history": 0.2875343757759798,
+    "alcohol_frequency": 0.11788310310057655,
+    "alcohol_amount": 0.10089844840456098,
+    "smoking_current": 0.049876944555778915
   },
   "means": {
     "sex": 1.6005823829167678,
