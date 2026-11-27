@@ -72,5 +72,5 @@ flowchart LR
 
 ## 건강 나이 (11/25 재결정)
 - 곡선 방식(#102·#110) → **자가검진 7문항 + 산식**: 실제 나이 + clamp(Σ 계수 × (내 값 − 같은 성별 평균) ÷ 나이 계수, ±15) → 10살 단위. 자세한 규칙은 api.md 5-2 `health_age`
-- `risk_predictions`에 저장하지 않고 5-2·5-3 조회 때 행의 `input_snapshot`으로 계산 (모델 JSON이 바뀌면 `model_version`이 같을 때만)
+- `risk_predictions`에 저장하지 않고 5-2·5-3 조회 때 행의 `input_snapshot`으로 계산 (예전 `model_version` 행은 보관한 그 버전 JSON으로, #160)
 - 새로 학습하지 않아서 과적합 걱정이 없고, 항목별로 "+5살"처럼 설명할 수 있음 (멘토 의견: 모델링 대신 산식 + 자가검진)
