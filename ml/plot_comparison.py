@@ -141,7 +141,7 @@ def draw_roc(ax: Axes, y: np.ndarray, probabilities: Mapping[str, np.ndarray], t
         auroc = roc_auc_score(y, probability)
         ax.plot(fpr, tpr, label=f"{MODEL_LABELS[name]}  {auroc:.3f}", **MODEL_STYLES[name])  # type: ignore[arg-type]
     style_axes(ax, title)
-    ax.set_xlabel("위험 아닌 사람을 위험으로 본 비율 (1 − 특이도)")
+    ax.set_xlabel("위험 아닌 사람을 위험으로 본 비율 (1 - 특이도)")
     ax.set_ylabel("실제 위험자를 잡은 비율 (민감도)")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
