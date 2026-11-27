@@ -28,6 +28,8 @@ def fixed_model(disease: Disease) -> LogisticModel:
 
 
 LOAD_SEX_MEANS_TARGET: Final = "app.services.prediction.service.load_sex_means"
+LOAD_ARCHIVED_MODEL_TARGET: Final = "app.services.prediction.service.load_archived_model"
+LOAD_ARCHIVED_SEX_MEANS_TARGET: Final = "app.services.prediction.service.load_archived_sex_means"
 EXPLAIN_BMI_MEAN: Final = 24.3  # api.md 3-1 예시 답(172.5cm·78.2kg)의 bmi는 26.3 → 평균보다 2.0 높음
 
 
