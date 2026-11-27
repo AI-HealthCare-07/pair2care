@@ -13,3 +13,13 @@ class UserConsentRepository:
                 for c in consents
             ]
         )
+
+    async def latest_by_agreement(self, user_id: int) -> dict[str, UserConsent]:
+        """종류별 최신 행 (현재 동의 상태, api.md 2-6). 행이 쌓이는 구조라 id가 클수록 나중."""
+        rows = await self._model.filter(user_id=user_id).order_by("id")
+        return {row.agreement: row for row in rows}  # 같은 종류는 뒤 행이 덮어씀
+
+    async def create(self, user_id: int, consent: ConsentItem) -> UserConsent:
+        return await self._model.create(
+            user_id=user_id, agreement=consent.agreement, version=consent.version, is_agreed=consent.is_agreed
+        )

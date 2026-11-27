@@ -13,7 +13,7 @@ from app.core.jwt.tokens import AccessToken, RefreshToken
 from app.core.utils.security import hash_password, verify_password
 from app.core.validators import validate_birthday
 from app.dtos.auth import ConsentItem, LoginRequest, SignUpRequest
-from app.models.user_consents import Agreement
+from app.models.user_consents import REQUIRED_AGREEMENTS
 from app.models.users import User
 from app.repositories.user_consent_repository import UserConsentRepository
 from app.repositories.user_repository import UserRepository
@@ -97,8 +97,9 @@ class AuthService:
 
     @staticmethod
     def check_required_consents(consents: list[ConsentItem]) -> None:
-        agreed = {c.agreement for c in consents if c.is_agreed and c.version == config.TERMS_VERSION}
-        if agreed != set(Agreement):
+        agreed = {c.agreement for c in consents if c.is_agreed}
+        has_old_version = any(c.version != config.TERMS_VERSION for c in consents)
+        if has_old_version or not REQUIRED_AGREEMENTS <= agreed:
             raise AppError(
                 status.HTTP_400_BAD_REQUEST, TERMS_REQUIRED_DETAIL, ErrorCode.SIGNUP_TERMS_REQUIRED, field="consents"
             )

@@ -7,13 +7,13 @@ import { apiFetch, setAccessToken, toApiError } from './client'
 export const TERMS_VERSION = 'v1.0'
 
 export type Gender = 'MALE' | 'FEMALE'
-// 필수 동의 3종: 이용약관 · 개인정보 · 민감정보(건강) (api.md 2-1)
-export type Agreement = 'TERMS' | 'PRIVACY' | 'SENSITIVE_HEALTH'
+// 필수 3종(이용약관 · 개인정보 · 민감정보) + 선택 MODEL_IMPROVEMENT(모델 개선에 데이터 활용) (api.md 2-1)
+export type Agreement = 'TERMS' | 'PRIVACY' | 'SENSITIVE_HEALTH' | 'MODEL_IMPROVEMENT'
 
 export interface ConsentItem {
   agreement: Agreement
   version: string     // 동의한 약관 버전, TERMS_VERSION을 넣음
-  is_agreed: boolean  // 3종 모두 true여야 가입됨
+  is_agreed: boolean  // 필수 3종은 true여야 가입됨, 선택은 false여도 됨
 }
 
 export interface SignupBody {

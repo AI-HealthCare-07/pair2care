@@ -11,6 +11,11 @@ class Agreement(StrEnum):
     TERMS = "TERMS"
     PRIVACY = "PRIVACY"
     SENSITIVE_HEALTH = "SENSITIVE_HEALTH"
+    MODEL_IMPROVEMENT = "MODEL_IMPROVEMENT"  # 선택: 모델 개선에 내 데이터 활용 (REQ-NFR-018, docs/feedback-loop.md)
+
+
+# 가입에 꼭 필요한 동의. 철회는 탈퇴로만 (api.md 2-1·2-6, 정할 것 22번)
+REQUIRED_AGREEMENTS = frozenset({Agreement.TERMS, Agreement.PRIVACY, Agreement.SENSITIVE_HEALTH})
 
 
 class UserConsent(models.Model):

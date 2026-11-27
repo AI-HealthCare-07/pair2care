@@ -18,6 +18,7 @@ Enum agreement_type {
   TERMS
   PRIVACY
   SENSITIVE_HEALTH
+  MODEL_IMPROVEMENT [note: "선택 동의 (REQ-NFR-018)"]
 }
 
 Table users {

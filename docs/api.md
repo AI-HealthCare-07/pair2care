@@ -73,7 +73,8 @@ S-02, S-03 · REQ-USER-001·005 · 로그인 필요 없음
   "consents": [
     { "agreement": "TERMS", "version": "v1.0", "is_agreed": true },
     { "agreement": "PRIVACY", "version": "v1.0", "is_agreed": true },
-    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true }
+    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true },
+    { "agreement": "MODEL_IMPROVEMENT", "version": "v1.0", "is_agreed": false }
   ]
 }
 ```
@@ -84,9 +85,12 @@ S-02, S-03 · REQ-USER-001·005 · 로그인 필요 없음
 | nickname | 2~20자. 중복 허용 (짝꿍 화면엔 닉네임만 보여서 같은 이름이 있어도 됨) |
 | gender | `MALE` / `FEMALE` (예측 입력 sex, 설문 임신 문항, 대사증후군 기준에 씀) |
 | birthday | 만 14세 미만이면 400 `"만 14세 미만은 가입할 수 없어요."` + `code: SIGNUP_UNDER_14`, `field: birthday` (날짜 형식이 틀리면 422) |
-| consents | **3종 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` + `code: SIGNUP_TERMS_REQUIRED`, `field: consents` → 정할 것 22번. 검사 순서: 나이 → 약관 → 이메일 중복(409) |
+| consents | **필수 3종(TERMS·PRIVACY·SENSITIVE_HEALTH) 모두 `is_agreed: true` 필수**, `version`은 서버의 현재 약관 버전과 같아야 함. 아니면 400 `"필수 약관에 모두 동의해 주세요."` + `code: SIGNUP_TERMS_REQUIRED`, `field: consents` → 정할 것 22번. 검사 순서: 나이 → 약관 → 이메일 중복(409) |
 
-**처리 (한 트랜잭션)**: `users` 저장 → `user_consents` 3행 저장(`created_at` = 동의 시각) → 토큰 발급
+- 선택 동의 `MODEL_IMPROVEMENT`(모델 개선에 내 데이터 활용, REQ-NFR-018 · `docs/feedback-loop.md`): 안 보내거나 `false`여도 가입됨. 보낼 땐 `version`도 현재 버전이어야 함 (아니면 같은 400). 화면은 기본 체크 해제
+- 같은 `agreement`를 두 번 보내면 422
+
+**처리 (한 트랜잭션)**: `users` 저장 → `user_consents`에 받은 항목 그대로 저장(필수 3행 + 선택은 보냈을 때만, `created_at` = 동의 시각) → 토큰 발급
 - 동의는 화면 S-03에서 받지만 저장은 가입과 한 번에 (동의 없이 가입만 된 계정이 생기지 않게)
 
 **응답 201** (바로 S-06 설문으로 넘어가도록 로그인 상태로 줌, refresh 토큰은 쿠키)
@@ -154,14 +158,20 @@ S-27 "동의 내역" · REQ-USER-005
   "items": [
     { "agreement": "TERMS", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" },
     { "agreement": "PRIVACY", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" },
-    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" }
+    { "agreement": "SENSITIVE_HEALTH", "version": "v1.0", "is_agreed": true, "agreed_at": "2026-11-19T10:00:00+09:00", "current_version": "v1.0" },
+    { "agreement": "MODEL_IMPROVEMENT", "version": null, "is_agreed": false, "agreed_at": null, "current_version": "v1.0" }
   ],
   "needs_reconsent": false
 }
 ```
-- `needs_reconsent`: 약관 버전이 올라가서 다시 동의가 필요하면 true → 프론트가 동의 화면을 띄움
-**POST** (새 버전 재동의) `{ "agreement": "PRIVACY", "version": "v1.1", "is_agreed": true }` → 201
-- 3종 모두 필수라서 **철회(`is_agreed: false`)는 여기서 받지 않고 탈퇴(2-8)로 안내** → 400 `"필수 동의는 철회할 수 없어요. 탈퇴로 진행해 주세요."` → 정할 것 22번
+- 4종 항상 이 순서로 줌. 한 번도 답하지 않은 선택 동의는 `version`·`agreed_at`이 `null`, `is_agreed: false`
+- `agreed_at`: 그 최신 행의 `created_at` (철회 행이면 철회한 시각)
+- `needs_reconsent`: **필수 3종** 중 하나라도 최신 행이 현재 버전이 아니면 true → 프론트가 동의 화면을 띄움 (선택 동의는 안 셈)
+**POST** (재동의·선택 동의 켜기·끄기) `{ "agreement": "MODEL_IMPROVEMENT", "version": "v1.0", "is_agreed": false }` → 201, 응답은 GET `items`의 그 종류 한 줄
+- 새 행을 쌓음 (기존 행은 안 고침)
+- 필수 3종은 철회(`is_agreed: false`)를 받지 않고 탈퇴(2-8)로 안내 → 400 `"필수 동의는 철회할 수 없어요. 탈퇴로 진행해 주세요."` → 정할 것 22번
+- **선택 `MODEL_IMPROVEMENT`는 켜기·끄기 둘 다 받음** (마이 S-27 토글). 끄면 다음 재학습부터 빠짐 (`docs/feedback-loop.md` ①, 뽑을 때 최신 행 확인)
+- `version`이 현재 버전이 아니면 400 `"약관 버전이 바뀌었어요. 새로고침해 주세요."`
 - 약관 문구는 정적 페이지, 버전은 서버 상수
 
 ### 2-7. 비밀번호 찾기 (P2)
@@ -1506,7 +1516,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 19 | 목록에 없는 음식 (10-8) | 1차는 `foods` 18행 안에서만 검색. 식약처 API 실시간 검색은 호출 한도·캐시 문제로 S5 이후 검토 | 여현지·백엔드 |
 | 20 | 공통 SSE 명세 | ✅ 11/19 확정(#41): 연결 하나(`GET /api/v1/events`), 티켓 인증(30초 1회용), 이벤트 `notification` / `task` (12-6). 10-2 식단 분류 결과도 이 연결로 받음 | — |
 | 21 | 식단 비전 LLM 보조 (REQ-FOOD-001) | 쓸지 여부, top-1 확률 기준, 18종 밖 음식 처리. 쓰면 10-2 워커 처리 안에서 호출(새 API 없음) | 여현지·LLM(김민준) |
-| 22 | 필수 동의·철회 (2-1·2-6) | 이용약관·개인정보·민감정보 3종 모두 필수, 하나라도 철회하려면 탈퇴로 진행 (건강정보 없이 쓸 수 있는 기능이 없어서) | 전원 |
+| 22 | 필수 동의·철회 (2-1·2-6) | 이용약관·개인정보·민감정보 3종 모두 필수, 하나라도 철회하려면 탈퇴로 진행 (건강정보 없이 쓸 수 있는 기능이 없어서). 11/27 선택 동의 `MODEL_IMPROVEMENT` 추가: 가입 때 선택, 마이에서 켜기·끄기 (#148) | 전원 |
 | 23 | 로그아웃 후 access 토큰 (2-4) | ✅ 11/23 확정: 블랙리스트 없이 access 만료 30분, 로그아웃하면 refresh 쿠키만 삭제 | — |
 | 24 | 성별·생년월일 수정 (2-5) | ✅ 11/20 확정: 사용자는 직접 수정 불가(예측 입력이라 이력 기준이 바뀜). 고치려면 관리자에게 요청 → 관리자가 수정 | — |
 | 25 | 비밀번호 찾기 방식 (2-7) | ✅ 11/19 확정: 이메일 인증번호(6자리, 10분, 5번 틀리면 폐기). 아이폰 PWA에서 링크는 사파리로 열려 흐름이 끊겨서. REQ-USER-004·Figma M15·M16과 맞춤 | — |
