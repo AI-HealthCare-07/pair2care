@@ -32,6 +32,11 @@
 | [prediction-pipeline.md](prediction-pipeline.md) | 서빙 흐름: 입력 → 전처리 → 모델 → 화면, 건강 나이 |
 | [feedback-loop.md](feedback-loop.md) | 사용자 데이터 재학습 설계 (REQ-NFR-018) |
 
+## 💬 LLM 추천
+| 문서 | 내용 |
+|---|---|
+| [llm-pipeline.md](llm-pipeline.md) | 추천 흐름: 오늘의 한 가지 · 다음 끼니 · 식단 챗봇(초안), 평가·개선 고리 (REQ-NFR-019) |
+
 ## 🗓 진행 기록
 | 문서 | 내용 |
 |---|---|
