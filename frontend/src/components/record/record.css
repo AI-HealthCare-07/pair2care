@@ -86,3 +86,7 @@
 
 /* 식단 탭(현지 님 MealsPage)은 flex 간격이 없어서 탭 아래만 띄움 */
 .meal-page > .record-tabs { margin-bottom: 16px; }
+
+/* S-07 검진 "더 입력하기" (CheckupPage) */
+.checkup-more summary { cursor: pointer; padding: 8px 0; font-size: 15px; font-weight: 600; color: var(--color-primary); }
+.checkup-more__fields { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
