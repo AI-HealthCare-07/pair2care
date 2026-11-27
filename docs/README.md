@@ -24,6 +24,14 @@
 | [personas.md](personas.md) | 가상 사용자(페르소나) 요약 |
 | [personas_원문/](personas_원문/) | 팀원별 페르소나 원본 (수정하지 않음) |
 
+## 🤖 위험도 예측
+| 문서 | 내용 |
+|---|---|
+| [prediction-story.md](prediction-story.md) | 예측 파트 한눈에 보기 — 발표·보고서용 요약 (문제 → 모델 → 증명 → 서빙 → 재학습) |
+| [model-comparison.md](model-comparison.md) | 모델 가치 분석: 단순 기준·XGBoost 비교, 그림 3장 (REQ-NFR-014) |
+| [prediction-pipeline.md](prediction-pipeline.md) | 서빙 흐름: 입력 → 전처리 → 모델 → 화면, 건강 나이 |
+| [feedback-loop.md](feedback-loop.md) | 사용자 데이터 재학습 설계 (REQ-NFR-018) |
+
 ## 🗓 진행 기록
 | 문서 | 내용 |
 |---|---|
