@@ -249,7 +249,7 @@ describe('surveyErrorAction (3-1 에러 → 화면 동작)', () => {
     [new ApiError(409, '이미 했어요', 'ONBOARDING_ALREADY_DONE'), 'GO_HOME'],
     [new ApiError(400, '음주량을 확인해 주세요.', 'SURVEY_FIELD_INVALID', 'alcohol_amount'), 'FOCUS_FIELD'],
     [new ApiError(422, 'validation'), 'RECHECK_INPUT'],
-    [new ApiError(401, '로그인이 필요해요.'), 'RELOGIN'],
+    [new ApiError(401, '로그인이 필요해요.'), 'SHOW_MESSAGE'], // 세션 만료는 가드가 /login으로 (#134)
     [new ApiError(500, '서버 오류'), 'SHOW_MESSAGE'],
     [new ApiError(409, '모르는 409', 'SOMETHING_ELSE'), 'SHOW_MESSAGE'],
   ])('%#: %s → %s', (err, action) => {
