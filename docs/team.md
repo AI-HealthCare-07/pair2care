@@ -30,7 +30,7 @@
 | AI 워커(Redis Stream) | 김지연 | 여현지(식단 분류 함수)·김민준(LLM 함수) | CLAUDE.md, `ai_worker/` |
 | 결과지 OCR (12/4 이후) | 김지연 | — | api.md 4-6, REQ-PROF-003 |
 | 프론트(React + Vite) | 김지연 | 여현지 | wireframe.md, 피그마 |
-| 설문 S-06·예측 결과 S-09 화면 | 여현지 | 김지연(가입 후 라우팅), 최현영(3-1 에러 문구·5장 응답) | api.md 3·5장, survey-mapping.md, Figma M02·M04 |
+| 설문 S-06·예측 결과 S-09 화면 | 여현지 | 김지연(가입 후 라우팅), 최현영(3-1 에러 문구·5장 응답), 장성은(설문 문항 코드·S-09 문구 리뷰) | api.md 3·5장, survey-mapping.md, Figma M02·M04 |
 | 검진 수치 입력 화면 S-07 | 김지연 | 최현영(4장 서버), 여현지(S-09 `?focus=` 링크) | api.md 4장, Figma M03, #153 |
 | 마이 S-27 | 김지연 | 최현영(3-4 설문 고치기 EDIT) | api.md 3-4, Figma M18 |
 | 배포(AWS EC2 + Docker Compose) | 김지연 | 최현영(데모 시드 서버 스크립트) | 00_프로젝트_정리.md 5장, #131·#149 |
