@@ -1,4 +1,4 @@
-const API_BASE = '/api/v1'
+export const API_BASE = '/api/v1'
 
 // 서버가 응답 없이 멈춰도 로딩만 계속 보이지 않게 끊는 시간. 사진 업로드는 느린 망을 생각해 길게
 const TIMEOUT_MS = 10_000
