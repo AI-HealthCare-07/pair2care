@@ -54,8 +54,8 @@ export function setMockProfile(p: Partial<typeof mockProfile>) {
 
 const FOODS: Food[] = [
   { id: 1, name: '게장_간장', model_label: '간장게장', serving_size: 250.0, serving_unit: 'G', kcal: 220.0, carbs_g: 11.2, sugar_g: 7.3, sodium_mg: 2275.0, protein_g: 30.6, fat_g: 5.8 },
-  { id: 2, name: '갈비탕', model_label: '갈비탕', serving_size: 797.0, serving_unit: 'ML', kcal: 390.5, carbs_g: 18.0, sugar_g: 1.0, sodium_mg: 518.0, protein_g: 19.9, fat_g: 24.9 },
-  { id: 3, name: '감자탕', model_label: '감자탕', serving_size: 650.0, serving_unit: 'ML', kcal: 175.5, carbs_g: 15.3, sugar_g: 2.3, sodium_mg: 708.5, protein_g: 18.8, fat_g: 4.1 },
+  { id: 2, name: '갈비탕', model_label: '갈비탕', serving_size: 797.0, serving_unit: 'ML', kcal: 390.5, carbs_g: 18.0, sugar_g: 1.0, sodium_mg: 518.1, protein_g: 19.9, fat_g: 24.9 },
+  { id: 3, name: '감자탕', model_label: '감자탕', serving_size: 650.0, serving_unit: 'ML', kcal: 175.5, carbs_g: 15.3, sugar_g: 2.3, sodium_mg: 708.5, protein_g: 18.9, fat_g: 4.1 },
   { id: 4, name: '김치찌개', model_label: '김치찌개', serving_size: 400.0, serving_unit: 'G', kcal: 244.0, carbs_g: 11.9, sugar_g: 3.0, sodium_mg: 1964.0, protein_g: 15.1, fat_g: 15.0 },
   { id: 5, name: '냉면_물냉면', model_label: '냉면', serving_size: 780.0, serving_unit: 'ML', kcal: 748.8, carbs_g: 142.7, sugar_g: 3.3, sodium_mg: 1536.6, protein_g: 28.4, fat_g: 5.3 },
   { id: 6, name: '육개장_간편조리세트_닭개장', model_label: '닭개장', serving_size: 420.0, serving_unit: 'G', kcal: 172.2, carbs_g: null, sugar_g: 2.9, sodium_mg: 1503.6, protein_g: 2.5, fat_g: null },
