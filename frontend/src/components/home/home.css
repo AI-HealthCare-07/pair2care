@@ -49,6 +49,14 @@
 }
 .home-daily__sources a { color: inherit; }
 
+/* 오늘의 한 가지 피드백 (11-9) */
+.home-feedback { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.home-feedback .home-muted { margin: 0; font-size: 14px; }
+.home-feedback__row { display: flex; gap: 8px; }
+.home-feedback__row .ui-chip { flex: 1; height: 44px; }
+.home-feedback__reasons { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-feedback__reasons .ui-chip { height: 36px; padding: 0 14px; font-size: 14px; }
+
 .home-age__level {
   font-size: 20px;
   font-weight: 700;
