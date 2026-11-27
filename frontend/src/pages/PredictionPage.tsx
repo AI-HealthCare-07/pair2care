@@ -4,7 +4,8 @@
 // 화면 상태 판단은 prediction/view.ts 한 곳에서 (일반 안내 / 예측 실패 / 결과).
 //
 // 1차 범위(팀장님 11/25): 질환 카드 · 관리 중 · 일반 안내 · 예측 실패.
-// 12/4까지: 검진 기준표 줄 · 대사증후군 카드 · 빠진 검진 항목 → S-07 연결.
+// 12/4 범위(2차): 검진 기준표 줄(날짜는 기준표 행의 5-3 checked_on) · 대사증후군 카드 · 빠진 검진 항목 → S-07(?focus=) 링크
+//   · 요인 카드 아래 "설문만으로는 알 수 없는 것" ℹ️.
 // 하단 버튼(챌린지 만들기 · 습관 바꾸면)은 화면이 생기면 붙임.
 // 예측 실패 → "다시 계산하기"(5-5): 200·409면 5-2를 다시 부르고, 503·시간 초과면 실패 화면 그대로 + 안내.
 //
@@ -14,7 +15,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import type { PredictionDetail } from '../api/predictions'
+import type { Disease, PredictionDetail } from '../api/predictions'
 import { predictionsApi } from '../api/predictionsApi'
 import Button from '../components/common/Button'
 import MedicalNotice from '../components/common/MedicalNotice'
@@ -22,27 +23,56 @@ import TopBar from '../components/common/TopBar'
 import DiseaseCard from '../components/prediction/DiseaseCard'
 import FactorsCard, { type FactorGroup } from '../components/prediction/FactorsCard'
 import GeneralGuide from '../components/prediction/GeneralGuide'
+import MetabolicCard from '../components/prediction/MetabolicCard'
 import '../components/prediction/prediction.css'
-import { FAILED_MESSAGE, FAILED_TITLE, RETRY_BUSY, RETRY_BUTTON, RETRY_FAILED_AGAIN } from '../prediction/labels'
+import {
+  FAILED_MESSAGE,
+  FAILED_TITLE,
+  RETRY_BUSY,
+  RETRY_BUTTON,
+  RETRY_FAILED_AGAIN,
+  SURVEY_LIMIT_NOTICE,
+} from '../prediction/labels'
 import { buildPredictionView, factorLines, retryFailureAction, type PredictionView } from '../prediction/view'
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; view: PredictionView; factorGroups: FactorGroup[] }
+  | { status: 'ready'; view: PredictionView; details: Details }
+
+/** 5-3에서 가져오는 것: 질환별 요인(모델 행) · 검진 날짜(기준표 행) */
+interface Details {
+  factorGroups: FactorGroup[]
+  checkedOn: Partial<Record<Disease, string | null>>
+}
 
 const HOME_PATH = '/home'
 
-/** 결과 카드마다 5-3을 불러 요인을 모음. 하나가 실패해도 그 질환 요인만 빠지고 화면은 그대로 */
-async function loadFactorGroups(view: PredictionView): Promise<FactorGroup[]> {
-  if (view.kind !== 'RESULT') return []
+const detailOf = (settled: PromiseSettledResult<PredictionDetail>): PredictionDetail | null =>
+  settled.status === 'fulfilled' ? settled.value : null
+
+/**
+ * 결과 카드마다 5-3을 부름: 모델 행 → 요인, 기준표 행 → 검진 날짜(checked_on).
+ * 하나가 실패해도 그 질환 요인·날짜만 빠지고 화면은 그대로 (날짜가 없으면 "검진 수치 기준"만)
+ */
+async function loadDetails(view: PredictionView): Promise<Details> {
+  if (view.kind !== 'RESULT') return { factorGroups: [], checkedOn: {} }
   const resultCards = view.cards.filter((c) => c.kind === 'RESULT')
-  const details = await Promise.allSettled(resultCards.map((c) => predictionsApi.getPrediction(c.model.id)))
-  return resultCards.map((card, i) => {
-    const settled = details[i]
-    const detail: PredictionDetail | null = settled.status === 'fulfilled' ? settled.value : null
+  const checkupRows = resultCards.flatMap((c) => (c.checkup ? [{ disease: c.disease, id: c.checkup.id }] : []))
+  const [models, checkups] = await Promise.all([
+    Promise.allSettled(resultCards.map((c) => predictionsApi.getPrediction(c.model.id))),
+    Promise.allSettled(checkupRows.map((row) => predictionsApi.getPrediction(row.id))),
+  ])
+  const factorGroups = resultCards.map((card, i) => {
+    const detail = detailOf(models[i])
     return { disease: card.disease, lines: detail?.method === 'MODEL' ? factorLines(detail.factors) : [] }
   })
+  const checkedOn: Details['checkedOn'] = {}
+  checkupRows.forEach((row, i) => {
+    const detail = detailOf(checkups[i])
+    checkedOn[row.disease] = detail?.method === 'CHECKUP_CRITERIA' ? detail.checked_on : null
+  })
+  return { factorGroups, checkedOn }
 }
 
 export default function PredictionPage() {
@@ -62,8 +92,8 @@ export default function PredictionPage() {
       .then(() => predictionsApi.getLatestPredictions())
       .then(async (latest) => {
         const view = buildPredictionView(latest)
-        const factorGroups = await loadFactorGroups(view)
-        if (!ignore) setState({ status: 'ready', view, factorGroups })
+        const details = await loadDetails(view)
+        if (!ignore) setState({ status: 'ready', view, details })
       })
       .catch((err: unknown) => {
         if (ignore) return
@@ -171,9 +201,16 @@ export default function PredictionPage() {
           <>
             <h2 className="pred-title">{'지금 생활습관을 기준으로\n계산한 참고값이에요'}</h2>
             {state.view.cards.map((card) => (
-              <DiseaseCard key={card.disease} card={card} />
+              <DiseaseCard key={card.disease} card={card} checkedOn={state.details.checkedOn[card.disease]} />
             ))}
-            <FactorsCard groups={state.factorGroups} />
+            {state.view.metabolic && <MetabolicCard metabolic={state.view.metabolic} />}
+            <FactorsCard groups={state.details.factorGroups} />
+            <p className="pred-info pred-info--page">
+              <span className="pred-info__icon" aria-hidden="true">
+                i
+              </span>
+              <span>{SURVEY_LIMIT_NOTICE}</span>
+            </p>
             <MedicalNotice />
           </>
         )}

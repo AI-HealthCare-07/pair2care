@@ -2,7 +2,7 @@
 // S-09 화면 문구 상수. 서버는 코드값만 주고 문구는 프론트가 정함 (api.md 5-3 "feature → 화면 문구는 프론트 상수").
 // 확정: 단계별 한 줄(성은 님), 요인 14개·ℹ️ 나이 안내(#107 성은 님, 술 DOWN 문구 11/25 수정), 범위 밖 건강 나이(#102 "30세 미만 / 69세 초과")
 
-import type { Disease, Factor, RiskLevel } from '../api/predictions'
+import type { Disease, Factor, MetabolicSyndrome, RiskLevel } from '../api/predictions'
 
 /** 화면 카드 순서: Figma M04 (고혈압 → 당뇨). 서버 응답 순서(당뇨 → 고혈압)와 다름 */
 export const DISEASE_ORDER: readonly Disease[] = ['HYPERTENSION', 'DIABETES']
@@ -91,4 +91,70 @@ export function factorText(factor: Factor): string | null {
   const sameSexBasis = typeof factor.years === 'number'
   if (!sameSexBasis && LEGACY_AVERAGE_TEXT[key]) return LEGACY_AVERAGE_TEXT[key][factor.direction]
   return FACTOR_TEXT[key]?.[factor.direction] ?? null
+}
+
+// ───── 12/4 범위: 검진 기준표 줄 · 대사증후군 · 빠진 검진 항목 → S-07 (wireframe.md S-09, api.md 5-1) ─────
+
+/**
+ * 질환 카드 안 검진 기준표 줄 (method = CHECKUP_CRITERIA). "진단" 대신 "수치가 ○○ 범위예요" (wireframe.md S-09)
+ * CAUTION = 전단계 이상, HIGH = 질환 범위 (api.md 5-1 기준표)
+ */
+export const CHECKUP_RANGE_TEXT: Record<Disease, Record<RiskLevel, string>> = {
+  HYPERTENSION: { LOW: '혈압이 정상 범위예요', CAUTION: '혈압이 주의 범위예요', HIGH: '혈압이 고혈압 범위예요' },
+  DIABETES: { LOW: '혈당이 정상 범위예요', CAUTION: '혈당이 주의 범위예요', HIGH: '혈당이 당뇨 범위예요' },
+}
+
+/** 기준표 CAUTION·HIGH일 때 병원 확인 권유 (wireframe.md S-09) */
+export const CHECKUP_ADVICE = '보건소나 병원에서 확인해 보길 권해요'
+
+/** 기준표 줄 머리. 날짜를 못 불러오면(5-3 실패) 날짜 없이 */
+export function checkupHeading(checkedOn: string | null): string {
+  return checkedOn ? `검진 수치(${checkedOn.replaceAll('-', '.')}) 기준` : '검진 수치 기준'
+}
+
+/** 질환 카드의 S-07 링크 문구. NONE = 유효한 검진 없음, MORE = 검진은 있는데 이 질환 항목이 빠짐 */
+export const CHECKUP_PROMPT_TEXT = {
+  NONE: '검진 수치를 넣으면 수치로도 확인할 수 있어요',
+  MORE: '검진 수치를 더 입력하면 알 수 있어요',
+} as const
+
+/** 설문만으로는 알 수 없는 것 (REQ-PRED-002, wireframe.md S-09). 요인 카드 아래 ℹ️ */
+export const SURVEY_LIMIT_NOTICE = '위험도는 설문 답으로 계산해요. 실제 혈압·혈당 수치는 설문만으로는 알 수 없어요'
+
+export type MetabolicStatus = MetabolicSyndrome['status']
+
+export const METABOLIC_TITLE = '대사증후군'
+
+/** 배지 글자 (wireframe.md: 해당 / 해당 아님 / 판단 어려움) */
+export const METABOLIC_BADGE: Record<MetabolicStatus, string> = {
+  MET: '해당',
+  NOT_MET: '해당 아님',
+  UNKNOWN: '판단 어려움',
+}
+
+/** 대사증후군 기준 이름 → 화면 이름 (서버 criteria.py의 missing 값: 기준 이름이라 입력칸 이름과 다름) */
+export const METABOLIC_CRITERION_LABEL: Record<string, string> = {
+  waist: '허리둘레',
+  triglyceride: '중성지방',
+  hdl_cholesterol: 'HDL',
+  blood_pressure: '혈압',
+  fasting_glucose: '공복혈당',
+}
+
+export const METABOLIC_INFO = '허리둘레·중성지방·HDL·혈압·공복혈당 5개 기준 중 3개 이상이면 해당돼요'
+
+/** 받침 있으면 "을", 없으면 "를". 한글이 아니면(HDL) "을" */
+function objectParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  if (code < 0 || code > 11171) return '을'
+  return code % 28 === 0 ? '를' : '을'
+}
+
+/** 대사증후군 카드 문구 (Figma M04 "5개 기준 중 2개 해당. 중성지방·HDL을 넣으면 알 수 있어요") */
+export function metabolicMessage(status: MetabolicStatus, metCount: number, missingLabels: string[]): string {
+  const count = `5개 기준 중 ${metCount}개 해당`
+  if (status === 'MET') return `${count}. ${CHECKUP_ADVICE}`
+  if (status === 'NOT_MET' || missingLabels.length === 0) return count
+  const names = missingLabels.join('·')
+  return `${count}. ${names}${objectParticle(names)} 넣으면 알 수 있어요`
 }
