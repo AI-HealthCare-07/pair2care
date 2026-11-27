@@ -16,6 +16,9 @@ from typing import Any, Protocol
 MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-5-5")
 PROMPT_VERSION = "llm_verified_actions_v3"
 NO_EVIDENCE = "지금은 근거가 충분하지 않아 추천하기 어려워요."
+MEAL_PROMPT_VERSION = "llm_meal_verified_actions_v5"
+# S-23 표시 퍼센트(소수 첫째 자리, half-up)가 33.3% 이상: 2,000mg × 0.3325 = 665mg.
+MEAL_SODIUM_HIGH_MG = 665
 GUIDES_PATH = Path(__file__).resolve().parent.parent / "resources" / "health_guides.json"
 # 동시 Claude 요청 상한 (프로세스별); 워커의 3회 재시도는 별도 처리한다.
 _SEMAPHORE = asyncio.Semaphore(3)
@@ -24,6 +27,7 @@ _BOOLEAN_FACTS = {
     "is_diabetes_diagnosed",
     "is_drink",
     "is_broth_dish",
+    "is_non_broth_dish",
     "has_zero_walk_days",
     "is_current_smoker",
 }
@@ -90,8 +94,15 @@ def retrieve_guides(kind: str, facts: dict[str, Any], guides: list[Evidence], li
         if kind not in guide.topics:
             continue
         if kind == "MEAL_ALTERNATIVE":
-            if guide.id == "htn_less_salt" and not facts.get("is_broth_dish"):
-                continue
+            if guide.id in {"htn_less_salt", "meal_less_salty_seasoning"}:
+                if facts.get("is_drink") or (facts.get("sodium_mg") or 0) < MEAL_SODIUM_HIGH_MG:
+                    continue
+                if guide.id == "htn_less_salt" and not facts.get("is_broth_dish"):
+                    continue
+                if guide.id == "meal_less_salty_seasoning" and (
+                    not facts.get("is_non_broth_dish") or facts.get("is_broth_dish")
+                ):
+                    continue
             if guide.id == "dm_reduce_added_sugar" and not facts.get("is_drink"):
                 continue
             if guide.id == "dm_more_fiber" and facts.get("is_drink"):
@@ -164,9 +175,10 @@ async def generate_recommendation(
     guides: list[Evidence] | None = None,
 ) -> RecommendationResult:
     sanitized = clean_facts(facts)
+    version = MEAL_PROMPT_VERSION if kind == "MEAL_ALTERNATIVE" else PROMPT_VERSION
     candidates = retrieve_guides(kind, sanitized, guides if guides is not None else load_guides())
     if not sanitized or not candidates:
-        return RecommendationResult(NO_EVIDENCE, [], None, PROMPT_VERSION)
+        return RecommendationResult(NO_EVIDENCE, [], None, version)
     chooser = selector or AnthropicSelector()
     chosen_id, usage = await chooser.choose(build_prompt(kind, sanitized, candidates), [g.id for g in candidates])
     if chosen_id not in {g.id for g in candidates}:
@@ -177,7 +189,7 @@ async def generate_recommendation(
         content=f"{guide.action} [1]",
         sources=[{"number": 1, "title": guide.title, "url": guide.url}],
         model=MODEL,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=version,
         input_tokens=usage.get("input_tokens", 0),
         output_tokens=usage.get("output_tokens", 0),
         cache_creation_tokens=usage.get("cache_creation_tokens", 0),

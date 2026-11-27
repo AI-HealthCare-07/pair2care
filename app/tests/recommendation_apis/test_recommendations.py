@@ -159,20 +159,21 @@ class TestRecommendations(TruncationTestCase):
         user = await User.get(email=EMAIL)
         await db.execute_script(
             """
-            CREATE TABLE foods (id BIGINT PRIMARY KEY, name VARCHAR(150) NOT NULL);
+            CREATE TABLE foods (id BIGINT PRIMARY KEY, name VARCHAR(150) NOT NULL, model_label VARCHAR(50) NOT NULL);
             CREATE TABLE meals (
                 id BIGINT PRIMARY KEY, user_id BIGINT NOT NULL, food_id BIGINT,
                 eaten_at DATETIME NOT NULL, category VARCHAR(10), portion DECIMAL(2,1), nutrients JSON
             );
-            INSERT INTO foods VALUES (1, '국밥');
+            INSERT INTO foods VALUES (1, '육개장_간편조리세트_닭개장', '닭개장'), (2, '게장_간장', '간장게장');
             """
         )
         try:
             await db.execute_query(
                 """INSERT INTO meals VALUES
                     (1, %s, NULL, '2026-11-20 09:00:00', 'MEAL', 1.5, '{"sodium_mg": 900}'),
-                    (2, 0, 1, '2026-11-20 09:00:00', 'MEAL', 1.5, NULL)""",
-                [user.id],
+                    (2, 0, 1, '2026-11-20 09:00:00', 'MEAL', 1.5, NULL),
+                    (3, %s, 2, '2026-11-20 12:00:00', 'MEAL', 1.0, '{"sodium_mg": 665}')""",
+                [user.id, user.id],
             )
             assert (await client.get("/api/v1/meals/2/recommendation")).status_code == 404
             assert (await client.post("/api/v1/meals/1/recommendation")).status_code == 409
@@ -210,12 +211,25 @@ class TestRecommendations(TruncationTestCase):
             selector.assert_awaited_once()
             prompt, _ = selector.await_args.args
             assert json.loads(prompt)["meal_facts"] == {"sodium_mg": 900, "portion": 1.5}
-            assert "국밥" not in prompt
+            assert "육개장_간편조리세트_닭개장" not in prompt
+            assert "닭개장" not in prompt
             result = (await client.get("/api/v1/meals/1/recommendation")).json()
             assert result["status"] == "COMPLETED"
             assert result["target_on"] == "2026-11-20"
             assert result["sources"][0]["number"] == 1
             usage = await LlmUsageLog.get(recommendation_id=result["id"])
             assert (usage.meal_id, usage.input_tokens, usage.output_tokens, usage.is_success) == (1, 7, 2, True)
+
+            selector.side_effect = None
+            selector.return_value = ("meal_less_salty_seasoning", {"input_tokens": 7})
+            assert (await client.post("/api/v1/meals/3/recommendation")).status_code == 202
+            await process_message(redis, *await read_task(redis))
+            non_broth = (await client.get("/api/v1/meals/3/recommendation")).json()
+            assert non_broth["status"] == "COMPLETED"
+            assert "연하게" in non_broth["content"]
+            prompt, ids = selector.await_args.args
+            assert ids == ["meal_less_salty_seasoning"]
+            assert "간장게장" not in prompt
+            assert "is_non_broth_dish" not in prompt
         finally:
             await db.execute_script("DROP TABLE meals; DROP TABLE foods;")

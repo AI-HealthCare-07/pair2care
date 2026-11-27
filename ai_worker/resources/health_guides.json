@@ -82,5 +82,18 @@
     "signals": [
       "is_current_smoker"
     ]
+  },
+  {
+    "id": "meal_less_salty_seasoning",
+    "title": "질병관리청 국가건강정보포털 - 고혈압 환자의 식이요법",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=6855",
+    "topics": [
+      "MEAL_ALTERNATIVE"
+    ],
+    "summary": "식사에서 소금과 짠 양념을 줄이고 외식할 때 간을 약하게 요청하는 방법이 소개되어 있다.",
+    "action": "다음 식사에서는 가능하면 간을 조금 연하게 해 보는 건 어때요?",
+    "signals": [
+      "sodium_mg"
+    ]
   }
 ]
