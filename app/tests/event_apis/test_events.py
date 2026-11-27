@@ -49,7 +49,10 @@ class TestEventTicket(TestCase):
         assert 0 < await self.redis.ttl(key) <= TICKET_TTL_SECONDS
 
     async def test_missing_or_unknown_ticket_is_401(self) -> None:
-        assert (await self.client.get("/api/v1/events")).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert (await self.client.get("/api/v1/events")).status_code == status.HTTP_401_UNAUTHORIZED
+        assert (
+            await self.client.get("/api/v1/events", params={"ticket": ""})
+        ).status_code == status.HTTP_401_UNAUTHORIZED
         response = await self.client.get("/api/v1/events", params={"ticket": "nope"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

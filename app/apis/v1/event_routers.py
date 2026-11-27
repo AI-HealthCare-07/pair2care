@@ -21,9 +21,9 @@ async def create_ticket(user: Annotated[User, Depends(get_request_user)]) -> dic
 
 
 @event_router.get("")
-async def stream_events(ticket: Annotated[str, Query(min_length=1, max_length=100)]) -> StreamingResponse:
-    """티켓으로 인증하고(헤더 없음) text/event-stream을 엶. 티켓이 없거나 만료·재사용이면 401."""
-    user_id = await use_ticket(ticket)
+async def stream_events(ticket: Annotated[str | None, Query(max_length=100)] = None) -> StreamingResponse:
+    """티켓으로 인증하고(헤더 없음) text/event-stream을 엶. 티켓이 없거나 만료·재사용이면 401 (빠져도 422가 아니라 401, 12-6)."""
+    user_id = await use_ticket(ticket) if ticket else None
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=TICKET_INVALID_DETAIL)
     return StreamingResponse(
