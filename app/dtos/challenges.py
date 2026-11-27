@@ -1,4 +1,3 @@
-
 """8-7 챌린지 생성 요청 DTO (docs/api.md)."""
 
 from datetime import date
@@ -21,4 +20,3 @@ class ChallengeCheckRequest(BaseModel):
     """8-10. 챌린지 완료 체크 요청."""
 
     checked_on: date | None = None
-

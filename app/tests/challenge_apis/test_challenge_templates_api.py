@@ -1,4 +1,3 @@
-
 """8-1 기본 챌린지 목록 API 테스트."""
 
 from httpx import ASGITransport, AsyncClient
@@ -14,7 +13,6 @@ URL = "/api/v1/challenge-templates"
 
 
 class TestChallengeTemplatesAPI(TestCase):
-
     async def test_empty_list(self) -> None:
         """데이터가 없으면 빈 목록을 반환한다."""
         async with AsyncClient(
@@ -63,7 +61,4 @@ class TestChallengeTemplatesAPI(TestCase):
                 item["default_times_per_week"],
             )
             for item in items
-        ] == [
-            (category.value, title, times)
-            for category, title, times in templates
-        ]
+        ] == [(category.value, title, times) for category, title, times in templates]

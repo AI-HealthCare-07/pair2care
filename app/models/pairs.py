@@ -1,4 +1,3 @@
-
 """짝꿍 관계 모델 (docs/erd.dbml)."""
 
 from enum import StrEnum

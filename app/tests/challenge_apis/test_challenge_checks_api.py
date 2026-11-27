@@ -1,4 +1,3 @@
-
 """8-10 챌린지 완료 체크·취소 API 테스트."""
 
 from datetime import datetime, timedelta
@@ -35,9 +34,7 @@ async def login(client: AsyncClient, email: str) -> None:
     )
     assert response.status_code == status.HTTP_200_OK
 
-    client.headers["Authorization"] = (
-        f"Bearer {response.json()['access_token']}"
-    )
+    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
 
 
 async def create_challenge(client: AsyncClient) -> int:
@@ -54,7 +51,6 @@ async def create_challenge(client: AsyncClient) -> int:
 
 
 class TestChallengeChecksAPI(TestCase):
-
     async def test_check_duplicate_and_uncheck(self) -> None:
         """체크 생성, 중복 방지, 체크 취소를 검증한다."""
         today = datetime.now(KST).date().isoformat()
@@ -82,22 +78,16 @@ class TestChallengeChecksAPI(TestCase):
             assert detail.status_code == status.HTTP_200_OK
             assert detail.json()["my_checks"] == [today]
 
-            deleted = await client.delete(
-                f"{check_url}/{today}"
-            )
+            deleted = await client.delete(f"{check_url}/{today}")
             assert deleted.status_code == status.HTTP_204_NO_CONTENT
 
-            detail_after = await client.get(
-                f"{URL}/{challenge_id}"
-            )
+            detail_after = await client.get(f"{URL}/{challenge_id}")
             assert detail_after.status_code == status.HTTP_200_OK
             assert detail_after.json()["my_checks"] == []
 
     async def test_invalid_check_date(self) -> None:
         """이틀 전 날짜의 체크와 취소는 거부한다."""
-        invalid_date = (
-            datetime.now(KST).date() - timedelta(days=2)
-        ).isoformat()
+        invalid_date = (datetime.now(KST).date() - timedelta(days=2)).isoformat()
 
         async with new_client() as client:
             await login(client, "check-date@example.com")
@@ -108,9 +98,7 @@ class TestChallengeChecksAPI(TestCase):
                 json={"checked_on": invalid_date},
             )
 
-            deleted = await client.delete(
-                f"{URL}/{challenge_id}/checks/{invalid_date}"
-            )
+            deleted = await client.delete(f"{URL}/{challenge_id}/checks/{invalid_date}")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert deleted.status_code == status.HTTP_400_BAD_REQUEST
@@ -131,9 +119,7 @@ class TestChallengeChecksAPI(TestCase):
                 json={"checked_on": today},
             )
 
-            deleted = await other.delete(
-                f"{URL}/{challenge_id}/checks/{today}"
-            )
+            deleted = await other.delete(f"{URL}/{challenge_id}/checks/{today}")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert deleted.status_code == status.HTTP_404_NOT_FOUND
@@ -148,9 +134,7 @@ class TestChallengeChecksAPI(TestCase):
                 json={"checked_on": today},
             )
 
-            deleted = await client.delete(
-                f"{URL}/1/checks/{today}"
-            )
+            deleted = await client.delete(f"{URL}/1/checks/{today}")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert deleted.status_code == status.HTTP_401_UNAUTHORIZED

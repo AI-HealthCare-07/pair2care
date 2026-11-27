@@ -1,4 +1,3 @@
-
 """챌린지 완료 체크 기록 모델 (docs/erd.dbml)."""
 
 from tortoise import fields, models

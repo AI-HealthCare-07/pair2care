@@ -1,19 +1,17 @@
-
 """챌린지 서비스 (docs/api.md 8-7)."""
 
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from tortoise.transactions import in_transaction
 
 from app.dtos.challenges import ChallengeCreateRequest
-from app.models.challenge_checks import ChallengeCheck
-from app.models.challenge_participants import ChallengeParticipant, ParticipantStatus
-from app.models.challenge_templates import ChallengeTemplate
-from app.models.challenges import Challenge, ChallengeStatus
+from app.models.challenge_participants import ParticipantStatus
+from app.models.challenges import ChallengeStatus
 from app.models.users import User
 from app.repositories.challenge_repository import ChallengeRepository
+from app.repositories.challenge_template_repository import ChallengeTemplateRepository
+from app.services.challenge_progress import week_progress
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -47,18 +45,14 @@ class ChallengeService:
         # 기본 챌린지 템플릿 확인
         template = None
         if data.challenge_template_id is not None:
-            template = await ChallengeTemplate.get_or_none(
-                id=data.challenge_template_id
-            )
+            template = await ChallengeTemplateRepository().get_by_id(data.challenge_template_id)
             if template is None:
                 raise HTTPException(
                     status_code=404,
                     detail="챌린지 템플릿을 찾을 수 없어요.",
                 )
 
-        title = data.title.strip() if data.title is not None else (
-            template.title if template else None
-        )
+        title = data.title.strip() if data.title is not None else (template.title if template else None)
 
         if not title:
             raise HTTPException(
@@ -66,27 +60,16 @@ class ChallengeService:
                 detail="챌린지 제목을 입력해 주세요.",
             )
 
-        # 챌린지와 참여자를 한 트랜잭션으로 저장
-        async with in_transaction() as conn:
-            challenge = await Challenge.create(
-                created_by_id=user.id,
-                challenge_template_id=template.id if template else None,
-                pair_id=None,
-                title=title,
-                times_per_week=data.times_per_week,
-                starts_on=starts_on,
-                ends_on=data.ends_on,
-                status=ChallengeStatus.ACTIVE,
-                using_db=conn,
-            )
-
-            await ChallengeParticipant.create(
-                challenge_id=challenge.id,
-                user_id=user.id,
-                status=ParticipantStatus.JOINED,
-                joined_at=now,
-                using_db=conn,
-            )
+        # 챌린지와 참여자를 Repository에서 함께 생성
+        challenge = await ChallengeRepository().create_solo(
+            user_id=user.id,
+            template_id=template.id if template else None,
+            title=title,
+            times_per_week=data.times_per_week,
+            starts_on=starts_on,
+            ends_on=data.ends_on,
+            joined_at=now,
+        )
 
         return {
             "id": challenge.id,
@@ -108,13 +91,10 @@ class ChallengeService:
             "my_checks": [],
         }
 
-
     async def get_detail(self, user: User, challenge_id: int) -> dict:
         """8-9. 챌린지 상세 조회."""
 
-        result = await ChallengeRepository().get_for_user(
-            challenge_id, user.id
-        )
+        result = await ChallengeRepository().get_for_user(challenge_id, user.id)
 
         if result is None:
             raise HTTPException(
@@ -129,18 +109,15 @@ class ChallengeService:
         checks = await repo.get_my_checks(challenge_id, user.id)
 
         active_count = sum(
-            p.status in (
+            p.status
+            in (
                 ParticipantStatus.INVITED,
                 ParticipantStatus.JOINED,
             )
             for p in participants
         )
 
-        mode = (
-            "PAIR" if challenge.pair_id is not None
-            else "GROUP" if active_count > 1
-            else "SOLO"
-        )
+        mode = "PAIR" if challenge.pair_id is not None else "GROUP" if active_count > 1 else "SOLO"
 
         return {
             "id": challenge.id,
@@ -148,31 +125,20 @@ class ChallengeService:
             "mode": mode,
             "times_per_week": challenge.times_per_week,
             "starts_on": challenge.starts_on.isoformat(),
-            "ends_on": (
-                challenge.ends_on.isoformat()
-                if challenge.ends_on else None
-            ),
+            "ends_on": (challenge.ends_on.isoformat() if challenge.ends_on else None),
             "status": str(challenge.status),
             "participants": [
                 {
                     "user_id": p.user_id,
                     "nickname": p.user.nickname,
                     "status": str(p.status),
-                    "times_per_week": (
-                        p.times_per_week
-                        if p.times_per_week is not None
-                        else challenge.times_per_week
-                    ),
+                    "times_per_week": (p.times_per_week if p.times_per_week is not None else challenge.times_per_week),
                     "is_me": p.user_id == user.id,
                 }
                 for p in participants
             ],
-            "my_checks": [
-                check.checked_on.isoformat()
-                for check in checks
-            ],
+            "my_checks": [check.checked_on.isoformat() for check in checks],
         }
-
 
     async def list_challenges(
         self,
@@ -194,34 +160,24 @@ class ChallengeService:
         for challenge in challenges:
             detail = await self.get_detail(user, challenge.id)
 
-            me = next(
-                p for p in detail["participants"]
-                if p["is_me"]
-            )
+            me = next(p for p in detail["participants"] if p["is_me"])
             target = me["times_per_week"]
 
-            checked_dates = [
-                date.fromisoformat(value)
-                for value in detail["my_checks"]
-            ]
+            checked_dates = [date.fromisoformat(value) for value in detail["my_checks"]]
 
-            this_week_checked = sum(
-                week_start <= day < week_start + timedelta(days=7)
-                for day in checked_dates
+            this_week_checked, _ = week_progress(
+                checked_dates=checked_dates,
+                week_start=week_start,
+                target=target,
             )
 
             # 완료한 지난주부터 거슬러 올라가 연속 달성 주 계산
             streak = 0
             previous_week = week_start - timedelta(days=7)
-            first_week = challenge.starts_on - timedelta(
-                days=challenge.starts_on.weekday()
-            )
+            first_week = challenge.starts_on - timedelta(days=challenge.starts_on.weekday())
 
             while previous_week >= first_week:
-                count = sum(
-                    previous_week <= day < previous_week + timedelta(days=7)
-                    for day in checked_dates
-                )
+                count = sum(previous_week <= day < previous_week + timedelta(days=7) for day in checked_dates)
 
                 if count < target:
                     break
@@ -229,23 +185,25 @@ class ChallengeService:
                 streak += 1
                 previous_week -= timedelta(days=7)
 
-            items.append({
-                "id": challenge.id,
-                "title": challenge.title,
-                "mode": detail["mode"],
-                "status": detail["status"],
-                "my_status": me["status"],
-                "my_times_per_week": target,
-                "this_week": {
-                    "checked": this_week_checked,
-                    "target": target,
-                },
-                "total_checked": len(checked_dates),
-                "streak_weeks": streak,
-                "checked_today": today in checked_dates,
-                "is_owner": challenge.created_by_id == user.id,
-                "decision_required": False,
-            })
+            items.append(
+                {
+                    "id": challenge.id,
+                    "title": challenge.title,
+                    "mode": detail["mode"],
+                    "status": detail["status"],
+                    "my_status": me["status"],
+                    "my_times_per_week": target,
+                    "this_week": {
+                        "checked": this_week_checked,
+                        "target": target,
+                    },
+                    "total_checked": len(checked_dates),
+                    "streak_weeks": streak,
+                    "checked_today": today in checked_dates,
+                    "is_owner": challenge.created_by_id == user.id,
+                    "decision_required": False,
+                }
+            )
 
         return {"items": items}
 
@@ -266,9 +224,7 @@ class ChallengeService:
                 detail="오늘 또는 어제 날짜만 체크할 수 있어요.",
             )
 
-        result = await ChallengeRepository().get_for_user(
-            challenge_id, user.id
-        )
+        result = await ChallengeRepository().get_for_user(challenge_id, user.id)
 
         if result is None:
             raise HTTPException(
@@ -290,41 +246,34 @@ class ChallengeService:
                 detail="진행 중인 챌린지만 체크할 수 있어요.",
             )
 
-        if target_day < challenge.starts_on or (
-            challenge.ends_on is not None
-            and target_day > challenge.ends_on
-        ):
+        if target_day < challenge.starts_on or (challenge.ends_on is not None and target_day > challenge.ends_on):
             raise HTTPException(
                 status_code=400,
                 detail="챌린지 진행 기간이 아니에요.",
             )
 
-        record, created = await ChallengeCheck.get_or_create(
+        record, created = await ChallengeRepository().get_or_create_check(
             challenge_id=challenge_id,
             user_id=user.id,
             checked_on=target_day,
         )
 
         week_start = target_day - timedelta(days=target_day.weekday())
-        count = await ChallengeCheck.filter(
+        count = await ChallengeRepository().count_checks_for_week(
             challenge_id=challenge_id,
             user_id=user.id,
-            checked_on__gte=week_start,
-            checked_on__lt=week_start + timedelta(days=7),
-        ).count()
+            week_start=week_start,
+        )
 
         return {
             "checked_on": record.checked_on.isoformat(),
             "this_week": {
                 "checked": count,
                 "target": (
-                    membership.times_per_week
-                    if membership.times_per_week is not None
-                    else challenge.times_per_week
+                    membership.times_per_week if membership.times_per_week is not None else challenge.times_per_week
                 ),
             },
         }, created
-
 
     async def uncheck(
         self,
@@ -342,9 +291,7 @@ class ChallengeService:
                 detail="오늘 또는 어제 날짜만 취소할 수 있어요.",
             )
 
-        result = await ChallengeRepository().get_for_user(
-            challenge_id, user.id
-        )
+        result = await ChallengeRepository().get_for_user(challenge_id, user.id)
 
         if result is None:
             raise HTTPException(
@@ -366,8 +313,8 @@ class ChallengeService:
                 detail="진행 중인 챌린지만 체크를 취소할 수 있어요.",
             )
 
-        await ChallengeCheck.filter(
+        await ChallengeRepository().delete_check(
             challenge_id=challenge_id,
             user_id=user.id,
             checked_on=checked_on,
-        ).delete()
+        )

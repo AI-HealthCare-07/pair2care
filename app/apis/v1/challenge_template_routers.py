@@ -1,4 +1,3 @@
-
 """8-1 기본 챌린지 템플릿 조회 API."""
 
 from typing import Annotated, Any

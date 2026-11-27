@@ -1,4 +1,3 @@
-
 """기본 챌린지 템플릿 7종 초기 데이터 등록."""
 
 import asyncio
@@ -24,27 +23,29 @@ DEFAULT_TEMPLATES = [
 ]
 
 
+async def seed_templates() -> None:
+    """기본 챌린지 템플릿 7종을 등록한다."""
+    for category, title, times_per_week in DEFAULT_TEMPLATES:
+        existing = await ChallengeTemplate.filter(category=category).first()
+
+        if existing is not None:
+            print(f"이미 등록됨: {existing.title}")
+            continue
+
+        template = await ChallengeTemplate.create(
+            title=title,
+            category=category,
+            default_times_per_week=times_per_week,
+        )
+
+        print(f"등록 완료: {template.title}")
+
+
 async def main() -> None:
     await Tortoise.init(config=TORTOISE_ORM)
 
     try:
-        for category, title, times_per_week in DEFAULT_TEMPLATES:
-            existing = await ChallengeTemplate.filter(
-                category=category
-            ).first()
-
-            if existing is not None:
-                print(f"이미 등록됨: {existing.title}")
-                continue
-
-            template = await ChallengeTemplate.create(
-                title=title,
-                category=category,
-                default_times_per_week=times_per_week,
-            )
-
-            print(f"등록 완료: {template.title}")
-
+        await seed_templates()
     finally:
         await Tortoise.close_connections()
 

@@ -1,4 +1,3 @@
-
 """기본 챌린지 템플릿 모델 (docs/erd.dbml)."""
 
 from enum import StrEnum

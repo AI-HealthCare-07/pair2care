@@ -1,4 +1,3 @@
-
 """챌린지 템플릿 DB 조회 (api.md 8-1)."""
 
 from typing import Any
@@ -19,3 +18,7 @@ class ChallengeTemplateRepository:
                 "default_times_per_week",
             )
         )
+
+    async def get_by_id(self, template_id: int) -> ChallengeTemplate | None:
+        """ID로 챌린지 템플릿을 조회한다."""
+        return await ChallengeTemplate.get_or_none(id=template_id)

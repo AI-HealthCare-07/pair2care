@@ -1,4 +1,3 @@
-
 """8-7 SOLO 챌린지 생성 API 테스트."""
 
 from httpx import ASGITransport, AsyncClient
@@ -34,13 +33,10 @@ async def login(client: AsyncClient, email: str) -> None:
     )
     assert response.status_code == status.HTTP_200_OK
 
-    client.headers["Authorization"] = (
-        f"Bearer {response.json()['access_token']}"
-    )
+    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
 
 
 class TestChallengeCreateAPI(TestCase):
-
     async def test_create_solo_challenge(self) -> None:
         """로그인한 사용자는 SOLO 챌린지를 생성할 수 있다."""
         async with new_client() as client:

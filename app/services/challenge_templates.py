@@ -1,4 +1,3 @@
-
 """8-1 챌린지 템플릿 조회 서비스."""
 
 from typing import Any

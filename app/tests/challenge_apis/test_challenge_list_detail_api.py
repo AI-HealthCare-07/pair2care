@@ -1,4 +1,3 @@
-
 """8-9 챌린지 목록·상세 조회 API 테스트."""
 
 from httpx import ASGITransport, AsyncClient
@@ -31,9 +30,7 @@ async def login(client: AsyncClient, email: str) -> None:
     )
     assert response.status_code == status.HTTP_200_OK
 
-    client.headers["Authorization"] = (
-        f"Bearer {response.json()['access_token']}"
-    )
+    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
 
 
 async def create_challenge(client: AsyncClient) -> int:
@@ -50,7 +47,6 @@ async def create_challenge(client: AsyncClient) -> int:
 
 
 class TestChallengeListDetailAPI(TestCase):
-
     async def test_list_active_challenges(self) -> None:
         """내 ACTIVE 챌린지 목록과 주간 목표를 조회한다."""
         async with new_client() as client:
@@ -81,9 +77,7 @@ class TestChallengeListDetailAPI(TestCase):
             await login(client, "chal-detail@example.com")
             challenge_id = await create_challenge(client)
 
-            response = await client.get(
-                f"{URL}/{challenge_id}"
-            )
+            response = await client.get(f"{URL}/{challenge_id}")
 
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
@@ -106,9 +100,7 @@ class TestChallengeListDetailAPI(TestCase):
             await login(other, "chal-other@example.com")
 
             list_response = await other.get(URL)
-            detail_response = await other.get(
-                f"{URL}/{challenge_id}"
-            )
+            detail_response = await other.get(f"{URL}/{challenge_id}")
 
         assert list_response.status_code == status.HTTP_200_OK
         assert list_response.json() == {"items": []}

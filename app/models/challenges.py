@@ -1,4 +1,3 @@
-
 """사용자 챌린지 모델 (docs/erd.dbml)."""
 
 from enum import StrEnum

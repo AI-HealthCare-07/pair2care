@@ -1,4 +1,3 @@
-
 """챌린지 API (docs/api.md 8장)."""
 
 from datetime import date
@@ -65,11 +64,7 @@ async def check_challenge(
 
     return ORJSONResponse(
         content=body,
-        status_code=(
-            status.HTTP_201_CREATED
-            if created
-            else status.HTTP_200_OK
-        ),
+        status_code=(status.HTTP_201_CREATED if created else status.HTTP_200_OK),
     )
 
 
@@ -86,4 +81,3 @@ async def uncheck_challenge(
     """8-10. 완료 체크 취소."""
     await service.uncheck(user, challenge_id, checked_on)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
