@@ -7,11 +7,12 @@ from unittest.mock import patch
 import pytest
 from tortoise.contrib.test import TestCase
 
+from app.core.config import Env
 from app.models.health_logs import HealthLog, HealthLogType
 from app.models.risk_predictions import Disease, PredictionMethod, RiskPrediction
 from app.models.users import User
 from app.services.health_log_rules import KST
-from scripts.seed_demo import DEMO_EMAIL, read_demo_password, seed
+from scripts.seed_demo import DEMO_EMAIL, check_seed_allowed, read_demo_password, seed
 
 NOW = datetime(2026, 11, 26, 10, 0, tzinfo=KST)
 
@@ -54,3 +55,18 @@ def test_read_demo_password_stops_without_env() -> None:
 def test_read_demo_password_returns_env_value() -> None:
     with patch.dict(os.environ, {"DEMO_PASSWORD": "virtual-pass-1"}):
         assert read_demo_password() == "virtual-pass-1"
+
+
+def test_check_seed_allowed_blocks_prod_without_flag() -> None:
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("ALLOW_DEMO_SEED", None)
+        with pytest.raises(SystemExit, match="ALLOW_DEMO_SEED"):
+            check_seed_allowed(Env.PROD)
+
+
+def test_check_seed_allowed_passes_prod_with_flag_and_local() -> None:
+    with patch.dict(os.environ, {"ALLOW_DEMO_SEED": "1"}):
+        check_seed_allowed(Env.PROD)
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("ALLOW_DEMO_SEED", None)
+        check_seed_allowed(Env.LOCAL)

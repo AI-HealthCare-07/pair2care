@@ -1,6 +1,6 @@
 """데모용 가상 사용자 시드 (12/30 데모데이 시나리오, REQ 시나리오 2 "고혈압 주의 → 습관 개선 → 추이 확인").
 
-**가상 데이터만** 넣음 (실제 사람·국건영 원본 아님). 로컬·스테이징 전용이라 ENV=prod면 실행하지 않음.
+**가상 데이터만** 넣음 (실제 사람·국건영 원본 아님). ENV=prod 서버에서는 `ALLOW_DEMO_SEED=1`을 같이 줄 때만 실행함 (데모 서버용, 실수로 운영 DB에 넣지 않게).
 
 실행 (레포 루트, MySQL이 떠 있고 aerich upgrade를 마친 상태):
     DEMO_PASSWORD='원하는 비밀번호' DB_HOST=localhost uv run --env-file envs/.local.env python -m scripts.seed_demo
@@ -240,6 +240,11 @@ async def seed(now: datetime, password: str) -> SeedSummary:
     )
 
 
+def check_seed_allowed(env: Env) -> None:
+    if env == Env.PROD and os.environ.get("ALLOW_DEMO_SEED") != "1":
+        raise SystemExit("ENV=prod에서는 ALLOW_DEMO_SEED=1을 같이 줄 때만 데모 시드를 넣어요.")
+
+
 def read_demo_password() -> str:
     password = os.environ.get("DEMO_PASSWORD")
     if not password:
@@ -248,8 +253,7 @@ def read_demo_password() -> str:
 
 
 async def main() -> None:
-    if config.ENV == Env.PROD:
-        raise SystemExit("ENV=prod에서는 데모 시드를 넣지 않아요.")
+    check_seed_allowed(config.ENV)
     password = read_demo_password()
     await Tortoise.init(config=TORTOISE_ORM)
     try:
