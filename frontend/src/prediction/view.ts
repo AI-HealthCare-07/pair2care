@@ -8,10 +8,19 @@ import type {
   LatestPrediction,
   LatestPredictionsResponse,
   MetabolicSyndrome,
+  RiskLevel,
   SkippedReason,
 } from '../api/predictions'
 import type { CheckupKey } from '../checkup/checkupFields'
-import { DISEASE_ORDER, factorText, METABOLIC_CRITERION_LABEL, type MetabolicStatus, yearsText } from './labels'
+import {
+  DISEASE_ORDER,
+  factorText,
+  LEVEL_MESSAGE,
+  LOW_MESSAGE_WITH_CHECKUP,
+  METABOLIC_CRITERION_LABEL,
+  type MetabolicStatus,
+  yearsText,
+} from './labels'
 
 /**
  * 질환 카드의 S-07 링크 (기준표 행이 없을 때만). focus = S-07에서 바로 갈 입력칸 (#153 ?focus=)
@@ -94,6 +103,12 @@ export function metabolicView(metabolic: MetabolicSyndrome | null): MetabolicVie
     missingLabels: known.map((name) => METABOLIC_CRITERION_LABEL[name]),
     focus: metabolic.status === 'UNKNOWN' && known.length > 0 ? METABOLIC_CRITERION_FIELD[known[0]] : null,
   }
+}
+
+/** 모델 단계 한 줄. 모델 LOW + 기준표 CAUTION·HIGH면 "유지해도 좋아요"를 뺌 (#157 성은 님) */
+export function levelMessage(modelLevel: RiskLevel, checkupLevel: RiskLevel | null): string {
+  if (modelLevel === 'LOW' && checkupLevel !== null && checkupLevel !== 'LOW') return LOW_MESSAGE_WITH_CHECKUP
+  return LEVEL_MESSAGE[modelLevel]
 }
 
 /** S-07 링크 주소 (#153: 접힌 칸이면 펼치고 그 칸으로 이동) */

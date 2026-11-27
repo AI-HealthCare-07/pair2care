@@ -104,8 +104,14 @@ export const CHECKUP_RANGE_TEXT: Record<Disease, Record<RiskLevel, string>> = {
   DIABETES: { LOW: '혈당이 정상 범위예요', CAUTION: '혈당이 주의 범위예요', HIGH: '혈당이 당뇨 범위예요' },
 }
 
-/** 기준표 CAUTION·HIGH일 때 병원 확인 권유 (wireframe.md S-09) */
-export const CHECKUP_ADVICE = '보건소나 병원에서 확인해 보길 권해요'
+/** 기준표 CAUTION·HIGH일 때 병원 확인 권유 (wireframe.md S-09). 모델 HIGH 한 줄과 같은 문장 (#157 성은 님) */
+export const CHECKUP_ADVICE = '보건소나 병원에서 한 번 확인해 보길 권해요'
+
+/**
+ * 모델은 LOW인데 검진 기준표가 CAUTION·HIGH일 때 단계 한 줄. "지금처럼 유지해도 좋아요"가
+ * 바로 아래 병원 권유와 부딪혀서 앞부분만 (#157 성은 님)
+ */
+export const LOW_MESSAGE_WITH_CHECKUP = '상대적으로 낮은 편이에요'
 
 /** 기준표 줄 머리. 날짜를 못 불러오면(5-3 실패) 날짜 없이 */
 export function checkupHeading(checkedOn: string | null): string {

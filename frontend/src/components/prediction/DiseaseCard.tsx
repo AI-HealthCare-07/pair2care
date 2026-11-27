@@ -14,7 +14,6 @@ import {
   checkupHeading,
   DISEASE_LABEL,
   LEVEL_LABEL,
-  LEVEL_MESSAGE,
   MANAGED_MESSAGE,
   MANAGED_TITLE,
   MISSING_MESSAGE,
@@ -25,6 +24,7 @@ import {
   GAUGE_LABEL_PERCENT,
   gaugePercent,
   HIGH_MIN_SCORE,
+  levelMessage,
   type DiseaseCard as DiseaseCardData,
 } from '../../prediction/view'
 import './prediction.css'
@@ -91,7 +91,7 @@ export default function DiseaseCard({ card, checkedOn = null }: Props) {
         </div>
       )}
 
-      <p className={`pred-card__message pred-card__message--${level}`}>{LEVEL_MESSAGE[level]}</p>
+      <p className={`pred-card__message pred-card__message--${level}`}>{levelMessage(level, card.checkup?.level ?? null)}</p>
 
       {age && (
         <p className="pred-card__note">

@@ -16,8 +16,10 @@ import { MOCK_PREDICTION_SCENARIOS } from '../api/predictions.mockScenarios'
 import { decadeOf, healthAgeLine } from './healthAge'
 import {
   checkupHeading,
+  CHECKUP_ADVICE,
   CHECKUP_RANGE_TEXT,
   DISEASE_ORDER,
+  LEVEL_MESSAGE,
   FAILED_MESSAGE,
   factorText,
   LEVEL_LABEL,
@@ -29,6 +31,7 @@ import {
   CAUTION_MIN_SCORE,
   checkupLink,
   checkupPrompt,
+  levelMessage,
   metabolicView,
   factorLines,
   GAUGE_LABEL_PERCENT,
@@ -382,6 +385,18 @@ describe('검진 기준표 줄 · S-07 링크 (12/4, api.md 5-1)', () => {
     for (const disease of DISEASE_ORDER) {
       for (const text of Object.values(CHECKUP_RANGE_TEXT[disease])) expect(text).not.toContain('진단')
     }
+  })
+
+  it('모델 낮음 + 기준표 주의·높음이면 단계 한 줄에서 "유지해도 좋아요"를 뺌 (#157 성은 님)', () => {
+    expect(levelMessage('LOW', 'HIGH')).toBe('상대적으로 낮은 편이에요')
+    expect(levelMessage('LOW', 'CAUTION')).toBe('상대적으로 낮은 편이에요')
+    expect(levelMessage('LOW', 'LOW')).toBe(LEVEL_MESSAGE.LOW)
+    expect(levelMessage('LOW', null)).toBe(LEVEL_MESSAGE.LOW)
+    expect(levelMessage('CAUTION', 'HIGH')).toBe(LEVEL_MESSAGE.CAUTION)
+  })
+
+  it('병원 권유는 모델 높음 한 줄과 같은 문장 (#157)', () => {
+    expect(CHECKUP_ADVICE).toBe(LEVEL_MESSAGE.HIGH)
   })
 
   it('검진 날짜는 점으로, 못 불러오면 날짜 없이', () => {
