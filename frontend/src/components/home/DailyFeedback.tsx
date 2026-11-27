@@ -62,7 +62,7 @@ export default function DailyFeedback({ recommendationId, initial }: Props) {
         </div>
       )}
       <p className="home-muted" role="status">
-        {feedback ? '알려 줘서 고마워요. 다음 추천을 고를 때 참고할게요.' : '이 추천이 도움이 됐나요?'}
+        {feedback ? '알려 줘서 고마워요. 더 나은 추천을 만드는 데 참고할게요.' : '이 추천이 도움이 됐나요?'}
       </p>
       {error && (
         <p className="ui-field__note is-error" role="alert">

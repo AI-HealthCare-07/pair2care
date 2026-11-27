@@ -1,15 +1,17 @@
 """11-9 추천 피드백과 11-2·11-4 my_feedback (REQ-NFR-019)."""
 
-from datetime import date
+import asyncio
+from datetime import date, datetime
 
 from httpx import ASGITransport, AsyncClient
 from starlette import status
-from tortoise.contrib.test import TestCase
+from tortoise.contrib.test import TestCase, TruncationTestCase
 
 from app.main import app
 from app.models.recommendation_feedbacks import RecommendationFeedback
 from app.models.recommendations import GenerationStatus, Recommendation, RecommendationType
 from app.models.users import User
+from app.services.recommendations import KST, RecommendationService
 from app.tests.factories import make_signup_data
 
 SOURCES = [{"number": 1, "guide_id": "prevention_walk", "title": "신체활동 가이드", "url": "https://example.com"}]
@@ -116,3 +118,35 @@ class TestRecommendationFeedback(TestCase):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.put(feedback_url(1), json={"is_helpful": True})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_post_daily_200_includes_my_feedback(self):
+        # 이미 있는 오늘 추천은 POST도 200 + 조회와 같은 본문 (11-5) → my_feedback도 같이 와야 함
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            user_id, headers = await signup(client, "fb_post200@example.com")
+            rec = await make_rec(user_id, target_on=datetime.now(KST).date())
+            await client.put(feedback_url(rec.id), json={"is_helpful": True}, headers=headers)
+            response = await client.post("/api/v1/recommendations/daily", headers=headers)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["my_feedback"] == {"is_helpful": True, "reason": None}
+
+    async def test_meal_recommendation_my_feedback_always_null(self):
+        # 1차는 오늘의 한 가지만 → 식단 추천은 행이 있어도 null (api.md 11-5)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            user_id, _ = await signup(client, "fb_meal@example.com")
+        meal = await make_rec(user_id, rec_type=RecommendationType.MEAL_ALTERNATIVE, meal_id=1)
+        await RecommendationFeedback.create(recommendation_id=meal.id, user_id=user_id, is_helpful=False)
+        assert (await RecommendationService().to_read(meal))["my_feedback"] is None
+
+
+class TestRecommendationFeedbackConcurrency(TruncationTestCase):
+    async def test_concurrent_puts_keep_one_row(self):
+        # 두 번 연달아 눌러 동시에 도착해도 추천당 1행 (유니크 충돌이면 덮어쓰기)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            user_id, headers = await signup(client, "fb_race@example.com")
+            rec = await make_rec(user_id)
+            bodies = [{"is_helpful": False, "reason": "OTHER"}, {"is_helpful": True}] * 3
+            responses = await asyncio.gather(
+                *(client.put(feedback_url(rec.id), json=b, headers=headers) for b in bodies)
+            )
+        assert all(r.status_code == status.HTTP_200_OK for r in responses)
+        assert await RecommendationFeedback.filter(recommendation_id=rec.id).count() == 1
