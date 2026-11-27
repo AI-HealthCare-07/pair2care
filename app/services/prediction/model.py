@@ -32,6 +32,9 @@ from app.services.prediction.features import (
 
 MODEL_DIR: Final = Path(__file__).parent / "model_files"
 MODEL_FILE_BY_DISEASE: Final = {Disease.DIABETES: "diabetes.json", Disease.HYPERTENSION: "hypertension.json"}
+# 예전 버전 모델 JSON: 그 버전으로 저장된 예측 행의 건강 나이·요인을 같은 모델로 설명할 때만 씀 (점수 계산엔 안 씀)
+# 파일 이름 = model_version의 ':'를 '_'로 (diabetes_risk:v1 → diabetes_risk_v1.json). 배포 모델을 바꿀 때 예전 파일을 여기로 옮김
+ARCHIVE_DIR: Final = MODEL_DIR / "archive"
 
 # 위험 단계: 반올림한 정수 score로 나눔 (api.md 5-0, 11/24 확정 30 / 60)
 CAUTION_MIN_SCORE: Final = 30
@@ -112,6 +115,32 @@ def load_model(disease: Disease) -> LogisticModel:
     model = LogisticModel.from_dict(read_model_file(disease))
     if model.disease != disease:
         raise ValueError(f"{MODEL_FILE_BY_DISEASE[disease]}의 disease가 {disease}가 아님")
+    return model
+
+
+def archive_path(model_version: str) -> Path:
+    return ARCHIVE_DIR / f"{model_version.replace(':', '_')}.json"
+
+
+def read_archived_file(model_version: str) -> dict[str, Any] | None:
+    """예전 버전 모델 JSON. 보관 파일이 없으면 None (그 행은 설명 없이 점수만 보여 줌)."""
+    path = archive_path(model_version)
+    if not path.is_file():
+        return None
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("model_version") != model_version:
+        raise ValueError(f"{path.name}의 model_version이 {model_version}가 아님")
+    return data
+
+
+@cache
+def load_archived_model(model_version: str, disease: Disease) -> LogisticModel | None:
+    data = read_archived_file(model_version)
+    if data is None:
+        return None
+    model = LogisticModel.from_dict(data)
+    if model.disease != disease:
+        raise ValueError(f"{archive_path(model_version).name}의 disease가 {disease}가 아님")
     return model
 
 

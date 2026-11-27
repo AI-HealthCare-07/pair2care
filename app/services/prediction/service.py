@@ -18,8 +18,15 @@ from app.repositories.health_profile_repository import HealthProfileRepository, 
 from app.repositories.risk_prediction_repository import RiskPredictionRepository
 from app.services.prediction.criteria import CheckupValues, is_checkup_valid, judge_checkup, judge_metabolic_syndrome
 from app.services.prediction.features import build_input_snapshot, calculate_age
-from app.services.prediction.health_age import NOT_EXPLAINED, RowExplanation, explain_row, load_sex_means
-from app.services.prediction.model import load_model, to_level, to_score
+from app.services.prediction.health_age import (
+    NOT_EXPLAINED,
+    RowExplanation,
+    SexMeans,
+    explain_row,
+    load_archived_sex_means,
+    load_sex_means,
+)
+from app.services.prediction.model import LogisticModel, load_archived_model, load_model, to_level, to_score
 from app.services.prediction.plan import PredictionPlan, plan_predictions
 from app.services.prediction.simulation import SimulationChanges, apply_changes, check_simulatable_keys
 from app.services.prediction.views import (
@@ -148,16 +155,30 @@ class PredictionService:
         }
 
 
+def model_for_row(row: RiskPrediction) -> tuple[LogisticModel | None, SexMeans | None]:
+    """그 행을 만든 모델과 같은 성별 평균. 지금 모델이면 그대로, 예전 버전이면 보관 파일에서 (없으면 None)."""
+    model = load_model(row.disease)
+    if row.model_version == model.model_version:
+        return model, load_sex_means(row.disease)
+    if row.model_version is None:
+        return None, None
+    return load_archived_model(row.model_version, row.disease), load_archived_sex_means(row.model_version, row.disease)
+
+
 def explain_of(row: RiskPrediction) -> RowExplanation:
     """모델 행의 건강 나이 + 요인 가감 나이 (api.md 5-0·5-2·5-3, #114). 조회 때 input_snapshot으로 계산.
 
-    means_by_sex가 없거나 어긋났거나 다른 모델 버전이면 둘 다 None → 건강 나이 null, 요인은 저장값(years null).
+    예전 버전으로 저장된 행은 보관해 둔 그 버전 모델(model_files/archive)로 설명 (점수와 설명이 같은 모델, 11/27).
+    means_by_sex가 없거나 어긋났거나 그 버전 파일이 없으면 둘 다 None → 건강 나이 null, 요인은 저장값(years null).
     계산 중 오류가 나도 점수·단계는 그대로 보여 주도록 에러 로그만 남김 (건강정보 대신 행 id만).
     """
     if row.method != PredictionMethod.MODEL:
         return NOT_EXPLAINED
     try:
-        return explain_row(row, load_model(row.disease), load_sex_means(row.disease))
+        model, sex_means = model_for_row(row)
+        if model is None:
+            return NOT_EXPLAINED
+        return explain_row(row, model, sex_means)
     except (KeyError, TypeError, ValueError):
         logger.exception("건강 나이·요인 계산 실패 risk_prediction_id=%s", row.id)
         return NOT_EXPLAINED

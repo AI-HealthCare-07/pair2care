@@ -25,7 +25,7 @@ from app.services.prediction.features import (
     MIN_AGE,
     SEX_CODE_BY_LABEL,
 )
-from app.services.prediction.model import FACTOR_COUNT, LogisticModel, read_model_file
+from app.services.prediction.model import FACTOR_COUNT, LogisticModel, read_archived_file, read_model_file
 
 HABIT_FIELDS: Final = ("bmi", "smoking_current", "alcohol_frequency", "alcohol_amount")
 ITEM_FIELDS_BY_DISEASE: Final[dict[Disease, tuple[str, ...]]] = {
@@ -82,6 +82,16 @@ def load_sex_means(disease: Disease) -> SexMeans | None:
     except (OSError, ValueError, KeyError, TypeError):
         logger.exception("means_by_sex를 읽지 못함 disease=%s", disease.value)
         return None
+
+
+@cache
+def load_archived_sex_means(model_version: str, disease: Disease) -> SexMeans | None:
+    """예전 버전 모델 JSON의 means_by_sex. 보관 파일이나 평균이 없으면 None. 형식 오류는 CI에서 막음."""
+    data = read_archived_file(model_version)
+    raw = data.get("means_by_sex") if data else None
+    if raw is None:
+        return None
+    return parse_means_by_sex(model_version, disease, raw)
 
 
 def round_half_away(value: float) -> int:

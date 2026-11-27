@@ -13,6 +13,8 @@ from app.models.checkup_records import CheckupRecord
 from app.models.users import User
 from app.tests.factories import DEFAULT_PASSWORD, make_signup_data
 from app.tests.prediction.fixed_models import (
+    LOAD_ARCHIVED_MODEL_TARGET,
+    LOAD_ARCHIVED_SEX_MEANS_TARGET,
     LOAD_MODEL_TARGET,
     LOAD_SEX_MEANS_TARGET,
     explain_model,
@@ -191,6 +193,43 @@ class TestRiskPredictionAPI(TestCase):
             detail = await client.get(f"/api/v1/risk-predictions/{created.json()['predictions'][0]['id']}")
 
         assert all(p["health_age"] is None for p in latest.json()["predictions"])
+        assert detail.json()["health_age"] is None
+        assert all(factor["years"] is None for factor in detail.json()["factors"])
+
+    async def test_old_version_row_explained_with_archived_model(self) -> None:
+        # explain 버전으로 저장 → 배포 모델이 fixed로 바뀐 뒤 조회. 보관 파일(explain)로 설명하면 건강 나이가 그대로 보임
+        with patch(LOAD_MODEL_TARGET, new=explain_model):
+            async with new_client() as client:
+                await self.login(client, "rp-archived@example.com")
+                created = await client.post(SURVEY_URL, json=onboarding_body())
+        prediction_id = created.json()["predictions"][0]["id"]
+
+        with (
+            patch(LOAD_MODEL_TARGET, new=fixed_model),
+            patch(LOAD_ARCHIVED_MODEL_TARGET, new=lambda _version, disease: explain_model(disease)),
+            patch(LOAD_ARCHIVED_SEX_MEANS_TARGET, new=lambda _version, disease: explain_sex_means(disease)),
+        ):
+            async with new_client() as client:
+                await self.login(client, "rp-archived@example.com")
+                detail = await client.get(f"/api/v1/risk-predictions/{prediction_id}")
+
+        assert detail.json()["model_version"] == "diabetes_risk:explain"
+        assert detail.json()["health_age"] is not None
+        assert detail.json()["factors"] == [{"feature": "bmi", "direction": "UP", "years": 4}]
+
+    async def test_old_version_row_without_archive_health_age_null(self) -> None:
+        # 보관 파일이 없는 예전 버전 → 건강 나이 null, 요인은 저장값(years null). 점수는 그대로
+        with patch(LOAD_MODEL_TARGET, new=explain_model):
+            async with new_client() as client:
+                await self.login(client, "rp-no-archive@example.com")
+                created = await client.post(SURVEY_URL, json=onboarding_body())
+        prediction_id = created.json()["predictions"][0]["id"]
+
+        async with new_client() as client:  # 클래스 기본 fixed_model, 보관 폴더엔 explain 버전 없음
+            await self.login(client, "rp-no-archive@example.com")
+            detail = await client.get(f"/api/v1/risk-predictions/{prediction_id}")
+
+        assert detail.json()["score"] == created.json()["predictions"][0]["score"]
         assert detail.json()["health_age"] is None
         assert all(factor["years"] is None for factor in detail.json()["factors"])
 

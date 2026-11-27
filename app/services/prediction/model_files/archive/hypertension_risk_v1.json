@@ -1,0 +1,68 @@
+{
+  "model_version": "hypertension_risk:v1",
+  "mlflow_run_id": "a5744ad9a7c04cd69bd91a5f669ad9e5",
+  "disease": "HYPERTENSION",
+  "features": [
+    "sex",
+    "age",
+    "bmi",
+    "father_diabetes_history",
+    "mother_diabetes_history",
+    "sibling_diabetes_history",
+    "father_hypertension_history",
+    "mother_hypertension_history",
+    "sibling_hypertension_history",
+    "alcohol_frequency",
+    "alcohol_amount",
+    "smoking_current"
+  ],
+  "intercept": -5.6049853206597575,
+  "coefficients": {
+    "sex": -0.6398414697775698,
+    "age": 0.042448690069319193,
+    "bmi": 0.12228785666738212,
+    "father_diabetes_history": 0.05121706121981627,
+    "mother_diabetes_history": -0.11869458031904939,
+    "sibling_diabetes_history": -0.1558516927782386,
+    "father_hypertension_history": 0.2015088049527113,
+    "mother_hypertension_history": 0.34503006672422015,
+    "sibling_hypertension_history": 0.32249571183948317,
+    "alcohol_frequency": 0.11748002028874939,
+    "alcohol_amount": 0.10099306710669385,
+    "smoking_current": 0.05476208637755872
+  },
+  "means": {
+    "sex": 1.6005823829167678,
+    "age": 49.784396991021595,
+    "bmi": 23.75715845668527,
+    "father_diabetes_history": 0.1486289735501092,
+    "mother_diabetes_history": 0.156030089784033,
+    "sibling_diabetes_history": 0.08323222518806116,
+    "father_hypertension_history": 0.2322251880611502,
+    "mother_hypertension_history": 0.2691094394564426,
+    "sibling_hypertension_history": 0.09694248968696918,
+    "alcohol_frequency": 3.027784518320796,
+    "alcohol_amount": 1.8482164523173987,
+    "smoking_current": 0.16197524872603736
+  },
+  "means_by_sex": {
+    "MALE": {
+      "bmi": 24.69529161603889,
+      "father_hypertension_history": 0.21931956257594168,
+      "mother_hypertension_history": 0.2129404617253949,
+      "sibling_hypertension_history": 0.06227217496962333,
+      "alcohol_frequency": 3.549210206561361,
+      "alcohol_amount": 2.6339611178614826,
+      "smoking_current": 0.33718104495747264
+    },
+    "FEMALE": {
+      "bmi": 23.13325252525255,
+      "father_hypertension_history": 0.2408080808080808,
+      "mother_hypertension_history": 0.30646464646464644,
+      "sibling_hypertension_history": 0.12,
+      "alcohol_frequency": 2.681010101010101,
+      "alcohol_amount": 1.3256565656565658,
+      "smoking_current": 0.045454545454545456
+    }
+  }
+}
