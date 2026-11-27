@@ -107,12 +107,15 @@ def is_test_account(email: str) -> bool:
     return email.lower().endswith(TEST_EMAIL_DOMAIN)
 
 
-def consented_since(consents: Iterable[tuple[datetime, bool]]) -> datetime | None:
-    """(시각, 동의 여부) 기록 중 가장 최근 행이 동의면 그 시각, 철회했거나 기록이 없으면 None."""
+def consented_since(consents: Iterable[tuple[int, datetime, bool]]) -> datetime | None:
+    """(id, 시각, 동의 여부) 기록 중 가장 최근 행(id가 가장 큰 행, 2-6 조회와 같은 순서)이 동의면 그 시각.
+
+    철회했거나 기록이 없으면 None. 같은 시각에 두 행이 있어도 id로 순서가 정해짐 (#162 지연 리뷰).
+    """
     latest = max(consents, key=lambda consent: consent[0], default=None)
-    if latest is None or not latest[1]:
+    if latest is None or not latest[2]:
         return None
-    return latest[0]
+    return latest[1]
 
 
 def gap_days(checked_on: date, surveyed_at: datetime) -> int:
@@ -178,11 +181,11 @@ async def consent_times_by_user() -> dict[int, datetime]:
         logger.info("동의 종류 %s가 아직 없어서 뽑을 사용자가 없어요", FEEDBACK_AGREEMENT)
         return {}
     rows = await UserConsent.filter(agreement=Agreement(FEEDBACK_AGREEMENT)).values_list(
-        "user_id", "created_at", "is_agreed"
+        "id", "user_id", "created_at", "is_agreed"
     )
-    by_user: dict[int, list[tuple[datetime, bool]]] = {}
-    for user_id, created_at, is_agreed in rows:
-        by_user.setdefault(user_id, []).append((created_at, is_agreed))
+    by_user: dict[int, list[tuple[int, datetime, bool]]] = {}
+    for consent_id, user_id, created_at, is_agreed in rows:
+        by_user.setdefault(user_id, []).append((consent_id, created_at, is_agreed))
     times = {user_id: consented_since(consents) for user_id, consents in by_user.items()}
     return {user_id: since for user_id, since in times.items() if since is not None}
 

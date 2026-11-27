@@ -75,10 +75,17 @@ def test_diabetes_label() -> None:
 # ───── 동의·제외 ─────
 def test_consented_since_uses_latest_row() -> None:
     first, withdrawn, again = at(DAY), at(DAY + timedelta(days=1)), at(DAY + timedelta(days=2))
-    assert consented_since([(first, True)]) == first
-    assert consented_since([(first, True), (withdrawn, False)]) is None
-    assert consented_since([(again, True), (first, True), (withdrawn, False)]) == again  # 재동의 → 마지막 동의 시각
+    assert consented_since([(1, first, True)]) == first
+    assert consented_since([(1, first, True), (2, withdrawn, False)]) is None
+    assert consented_since([(3, again, True), (1, first, True), (2, withdrawn, False)]) == again  # 재동의 → 마지막
     assert consented_since([]) is None
+
+
+def test_consented_since_same_time_uses_id_order() -> None:
+    # 같은 시각에 동의·철회가 찍혀도 id가 큰 행(나중 행)이 기준
+    moment = at(DAY)
+    assert consented_since([(5, moment, True), (6, moment, False)]) is None
+    assert consented_since([(6, moment, True), (5, moment, False)]) == moment
 
 
 def test_is_test_account() -> None:
