@@ -191,6 +191,31 @@ function build(name: MockPredictionScenario): MockData {
         ],
       }
     }
+    case 'checkup_met': {
+      const dm = modelRow(111, 'DIABETES', 34, 'CAUTION', AGE(50))
+      const htn = modelRow(112, 'HYPERTENSION', 62, 'HIGH', AGE(60))
+      const criteria = (id: number, disease: Disease, level: RiskLevel, used_values: Record<string, number>) => ({
+        row: { id, disease, method: 'CHECKUP_CRITERIA', score: null, level, checkup_record_id: 9, health_age: null, created_at: CREATED_AT } as LatestPrediction,
+        detail: {
+          id, disease, method: 'CHECKUP_CRITERIA', score: null, level, factors: null, model_version: null,
+          changed_inputs: null, previous: null, health_age: null, used_values, checked_on: '2026-09-02', created_at: CREATED_AT,
+        } as PredictionDetail,
+      })
+      const dmCheckup = criteria(113, 'DIABETES', 'CAUTION', { fasting_glucose: 112 })
+      const htnCheckup = criteria(114, 'HYPERTENSION', 'HIGH', { systolic_bp: 146, diastolic_bp: 92 })
+      return {
+        latest: empty({
+          predictions: [dm, dmCheckup.row, htn, htnCheckup.row],
+          metabolic_syndrome: { status: 'MET', met_count: 3, missing: ['hdl_cholesterol'] },
+        }),
+        details: [
+          modelDetail(dm, [{ feature: 'bmi', direction: 'UP', years: 3 }]),
+          dmCheckup.detail,
+          modelDetail(htn, [{ feature: 'bmi', direction: 'UP', years: 4 }, { feature: 'alcohol_amount', direction: 'UP', years: 2 }]),
+          htnCheckup.detail,
+        ],
+      }
+    }
     case 'no_survey':
       return { latest: 'NO_SURVEY', details: [] }
   }

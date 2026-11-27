@@ -14,10 +14,25 @@ import {
 } from '../api/predictions.mock'
 import { MOCK_PREDICTION_SCENARIOS } from '../api/predictions.mockScenarios'
 import { decadeOf, healthAgeLine } from './healthAge'
-import { DISEASE_ORDER, FAILED_MESSAGE, factorText, LEVEL_LABEL, yearsText } from './labels'
+import {
+  checkupHeading,
+  CHECKUP_ADVICE,
+  CHECKUP_RANGE_TEXT,
+  DISEASE_ORDER,
+  LEVEL_MESSAGE,
+  FAILED_MESSAGE,
+  factorText,
+  LEVEL_LABEL,
+  metabolicMessage,
+  yearsText,
+} from './labels'
 import {
   buildPredictionView,
   CAUTION_MIN_SCORE,
+  checkupLink,
+  checkupPrompt,
+  levelMessage,
+  metabolicView,
   factorLines,
   GAUGE_LABEL_PERCENT,
   gaugePercent,
@@ -326,5 +341,98 @@ describe('다시 계산 (5-5)', () => {
   it('가짜 no_survey: 404', async () => {
     setMockPredictionScenario('no_survey')
     await expect(retryPredictions()).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('검진 기준표 줄 · S-07 링크 (12/4, api.md 5-1)', () => {
+  const ms = (status: 'MET' | 'NOT_MET' | 'UNKNOWN', met_count: number, missing: string[]) => ({ status, met_count, missing })
+
+  it('기준표 행이 있으면 링크 없음, 없으면 링크', () => {
+    const view = buildPredictionView(
+      latest({
+        predictions: [
+          row({ id: 52, disease: 'HYPERTENSION' }),
+          row({ id: 53, disease: 'HYPERTENSION', method: 'CHECKUP_CRITERIA', score: null, checkup_record_id: 8 }),
+          row({ id: 51, disease: 'DIABETES' }),
+        ],
+        metabolic_syndrome: ms('UNKNOWN', 2, ['triglyceride', 'hdl_cholesterol']),
+      }),
+    )
+    if (view.kind !== 'RESULT') throw new Error('RESULT여야 함')
+    const [htn, dm] = view.cards
+    expect(htn.kind === 'RESULT' && htn.prompt).toBeNull()
+    expect(dm.kind === 'RESULT' && dm.prompt).toEqual({ kind: 'MORE', focus: 'hba1c' })
+  })
+
+  it('유효한 검진 없음(대사증후군 null) → NONE, 질환 첫 칸', () => {
+    expect(checkupPrompt('HYPERTENSION', null)).toEqual({ kind: 'NONE', focus: 'systolic_bp' })
+    expect(checkupPrompt('DIABETES', null)).toEqual({ kind: 'NONE', focus: 'fasting_glucose' })
+  })
+
+  it('검진은 있는데 판정 없음 → MORE. 당뇨는 공복혈당이 빠졌으면 공복혈당, 아니면 당화혈색소', () => {
+    expect(checkupPrompt('HYPERTENSION', ms('UNKNOWN', 1, ['blood_pressure']))).toEqual({ kind: 'MORE', focus: 'systolic_bp' })
+    expect(checkupPrompt('DIABETES', ms('UNKNOWN', 1, ['fasting_glucose']))).toEqual({ kind: 'MORE', focus: 'fasting_glucose' })
+    expect(checkupPrompt('DIABETES', ms('NOT_MET', 0, []))).toEqual({ kind: 'MORE', focus: 'hba1c' })
+  })
+
+  it('링크 주소는 S-07 ?focus= (#153)', () => {
+    expect(checkupLink('triglyceride')).toBe('/checkup?focus=triglyceride')
+  })
+
+  it('기준표 문구에 "진단"이 없음, 질환별 범위 이름', () => {
+    expect(CHECKUP_RANGE_TEXT.HYPERTENSION.HIGH).toBe('혈압이 고혈압 범위예요')
+    expect(CHECKUP_RANGE_TEXT.DIABETES.CAUTION).toBe('혈당이 주의 범위예요')
+    for (const disease of DISEASE_ORDER) {
+      for (const text of Object.values(CHECKUP_RANGE_TEXT[disease])) expect(text).not.toContain('진단')
+    }
+  })
+
+  it('모델 낮음 + 기준표 주의·높음이면 단계 한 줄에서 "유지해도 좋아요"를 뺌 (#157 성은 님)', () => {
+    expect(levelMessage('LOW', 'HIGH')).toBe('상대적으로 낮은 편이에요')
+    expect(levelMessage('LOW', 'CAUTION')).toBe('상대적으로 낮은 편이에요')
+    expect(levelMessage('LOW', 'LOW')).toBe(LEVEL_MESSAGE.LOW)
+    expect(levelMessage('LOW', null)).toBe(LEVEL_MESSAGE.LOW)
+    expect(levelMessage('CAUTION', 'HIGH')).toBe(LEVEL_MESSAGE.CAUTION)
+  })
+
+  it('병원 권유는 모델 높음 한 줄과 같은 문장 (#157)', () => {
+    expect(CHECKUP_ADVICE).toBe(LEVEL_MESSAGE.HIGH)
+  })
+
+  it('검진 날짜는 점으로, 못 불러오면 날짜 없이', () => {
+    expect(checkupHeading('2026-05-10')).toBe('검진 수치(2026.05.10) 기준')
+    expect(checkupHeading(null)).toBe('검진 수치 기준')
+  })
+})
+
+describe('대사증후군 카드 (api.md 5-1)', () => {
+  it('null이면 카드 숨김', () => {
+    expect(metabolicView(null)).toBeNull()
+    expect(buildPredictionView(latest({ predictions: [row({})] }))).toMatchObject({ metabolic: null })
+  })
+
+  it('판단 어려움: 빠진 항목 이름 + 첫 빠진 칸 링크. 기준 이름 → 입력칸 이름 (waist → waist_cm, blood_pressure → systolic_bp)', () => {
+    expect(metabolicView({ status: 'UNKNOWN', met_count: 2, missing: ['triglyceride', 'hdl_cholesterol'] })).toEqual({
+      status: 'UNKNOWN',
+      metCount: 2,
+      missingLabels: ['중성지방', 'HDL'],
+      focus: 'triglyceride',
+    })
+    expect(metabolicView({ status: 'UNKNOWN', met_count: 1, missing: ['waist', 'blood_pressure'] })?.focus).toBe('waist_cm')
+    expect(metabolicView({ status: 'UNKNOWN', met_count: 2, missing: ['blood_pressure'] })?.focus).toBe('systolic_bp')
+  })
+
+  it('해당·해당 아님은 빠진 항목이 있어도 링크 없음, 모르는 기준 이름은 뺌', () => {
+    expect(metabolicView({ status: 'MET', met_count: 3, missing: ['hdl_cholesterol'] })?.focus).toBeNull()
+    expect(metabolicView({ status: 'NOT_MET', met_count: 0, missing: ['waist', 'triglyceride'] })?.focus).toBeNull()
+    expect(metabolicView({ status: 'UNKNOWN', met_count: 2, missing: ['ldl'] })).toMatchObject({ missingLabels: [], focus: null })
+  })
+
+  it('문구: Figma 예시 그대로, 을/를은 받침으로', () => {
+    expect(metabolicMessage('UNKNOWN', 2, ['중성지방', 'HDL'])).toBe('5개 기준 중 2개 해당. 중성지방·HDL을 넣으면 알 수 있어요')
+    expect(metabolicMessage('UNKNOWN', 1, ['허리둘레'])).toBe('5개 기준 중 1개 해당. 허리둘레를 넣으면 알 수 있어요')
+    expect(metabolicMessage('UNKNOWN', 2, ['공복혈당'])).toBe('5개 기준 중 2개 해당. 공복혈당을 넣으면 알 수 있어요')
+    expect(metabolicMessage('NOT_MET', 1, ['waist'])).toBe('5개 기준 중 1개 해당')
+    expect(metabolicMessage('MET', 3, [])).toContain('병원')
   })
 })

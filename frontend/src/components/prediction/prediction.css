@@ -268,3 +268,56 @@
   font-size: 13px;
   color: var(--color-muted);
 }
+
+/* ───── 12/4: 검진 기준표 줄 · S-07 링크 · 대사증후군 ───── */
+
+/* 카드 안 검진 영역: 모델 점수(설문)와 검진 수치 판정이 섞여 보이지 않게 선으로 나눔 */
+.pred-checkup {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.pred-checkup__heading {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.pred-checkup__range {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.pred-checkup__range--LOW { color: var(--pred-low-text); }
+.pred-checkup__range--CAUTION { color: var(--pred-caution-text); }
+.pred-checkup__range--HIGH { color: var(--pred-high-text); }
+
+/* S-07로 가는 글자 링크 */
+.pred-link {
+  display: block;
+  padding: 10px 0; /* 누르는 영역 44px 이상 */
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.pred-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.pred-checkup .pred-link { margin: -10px 0; } /* 누르는 영역은 넓히고 카드 여백은 그대로 */
+
+.pred-link--block { margin: 0 0 -6px; padding-top: 6px; }
+
+.pred-link__chevron { margin-left: 4px; }
+
+/* 요인 카드 아래(카드 밖) ℹ️ 한 줄: 설문만으로는 알 수 없는 것 */
+.pred-info--page { margin: 16px 4px; }
