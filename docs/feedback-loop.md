@@ -13,7 +13,7 @@ flowchart LR
     C["user_consents<br/>MODEL_IMPROVEMENT 동의 (선택)"] --> E
     P["risk_predictions (MODEL 행)<br/>input_snapshot.inputs"] --> E
     K["checkup_records<br/>검진마다 앞뒤 30일 안<br/>가장 가까운 설문"] --> E
-    E["뽑기 스크립트<br/>ml/export_feedback.py<br/>(서버에서 실행)"] --> D[("학습용 파일<br/>(입력, 정답)<br/>레포·S3 공개 금지")]
+    E["뽑기 스크립트<br/>scripts/export_feedback.py<br/>(서버에서 실행)"] --> D[("학습용 파일<br/>(입력, 정답)<br/>레포·S3 공개 금지")]
     D --> T["train.py 재학습<br/>국건영 + 사용자 데이터"]
     T --> V{"같은 검증 데이터로<br/>이전 버전보다 나은가"}
     V -- 예 --> N["새 model_version (v3…)<br/>MLflow 기록"]
@@ -23,11 +23,12 @@ flowchart LR
 ## ① 동의 (지연님 · 가입 화면)
 - `agreement_type`에 **`MODEL_IMPROVEMENT`** 추가 (선택 동의, 기존 3종과 달리 안 해도 가입됨)
 - 철회는 `user_consents`에 `is_agreed=false` 행을 쌓는 기존 방식 그대로. **가장 최근 행 기준**으로 동의 여부 판단
-- **동의 시각 이후의 예측 행만** 씀 → 나중에 동의한 사람의 동의 전 설문은 안 들어감 (동의 문구도 "동의한 뒤의 설문·검진" 범위로, 11/27 지연). 동의 → 철회 → 다시 동의했으면 **마지막 동의 시각 이후만**
+- **동의 시각 이후에 입력한 예측 행·검진만** 씀 (검진은 검진일이 아니라 입력 시각 기준, #162 성은) → 나중에 동의한 사람의 동의 전 설문은 안 들어감 (동의 문구도 "동의한 뒤의 설문·검진" 범위로, 11/27 지연). 동의 → 철회 → 다시 동의했으면 **마지막 동의 시각 이후만**
 - 화면: 가입 약관 화면에 **선택 항목(기본 체크 해제, 안 해도 가입)** + 마이에서 켜기·끄기 (철회는 어차피 마이에 있어야 함). `MODEL_IMPROVEMENT` 추가와 가입 화면 체크박스는 지연님 (11/27)
 - 동의 안 한 사람·철회한 사람은 뽑는 순간 제외 → 따로 지울 데이터가 없음
 
 ## ② 쌍 만들기 (현영 · 서빙)
+- 구현: `scripts/export_feedback.py` (서버 이미지엔 `ml/`·pandas가 없어서 데모 시드처럼 app 의존성만 쓰는 `scripts/`에 둠). 출력은 순번만 쓴 CSV, 로그엔 개수만
 | 항목 | 규칙 |
 |---|---|
 | 입력 | `risk_predictions`의 **MODEL 행** `input_snapshot.inputs`(변환 전)를 학습과 같은 `features.py`로 다시 변환 (#68 결정) |

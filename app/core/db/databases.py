@@ -14,6 +14,11 @@ TORTOISE_APP_MODELS = [
     "app.models.health_logs",
     "app.models.recommendations",
     "app.models.llm_usage_logs",
+    "app.models.challenge_templates",
+    "app.models.pairs",
+    "app.models.challenges",
+    "app.models.challenge_participants",
+    "app.models.challenge_checks",
 ]
 
 TORTOISE_ORM = {

@@ -75,6 +75,7 @@ dev = [
     { name = "types-python-dateutil" },
 ]
 ml = [
+    { name = "matplotlib" },
     { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
@@ -127,6 +128,7 @@ dev = [
     { name = "types-python-dateutil", specifier = ">=2.9.0.20260124" },
 ]
 ml = [
+    { name = "matplotlib", specifier = ">=3.10" },
     { name = "mlflow", specifier = ">=3.18.0" },
     { name = "numpy", specifier = ">=2.4.1" },
     { name = "pandas", specifier = ">=3.1.1" },
