@@ -187,6 +187,7 @@ Table recommendations {
   meal_id bigint [null, ref: - meals.id]           // LLM-002 기준 식단
   model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
   prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
+  guide_version varchar(30) [null]                 // 가이드 파일 버전, prompt_version과 따로 (api.md 정할 것 32)
   retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)
   weather json [null]                              // DAILY_ACTION 생성 때 날씨·미세먼지 판정 스냅샷 (api.md 11-7)
   created_at datetime [not null]
@@ -213,6 +214,24 @@ Enum llm_feature {
 
 // LLM 토큰 사용량 및 비용 모니터링(llm_usage_logs) 테이블
 // 프롬프트 캐싱 토큰 분리와 호출 시점 단가 기준의 비용 기록(estimated_cost_usd)이 핵심
+Enum feedback_reason {
+  NOT_FIT          // 나한테 안 맞아요
+  ALREADY_DOING    // 이미 하고 있어요
+  TOO_HARD         // 너무 어려워요
+  WRONG_CONTENT    // 내용이 이상해요
+  OTHER            // 기타
+}
+
+Table recommendation_feedbacks {
+  id bigint [pk, increment]
+  recommendation_id bigint [not null, unique, ref: - recommendations.id]  // 추천당 1개, 다시 누르면 덮어씀
+  user_id bigint [not null, ref: > users.id]          // 추천 주인과 같음 (서버가 확인, 11-9)
+  is_helpful bool [not null]                           // 사용자 만족도. 팀 적절성 라벨과 다름 (REQ-NFR-019)
+  reason feedback_reason [null]                        // is_helpful=false일 때만, 안 고르면 null
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
 Table llm_usage_logs {
   id bigint [pk, increment]
   user_id bigint [null, ref: > users.id]
