@@ -1,6 +1,5 @@
 """scripts/seed_demo.py: 데모 시드가 서비스 규칙이 바뀌어도 계속 돌아가는지 (가상 데이터, 테스트 DB)."""
 
-import asyncio
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -12,7 +11,7 @@ from app.models.health_logs import HealthLog, HealthLogType
 from app.models.risk_predictions import Disease, PredictionMethod, RiskPrediction
 from app.models.users import User
 from app.services.health_log_rules import KST
-from scripts.seed_demo import DEMO_EMAIL, main, seed
+from scripts.seed_demo import DEMO_EMAIL, read_demo_password, seed
 
 NOW = datetime(2026, 11, 26, 10, 0, tzinfo=KST)
 
@@ -43,9 +42,15 @@ class TestSeedDemo(TestCase):
         assert all(log.measured_at <= NOW for log in await HealthLog.filter(user_id=second.user_id))
 
 
-def test_main_stops_without_demo_password() -> None:
+def test_read_demo_password_stops_without_env() -> None:
     # 공개 레포라 비밀번호 기본값을 두지 않음 → 없으면 DB에 닿기 전에 멈춤
+    # main()을 asyncio.run으로 부르면 이벤트 루프가 닫혀 다른 테스트가 깨지므로 동기 함수만 확인
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("DEMO_PASSWORD", None)
         with pytest.raises(SystemExit, match="DEMO_PASSWORD"):
-            asyncio.run(main())
+            read_demo_password()
+
+
+def test_read_demo_password_returns_env_value() -> None:
+    with patch.dict(os.environ, {"DEMO_PASSWORD": "virtual-pass-1"}):
+        assert read_demo_password() == "virtual-pass-1"

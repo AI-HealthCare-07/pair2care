@@ -240,12 +240,17 @@ async def seed(now: datetime, password: str) -> SeedSummary:
     )
 
 
-async def main() -> None:
-    if config.ENV == Env.PROD:
-        raise SystemExit("ENV=prod에서는 데모 시드를 넣지 않아요.")
+def read_demo_password() -> str:
     password = os.environ.get("DEMO_PASSWORD")
     if not password:
         raise SystemExit("DEMO_PASSWORD 환경 변수가 없어요. 데모 계정 비밀번호를 정해서 같이 넘겨 주세요.")
+    return password
+
+
+async def main() -> None:
+    if config.ENV == Env.PROD:
+        raise SystemExit("ENV=prod에서는 데모 시드를 넣지 않아요.")
+    password = read_demo_password()
     await Tortoise.init(config=TORTOISE_ORM)
     try:
         summary = await seed(datetime.now(KST), password)
