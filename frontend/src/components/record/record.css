@@ -64,9 +64,11 @@
 /* ───── 그래프 ───── */
 .record-chart { margin: 0; }
 .record-chart svg { display: block; width: 100%; height: 120px; overflow: visible; }
-.record-chart__line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.record-chart__line--0 { stroke: var(--color-primary); }
-.record-chart__line--1 { stroke: var(--color-accent); }
+.record-chart__line { stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.record-chart__series--0 { stroke: var(--color-primary); fill: var(--color-primary); }
+.record-chart__series--1 { stroke: var(--color-accent); fill: var(--color-accent); }
+.record-chart__line { fill: none; }
+.record-chart__dot-mark { stroke-width: 7; stroke-linecap: round; vector-effect: non-scaling-stroke; } /* 지름 7px 점, 폭이 늘어나도 동그랗게 */
 .record-chart__legend { display: flex; gap: 16px; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
 .record-chart__dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: middle; }
 .record-chart__dot--0 { background: var(--color-primary); }
@@ -90,3 +92,14 @@
 /* S-07 검진 "더 입력하기" (CheckupPage) */
 .checkup-more summary { cursor: pointer; padding: 8px 0; font-size: 15px; font-weight: 600; color: var(--color-primary); }
 .checkup-more__fields { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+
+/* ───── 위험도 추이 막대 (Figma M07) ───── */
+.trend-bars { display: flex; justify-content: space-around; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.trend-bars__item { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+.trend-bars__track { display: flex; align-items: flex-end; width: 44px; height: 88px; border-radius: 8px; background: #eceefa; overflow: hidden; }
+.trend-bars__bar { width: 100%; border-radius: 8px; }
+.trend-bars__bar--LOW { background: #c9cff3; }
+.trend-bars__bar--CAUTION { background: #8a96ea; }
+.trend-bars__bar--HIGH { background: var(--color-primary); }
+.trend-bars__label { font-size: 14px; color: var(--color-muted); }
+.trend-note { margin: 0; padding: 12px; border-radius: 12px; background: #eef0ff; font-size: 15px; line-height: 1.5; }

@@ -10,24 +10,32 @@ export function recentRange(): { from: string; to: string } {
   return { from: dateInSeoul(-(CHART_DAYS - 1)), to: dateInSeoul() }
 }
 
+/** 그래프 점 하나: x는 0~1 (기간 안의 위치), y는 값 */
+export interface ChartPoint {
+  x: number
+  y: number
+}
+
 /**
- * 값 여러 줄(혈압은 수축기·이완기 2줄)을 같은 눈금으로 SVG 좌표로 바꿈.
- * 위아래 값이 같으면(기록 1개 등) 가운데에 그림. 점이 1개면 가운데 x.
+ * 값 여러 줄(혈압은 수축기·이완기 2줄)을 같은 눈금으로 SVG 좌표 문자열로 바꿈. 큰 값이 위.
+ * x는 날짜 위치라서 빠진 날은 간격이 벌어짐 (#139 현영 님 리뷰). 위아래 값이 같으면 가운데.
  */
-export function chartLines(series: number[][], width: number, height: number, pad = 8): string[] {
-  const all = series.flat()
-  if (all.length === 0) return series.map(() => '')
-  const min = Math.min(...all)
-  const max = Math.max(...all)
-  const y = (v: number) => (max === min ? height / 2 : pad + ((max - v) / (max - min)) * (height - pad * 2))
-  return series.map((values) =>
-    values
-      .map((v, i) => {
-        const x = values.length === 1 ? width / 2 : pad + (i / (values.length - 1)) * (width - pad * 2)
-        return `${Math.round(x * 10) / 10},${Math.round(y(v) * 10) / 10}`
-      })
-      .join(' '),
+export function chartLines(series: ChartPoint[][], width: number, height: number, pad = 8): string[] {
+  const ys = series.flat().map((point) => point.y)
+  if (ys.length === 0) return series.map(() => '')
+  const min = Math.min(...ys)
+  const max = Math.max(...ys)
+  const toY = (v: number) => (max === min ? height / 2 : pad + ((max - v) / (max - min)) * (height - pad * 2))
+  const round = (v: number) => Math.round(v * 10) / 10
+  return series.map((points) =>
+    points.map((point) => `${round(pad + point.x * (width - pad * 2))},${round(toY(point.y))}`).join(' '),
   )
+}
+
+/** "2026-11-18"이 기간 시작일(from)에서 며칠째인지 → 0~1 (CHART_DAYS 기준) */
+export function dayPosition(date: string, from: string): number {
+  const days = (Date.parse(date) - Date.parse(from)) / 86_400_000
+  return Math.min(1, Math.max(0, days / (CHART_DAYS - 1)))
 }
 
 /** "2026-11-19T07:40:00+09:00" → "11월 19일 07:40" (서울 기준) */
