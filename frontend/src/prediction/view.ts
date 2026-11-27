@@ -19,6 +19,7 @@ import {
   LOW_MESSAGE_WITH_CHECKUP,
   METABOLIC_CRITERION_LABEL,
   type MetabolicStatus,
+  yearsSpoken,
   yearsText,
 } from './labels'
 
@@ -140,7 +141,8 @@ export interface FactorLine {
   feature: string
   direction: Factor['direction']
   text: string
-  years: string | null // "+5살" · "−1살", 없으면 null (숫자 숨김)
+  years: string | null // "+5~9살" · "−1~4살" · "+20살 이상", 없으면 null (숫자 숨김)
+  yearsSpoken: string | null // 화면 읽기 프로그램용 "5에서 9살 정도 높여요"
 }
 
 /** 요인 → 화면 줄. 모르는 feature는 건너뜀, 최대 3개 (빈 배열이면 화면에서 요인 부분 숨김) */
@@ -148,7 +150,7 @@ export function factorLines(factors: Factor[] | null): FactorLine[] {
   const lines: FactorLine[] = []
   for (const factor of factors ?? []) {
     const text = factorText(factor)
-    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text, years: yearsText(factor.years) })
+    if (text) lines.push({ feature: factor.feature, direction: factor.direction, text, years: yearsText(factor.years), yearsSpoken: yearsSpoken(factor.years) })
   }
   return lines.slice(0, 3)
 }
