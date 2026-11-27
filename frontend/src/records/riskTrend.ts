@@ -3,7 +3,7 @@
 //  - "낮아졌어요"는 직전 점보다 점수가 실제로 내려갔을 때만, 달라진 응답과 같이 (REQ-NFR-003, api.md 7-1)
 //  - 인과 표현("~해서 낮아졌어요")은 쓰지 않고, 달라진 응답을 나란히 보여 줌
 
-import type { ChangedInput } from '../api/predictions'
+import type { ChangedInput, ModelPredictionDetail, CheckupPredictionDetail } from '../api/predictions'
 import type { TrendPoint } from '../api/dashboard'
 import { SURVEY_DEFINITION_ONBOARDING } from '../survey/definition'
 
@@ -25,6 +25,17 @@ export function droppedPrediction(points: TrendPoint[]): number | null {
   if (points.length < 2) return null
   const [before, last] = points.slice(-2)
   return last.score < before.score ? last.prediction_id : null
+}
+
+/**
+ * "낮아졌어요" 문구. 막대는 주별 마지막 점끼리라, 5-3 changed_inputs의 기준(직전 예측 previous)과 어긋날 수 있음
+ * 예) 1주차 60 → 2주차 WEEKLY 50 → 같은 주 EDIT 58: 막대는 60→58(내려감)인데 응답은 50→58(올라감)
+ * → 문구와 응답 기준을 맞추려고 previous보다도 낮을 때만 띄움 (#147 현영 님 리뷰, REQ-NFR-003)
+ */
+export function dropNote(detail: ModelPredictionDetail | CheckupPredictionDetail): string | null {
+  if (detail.method !== 'MODEL' || detail.previous?.score == null || detail.score >= detail.previous.score) return null
+  const changes = changedInputText(detail.changed_inputs ?? [])
+  return changes ? `달라진 응답: ${changes}` : null
 }
 
 // changed_inputs에 오는 설문 값 11개 (서버 SURVEY_INPUT_FIELDS)의 짧은 이름

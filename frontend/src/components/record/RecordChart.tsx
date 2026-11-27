@@ -24,10 +24,11 @@ export default function RecordChart({ series, summary }: Props) {
         {lines.map((points, i) => (
           <g key={series[i].label} className={`record-chart__series record-chart__series--${i}`}>
             <polyline points={points} className="record-chart__line" />
-            {/* 점: 기록이 하루뿐이면 선이 안 보여서 점으로 표시 */}
+            {/* 점: 기록이 하루뿐이면 선이 안 보여서 점으로 표시.
+                preserveAspectRatio="none"이라 circle은 타원으로 늘어나서, 길이 0인 선의 둥근 끝(non-scaling-stroke)으로 그림 */}
             {points.split(' ').filter(Boolean).map((xy) => {
-              const [cx, cy] = xy.split(',')
-              return <circle key={xy} cx={cx} cy={cy} r={3.5} className="record-chart__dot-mark" />
+              const [x, y] = xy.split(',')
+              return <line key={xy} x1={x} y1={y} x2={x} y2={y} className="record-chart__dot-mark" />
             })}
           </g>
         ))}
