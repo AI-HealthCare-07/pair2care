@@ -82,7 +82,7 @@ export default function MyPage() {
           disabled={modelImprovement === null || consentSaving}
           onChange={() => void toggleModelImprovement()}
         >
-          (선택) 예측 모델 개선에 내 데이터 활용
+          예측 모델 개선에 내 데이터 활용
         </Checkbox>
         <p className="home-muted">
           동의한 뒤의 설문·검진만 이름 없이 학습에 써요. 끄면 다음 학습부터 빠져요.

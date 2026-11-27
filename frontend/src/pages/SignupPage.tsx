@@ -19,12 +19,17 @@ const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[!-~]{8,}$/
 const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_HINT = '8자 이상, 영문+숫자+특수문자(!@#$ 등)'
 
-const TERMS: { key: Agreement; label: string; required: boolean }[] = [
+const TERMS: { key: Agreement; label: string; required: boolean; detail?: string }[] = [
   { key: 'TERMS', label: '(필수) 이용약관', required: true },
   { key: 'PRIVACY', label: '(필수) 개인정보 수집·이용', required: true },
   { key: 'SENSITIVE_HEALTH', label: '(필수) 건강정보(민감정보) 처리', required: true },
   // 기본 해제, 안 해도 가입됨. 마이에서 켜고 끌 수 있음 (2-6, docs/feedback-loop.md)
-  { key: 'MODEL_IMPROVEMENT', label: '(선택) 예측 모델 개선에 내 데이터 활용', required: false },
+  {
+    key: 'MODEL_IMPROVEMENT',
+    label: '(선택) 예측 모델 개선에 내 데이터 활용',
+    required: false,
+    detail: '동의한 뒤의 설문·검진만 이름 없이 학습에 써요. 마이에서 언제든 끌 수 있어요.',
+  },
 ]
 const NONE_AGREED: Record<Agreement, boolean> = { TERMS: false, PRIVACY: false, SENSITIVE_HEALTH: false, MODEL_IMPROVEMENT: false }
 
@@ -339,8 +344,8 @@ export default function SignupPage() {
                 보기
               </button>
             </div>
-            {/* shortcut: 약관 전문이 아직 없음. 전문이 정해지면 이 자리에 내용(또는 모달)을 넣음 */}
-            {openTerm === t.key && <p className="auth__term-body">약관 전문은 준비 중이에요.</p>}
+            {/* shortcut: 필수 약관 전문이 아직 없음. 전문이 정해지면 이 자리에 내용(또는 모달)을 넣음 */}
+            {openTerm === t.key && <p className="auth__term-body">{t.detail ?? '약관 전문은 준비 중이에요.'}</p>}
           </div>
         ))}
         {errors.terms && <p className="auth__hint is-error" role="alert">{errors.terms}</p>}
