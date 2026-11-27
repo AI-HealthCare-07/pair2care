@@ -82,7 +82,7 @@ class TestRiskPredictionAPI(TestCase):
         assert body["managed_diseases"] == ["HYPERTENSION"]
         assert body["skipped_reason"] is None
         assert body["metabolic_syndrome"] is None  # 검진 없음
-        assert body["predictions"][0]["health_age"] is None  # 곡선이 없는 모델이면 null → 화면은 건강 나이 줄을 숨김
+        assert body["predictions"][0]["health_age"] is None  # 고정 모델엔 means_by_sex가 없어 null → 화면은 줄을 숨김
 
     async def test_latest_with_checkup_has_criteria_and_metabolic(self) -> None:
         email = "rp-checkup@example.com"
