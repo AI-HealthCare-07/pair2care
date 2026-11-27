@@ -2,14 +2,14 @@
 
 > 작성 김지연 · 11/27, 김민준 확인 (develop `ai_worker/tasks/` 기준). 예측 흐름은 [prediction-pipeline.md](prediction-pipeline.md).  
 > 규칙의 기준은 [api.md](api.md) 11장과 정할 것 31·32. 둘이 다르면 api.md를 따르고 이 문서를 고침.  
-> 점선(`-.->`)은 아직 없는 것(구현 예정): 예측 위험 단계 facts, 서버 우선순위, 기본 예방 가이드, 추가 가드레일, 피드백(#166), 평가 모듈.
+> 점선(`-.->`)은 아직 없는 것(구현 예정): 예측 위험 단계 facts, 서버 우선순위, 기본 예방 가이드, 추가 가드레일, 프론트 SSE(#159), 온라인 지표 집계, 오프라인 평가 모듈.
 
 ## 핵심 한 줄
 **LLM이 문장을 자유롭게 쓰지 않도록 제한한 구조임.** Claude는 공인 가이드에서 뽑은 후보 중 하나의 ID만 고르고, 서버가 그 ID를 검사한 뒤 가이드에 미리 적힌 문장과 출처를 돌려줌. 그래서 의료적 환각과 부적절한 표현의 위험을 줄임.
 
 ## 1. 오늘의 한 가지 (DAILY_ACTION, REQ-LLM-001)
 
-- input: 최신 설문(고혈압·당뇨 진단, 흡연)·이번 주 걷기 기록 → 예/아니오 facts 4개
+- input: 최신 설문(고혈압·당뇨 진단, 흡연)·걷기 기록(이번 주 기록을 먼저 보고, 없으면 지난주) → 예/아니오 facts 4개
 - f(x): 신호 일치 점수로 가이드 후보 검색 → Claude는 **후보 목록만** 받고 ID 하나 선택 → 서버가 허용 ID 검사
 - output: 미리 정의된 행동 문장 + 출처 번호 (`recommendations.content`·`sources`)
 
@@ -21,28 +21,32 @@ flowchart TD
     C --> D[("recommendations<br/>PENDING 1행<br/>사용자·종류·날짜당 1개")]
     D --> E["ai:tasks 등록<br/>TaskMessage (id만, 건강 수치 없음)"]
     E --> F["AI 워커<br/>PROCESSING"]
-    F --> G["facts 모으기<br/>진단 2개 · 흡연 · 걷기 0일"]
+    F --> G["facts 모으기<br/>진단 2개 · 흡연 · 걷기 0일<br/>(걷기: 이번 주, 없으면 지난주)"]
     G --> H["clean_facts<br/>허용된 숫자·예/아니오만"]
     H --> I["가이드 후보 검색<br/>신호 일치 점수 상위 최대 5개"]
     I --> J{"후보 있음?"}
     J -- "없음 (Claude 호출 안 함)" --> K["추천 보류<br/>근거 부족 문구 · sources 빈 배열"]
     J -- 있음 --> L["Claude<br/>후보 목록만 받고 ID 하나 선택"]
     L --> M{"서버 검증<br/>허용된 ID?"}
+    L --> UL[("llm_usage_logs<br/>Claude를 실제로 부른 경우만")]
     M -- "아니오 / 오류" --> N["기술적 생성 실패<br/>작업당 최대 3번 → FAILED, retry_count +1"]
     M -- 예 --> O["미리 정의된 가이드 문장 + 출처 [1]"]
-    K --> P[("COMPLETED 저장<br/>model · prompt_version · (예정) guide_version<br/>llm_usage_logs")]
+    K --> P[("COMPLETED 저장<br/>model · prompt_version · (예정) guide_version")]
     O --> P
     P --> Q["ai:results 발행"]
     N --> Q
-    Q --> R["SSE 12-6 task 이벤트"]
-    R --> S["홈이 11-2 다시 조회"]
-    S --> Z
+    C --> PO["홈이 3초마다 11-2 다시 조회<br/>(지금 develop, 1분까지)"]
+    P --> PO
+    PO --> Z
+    Q -.-> R["(예정 #159) SSE 12-6 task 이벤트<br/>3초 조회 대신 완료 알림"]
+    R -.-> S["홈이 11-2 다시 조회"]
+    S -.-> Z
     G -.- FX["(예정) facts 추가<br/>질환별 위험 단계: risk_signals.py ·<br/>5-2와 같은 행 · 90일 이내 · 식단 watch와 같은 함수<br/>이번 주 걷기 일수"]
     I -.-> PR["(예정) 서버 고정 우선순위로 후보 줄이기<br/>흡연 → 걷기 0일 → 진단·위험 높음<br/>→ 위험 주의 → 기본 예방 가이드"]
     PR -.-> L
     O -.- GD["(예정) 추가 가드레일"]
-    Z -.->|"근거 있을 때만"| T["(예정) 도움 돼요 / 별로예요<br/>11-9 · REQ-NFR-019"]
-    T -.-> U[("recommendation_feedbacks")]
+    Z -->|"근거 있을 때만"| T["도움 돼요 / 별로예요<br/>11-9 · REQ-NFR-019 (#166)"]
+    T --> U[("recommendation_feedbacks")]
     U -.-> V["온라인 지표<br/>참여율 · 만족도<br/>prompt·guide 버전별"]
     OF["(예정) 오프라인 평가 모듈<br/>가상 사용자 · 금지 후보<br/>배포 전·변경 때마다"] -.-> TR
     V -.-> TR["팀 검토<br/>X 원인 분석 (X ≠ 부적절)"]
@@ -51,6 +55,8 @@ flowchart TD
 ```
 
 - 근거 부족(추천 보류)은 `COMPLETED` + `sources = []`, 기술적 실패는 `FAILED`로 따로 저장함 (11-5)
+- `llm_usage_logs`는 Claude를 실제로 부른 경우에만 쌓임 → 추천 보류는 Claude를 안 불러서 사용량 로그가 안 생김
+- 화면 갱신은 지금 develop에선 3초마다 11-2를 다시 조회함. 완료 알림(SSE 12-6)으로 바꾸는 건 #159 머지 뒤
 
 ## 2. 다음 끼니에 바꿀 한 가지 (MEAL_ALTERNATIVE, REQ-LLM-002)
 
@@ -77,7 +83,7 @@ flowchart TD
     V -- "아니오 / 오류" --> N["기술적 생성 실패 → FAILED"]
     K --> I[("COMPLETED 저장")]
     O --> I
-    I --> R["SSE → 11-4 조회 → 추천 표시"]
+    I --> R["11-4 조회 → 추천 표시<br/>(완료 알림 SSE는 #159 공통 연결 뒤)"]
     N --> R
 ```
 
