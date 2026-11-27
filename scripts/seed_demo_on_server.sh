@@ -13,4 +13,4 @@ cleanup() {
 trap cleanup EXIT
 
 docker compose cp seed/scripts fastapi:/app/scripts
-docker compose exec -T -e DEMO_PASSWORD fastapi uv run --no-sync python -m scripts.seed_demo
+docker compose exec -T -e DEMO_PASSWORD -e ALLOW_DEMO_SEED=1 fastapi uv run --no-sync python -m scripts.seed_demo
