@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from scripts.seed_demo import DEMO_EMAIL
+from scripts.seed_demo import DEMO_EMAIL, read_demo_password
 
 P95_LIMIT_MS: Final = 3000
 DEFAULT_REPEAT: Final = 30
@@ -184,11 +184,9 @@ async def main() -> None:
     parser.add_argument("--with-writes", action="store_true", help="3-1·6-1 저장도 잼 (데모 사용자에 행이 쌓임)")
     args = parser.parse_args()
 
+    password = read_demo_password()  # 없으면 요청 보내기 전에 멈춤 (시드와 같은 규칙)
     base_url = os.environ.get("BASE_URL", "http://localhost")
     async with httpx.AsyncClient(base_url=base_url, timeout=30) as client:
-        password = os.environ.get("DEMO_PASSWORD")
-        if not password:
-            raise SystemExit("DEMO_PASSWORD 환경 변수가 없어요. 시드 때 정한 비밀번호를 같이 넘겨 주세요.")
         await login(client, password)
         prediction_id, checkup_id = await find_ids(client)
         targets = read_targets(datetime.now(KST).date(), prediction_id, checkup_id)
