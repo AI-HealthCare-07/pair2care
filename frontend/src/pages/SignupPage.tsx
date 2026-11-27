@@ -19,11 +19,14 @@ const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[!-~]{8,}$/
 const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_HINT = '8자 이상, 영문+숫자+특수문자(!@#$ 등)'
 
-const TERMS: { key: Agreement; label: string }[] = [
-  { key: 'TERMS', label: '(필수) 이용약관' },
-  { key: 'PRIVACY', label: '(필수) 개인정보 수집·이용' },
-  { key: 'SENSITIVE_HEALTH', label: '(필수) 건강정보(민감정보) 처리' },
+const TERMS: { key: Agreement; label: string; required: boolean }[] = [
+  { key: 'TERMS', label: '(필수) 이용약관', required: true },
+  { key: 'PRIVACY', label: '(필수) 개인정보 수집·이용', required: true },
+  { key: 'SENSITIVE_HEALTH', label: '(필수) 건강정보(민감정보) 처리', required: true },
+  // 기본 해제, 안 해도 가입됨. 마이에서 켜고 끌 수 있음 (2-6, docs/feedback-loop.md)
+  { key: 'MODEL_IMPROVEMENT', label: '(선택) 예측 모델 개선에 내 데이터 활용', required: false },
 ]
+const NONE_AGREED: Record<Agreement, boolean> = { TERMS: false, PRIVACY: false, SENSITIVE_HEALTH: false, MODEL_IMPROVEMENT: false }
 
 type Field = 'email' | 'password' | 'nickname' | 'gender' | 'birthday' | 'terms'
 type Errors = Partial<Record<Field, string>>
@@ -54,13 +57,14 @@ export default function SignupPage() {
   const [year, setYear] = useState('')
   const [month, setMonth] = useState('')
   const [day, setDay] = useState('')
-  const [agreed, setAgreed] = useState<Record<Agreement, boolean>>({ TERMS: false, PRIVACY: false, SENSITIVE_HEALTH: false })
+  const [agreed, setAgreed] = useState<Record<Agreement, boolean>>(NONE_AGREED)
   const [openTerm, setOpenTerm] = useState<Agreement | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [alert, setAlert] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const allAgreed = TERMS.every((t) => agreed[t.key])
+  const allAgreed = TERMS.every((t) => agreed[t.key]) // "전체 동의"는 선택까지
+  const requiredAgreed = TERMS.every((t) => !t.required || agreed[t.key])
   // 월을 고르기 전엔 31일까지, 고르면 그 달 마지막 날까지 (윤년 포함)
   const daysInMonth = month ? lastDay(year, month) : 31
   const days = Array.from({ length: daysInMonth }, (_, i) => String(i + 1))
@@ -74,7 +78,7 @@ export default function SignupPage() {
     if (nick.length < 2 || nick.length > 20) next.nickname = '닉네임은 2~20자로 입력해 주세요.'
     if (!gender) next.gender = '성별을 골라 주세요.'
     if (!year || !month || !day) next.birthday = '생년월일을 모두 골라 주세요.'
-    if (!allAgreed) next.terms = '필수 약관에 모두 동의해 주세요.'
+    if (!requiredAgreed) next.terms = '필수 약관에 모두 동의해 주세요.'
     return next
   }
 
@@ -95,7 +99,7 @@ export default function SignupPage() {
         nickname: nickname.trim(),
         gender: gender!,
         birthday,
-        consents: TERMS.map((t) => ({ agreement: t.key, version: TERMS_VERSION, is_agreed: true })),
+        consents: TERMS.map((t) => ({ agreement: t.key, version: TERMS_VERSION, is_agreed: agreed[t.key] })),
       })
       await reload() // 가드가 새 로그인 상태를 알게 (안 하면 /login으로 튕김)
       navigate(result.has_health_profile ? '/home' : '/onboarding', { replace: true })
@@ -154,7 +158,7 @@ export default function SignupPage() {
   function toggleAll() {
     clearError('terms')
     const next = !allAgreed
-    setAgreed({ TERMS: next, PRIVACY: next, SENSITIVE_HEALTH: next })
+    setAgreed({ TERMS: next, PRIVACY: next, SENSITIVE_HEALTH: next, MODEL_IMPROVEMENT: next })
   }
 
   return (

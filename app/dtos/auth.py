@@ -15,6 +15,12 @@ class ConsentItem(BaseModel):
     is_agreed: bool
 
 
+def _no_duplicate_agreement(consents: list[ConsentItem]) -> list[ConsentItem]:
+    if len({c.agreement for c in consents}) != len(consents):
+        raise ValueError("같은 동의 항목을 두 번 보낼 수 없어요.")
+    return consents
+
+
 class SignUpRequest(BaseModel):
     email: Annotated[EmailStr, Field(max_length=255)]
     password: Annotated[str, AfterValidator(validate_password)]
@@ -22,8 +28,8 @@ class SignUpRequest(BaseModel):
     gender: Gender
     # 만 14세 미만은 서비스에서 400 SIGNUP_UNDER_14 (여기서 막으면 422라 어느 칸인지 code·field를 못 줌)
     birthday: Annotated[date, Field(description="Date Format: YYYY-MM-DD")]
-    # 3종 모두 동의했는지·버전이 맞는지는 서비스에서 확인해 400으로 응답 (api.md 2-1)
-    consents: list[ConsentItem]
+    # 필수 3종 동의·버전은 서비스에서 확인해 400으로 응답, 선택 MODEL_IMPROVEMENT는 없어도 됨 (api.md 2-1)
+    consents: Annotated[list[ConsentItem], AfterValidator(_no_duplicate_agreement)]
 
 
 class LoginRequest(BaseModel):
