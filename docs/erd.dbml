@@ -187,6 +187,7 @@ Table recommendations {
   meal_id bigint [null, ref: - meals.id]           // LLM-002 기준 식단
   model varchar(50) [null]                         // 예: 'claude-haiku-5-5'
   prompt_version varchar(30) [null]                // 예: 'daily_v1.2'
+  guide_version varchar(30) [null]                 // 가이드 파일 버전, prompt_version과 따로 (api.md 정할 것 32)
   retry_count int [not null, default: 0]           // 실패 시 재시도 횟수 (최대 3회)
   weather json [null]                              // DAILY_ACTION 생성 때 날씨·미세먼지 판정 스냅샷 (api.md 11-7)
   created_at datetime [not null]

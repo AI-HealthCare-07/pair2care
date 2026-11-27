@@ -1284,7 +1284,7 @@ S-23 · REQ-LLM-002
   "status": "COMPLETED",
   "content": "점심을 먹고 가능한 날에 가볍게 걸어보는 건 어때요? [1]",
   "sources": [
-    { "number": 1, "title": "신체활동 가이드(예시)", "url": "https://example.com/activity-guide" }
+    { "number": 1, "guide_id": "prevention_walk", "title": "신체활동 가이드(예시)", "url": "https://example.com/activity-guide" }
   ],
   "retry_count": 0,
   "my_feedback": null,
@@ -1301,6 +1301,8 @@ S-23 · REQ-LLM-002
 - `retry_count`는 10-6과 같이 추천 한 건의 누적 작업 실패 횟수. 최초 값은 0이며 워커가 한 작업을 최종 `FAILED`로 저장할 때 1 증가함. **최초 생성 1번 + 재생성 2번**까지로, `retry_count >= 3`이면 **429** `"추천을 다시 요청할 수 있는 횟수를 모두 사용했어요."`.
 - 워커 내부 실행은 한 작업당 최대 3번(최초 1번 포함). 내부 재시도마다 `retry_count`를 올리지 않음.
 - 근거가 부족하면 `COMPLETED`로 저장하되 추천을 지어내지 않고 `content = "지금은 근거가 충분하지 않아 추천하기 어려워요."`, `sources = []`를 반환함. 기술적인 생성 실패(`FAILED`)와 구분함.
+- `sources[].guide_id`: 근거로 쓴 가이드 ID (`ai_worker/resources/health_guides.json`의 `id`). 가이드별 피드백 집계용(11-9), 화면엔 안 씀
+- 결과마다 `model`·`prompt_version`·`guide_version`(가이드 파일 버전)을 따로 저장해서 프롬프트 변경과 가이드 변경의 영향을 나눠 봄 (정할 것 32, 11/27 확정)
 
 ### 11-6. 워커와 완료 알림 — 공통 SSE(12-6)
 1. 서버가 추천 행을 저장하고 `TaskMessage(task_type = RECOMMEND_LLM, user_id, target_id = recommendations.id)`를 `ai:tasks`에 등록. 메시지에 건강 수치·프롬프트 본문을 넣지 않음.
@@ -1391,7 +1393,7 @@ S-12 · REQ-LLM-003 · 담당 김민준(구현) · 초안 김지연
 ### 11-9. 추천 피드백 `PUT /api/v1/recommendations/{id}/feedback` → 200 ⚕️
 S-12 · REQ-NFR-019 (온라인 평가) · 11/27 지연 제안, 민준 동의
 
-- 홈 "오늘의 한 가지" 카드 아래 `도움 돼요` / `별로예요`. `별로예요`면 이유 칩을 하나 고를 수 있음 (안 골라도 저장됨)
+- 홈 "오늘의 한 가지" 카드 아래 `도움 돼요` / `별로예요`. `별로예요`면 이유 칩을 하나 고를 수 있음 (안 골라도 저장됨). 근거 부족 문구가 나온 날은 버튼을 안 보여 줌
 - 경로의 `id`는 `recommendations.id`. **1차는 `DAILY_ACTION`만** 받음 (식단 대체 메뉴는 S-23 화면 담당과 정한 뒤)
 - **추천 하나에 피드백 하나**: 처음이면 만들고, 다시 누르면 같은 행을 덮어씀 (그래서 POST가 아니라 PUT). 지우는 API는 없음
 
@@ -1402,12 +1404,13 @@ S-12 · REQ-NFR-019 (온라인 평가) · 11/27 지연 제안, 민준 동의
 | 필드 | 규칙 |
 |---|---|
 | is_helpful | `true` 도움 돼요 / `false` 별로예요 |
-| reason | `is_helpful=false`일 때만. `NOT_FIT` 나한테 안 맞아요 · `ALREADY_DOING` 이미 하고 있어요 · `TOO_HARD` 너무 어려워요 · `WRONG_CONTENT` 내용이 이상해요 · `OTHER` 기타 · `null`(안 고름). `is_helpful=true`인데 값을 보내면 422 |
+| reason | **선택 사항**. `is_helpful=false`일 때만 의미 있음: `NOT_FIT` 나한테 안 맞아요 · `ALREADY_DOING` 이미 하고 있어요 · `TOO_HARD` 너무 어려워요 · `WRONG_CONTENT` 내용이 이상해요 · `OTHER` 기타 · `null`(안 고름). `is_helpful=true`인데 값을 보내면 422. **별로예요 → 도움 돼요로 바꾸면 저장된 reason은 `null`로 지움** |
 
 **검사 순서**
 1. 추천이 없거나 다른 사용자의 추천 → **404** `"추천을 찾을 수 없어요."` (있는지 알려 주지 않으려고 둘 다 404)
 2. `rec_type`이 `DAILY_ACTION`이 아님 → **400** `"지금은 오늘의 한 가지에만 남길 수 있어요."`
 3. `status`가 `COMPLETED`가 아님 → **409** `"추천이 준비된 뒤에 남길 수 있어요."`
+4. 근거 부족으로 저장된 추천(`sources`가 빈 배열, 11-5) → **409** `"남길 추천이 없어요."` → 화면도 이때는 버튼을 숨김
 
 **응답 200**
 ```json
@@ -1418,8 +1421,10 @@ S-12 · REQ-NFR-019 (온라인 평가) · 11/27 지연 제안, 민준 동의
 **저장과 쓰임**
 - `recommendation_feedbacks`에 추천당 1행 (`recommendation_id` 유니크). 바꾸면 `updated_at`만 바뀌고 이력은 안 남김
 - 이 값은 **사용자 만족도**임. 팀이 정한 "적절함"(추천 적절성) 라벨과 다르고, X가 많다고 바로 막지 않음 → 주 1회 이유별로 모아 원인을 보고 팀 검토 뒤 가드레일에 반영 (REQ-NFR-019 ③)
-- 집계는 `recommendations`의 `model`·`prompt_version`·`sources`(가이드 ID)와 묶어 프롬프트 버전별·가이드별 "도움 돼요" 비율로 봄. 가이드 버전 기록 방법은 정할 것 32
-- 오프라인 평가(가상 사용자 평가 세트)는 API가 아니라 `ai_worker/` 안의 평가 모듈로 돌림 (김민준)
+- 집계는 `recommendations`의 `model`·`prompt_version`·`guide_version`·`sources[].guide_id`와 묶어 봄
+  - **참여율** = 피드백이 있는 추천 ÷ 버튼을 보여 준 추천(근거 있는 `COMPLETED`)
+  - **만족도** = "도움 돼요" ÷ 피드백이 있는 추천 (프롬프트 버전별·가이드별)
+- 오프라인 평가(가상 사용자 평가 세트)는 API가 아니라 `ai_worker/` 안의 평가 모듈로 돌림 (김민준). 결과엔 `eval_dataset_version`까지 같이 기록하고, 금지 조건 위반율·추천 적절성·설문 일치·근거 기반 여부·생성 실패를 나눠 남김
 
 ## 12. 알림 — `notifications`, `notification_settings`, `push_subscriptions`, `custom_reminders` (김지연)
 S-24~S-26, C-03 · REQ-NOTI-001~007, 009
@@ -1561,4 +1566,4 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 | 29 | 미진단·경계 사용자의 식단 피드백 강조 (10-9) | 1차는 진단 "예"만 강조. 2차 후보: (가) 최근 예측이 주의·높음이면 `focus`와 별도로 약한 표시(예: `watch` 필드, 문구 "참고로 보면 좋은 항목", 강조 색 없음 + C-01) (나) 사용자가 마이에서 관심 항목(나트륨·당류·탄수화물)을 직접 고름. (가)는 예측을 진단처럼 쓰지 않는지(NFR-001) 함께 확인 | 식단(여현지)·예측(장성은)·프론트(김지연) |
 | 30 | 날씨·미세먼지 반영 (11-7) | 초안: 시·도 선택(`users.region`), 기상청 단기예보 + 에어코리아, 나쁜 날은 실내 후보만, 새 경로 없이 `DAILY_ACTION` 안에서. 판정 기준값(33℃ / −10℃ / PM10 81·PM2.5 36 / 강수확률 60%)과 `WEATHER_TIP` enum 정리 확인 필요 | 김민준(LLM)·여현지(S-12)·김지연(ERD) |
 | 31 | LLM 추천 "적절함" 정의·배포 전 통과 기준 (REQ-NFR-019) | 팀 규칙 후보: 진단·약 언급 없음 / 오늘 바로 할 수 있는 한 가지 / 공인 근거 안 / 설문과 안 맞는 말 없음. 오프라인 평가 세트의 금지 조건 위반율 기준(예: 0건)을 배포 전 통과 조건으로 둘지 | 전원 |
-| 32 | 가이드·평가 세트 버전 기록 (11-9, REQ-NFR-019) | 평가 결과마다 모델·`prompt_version`과 함께 가이드 파일 버전·평가 세트 버전을 남김. `recommendations`에 가이드 버전 칸을 둘지, `prompt_version`에 묶을지 | 김민준 |
+| 32 | 가이드·평가 세트 버전 기록 (11-9, REQ-NFR-019) | ✅ 11/27 확정: `prompt_version`과 `guide_version`은 따로 관리. 운영 추천(`recommendations`)엔 `model`·`prompt_version`·`guide_version`, 오프라인 평가 결과엔 `eval_dataset_version`까지 기록 | 김민준 |

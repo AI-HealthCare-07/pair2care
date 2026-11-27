@@ -93,7 +93,7 @@
 ### LLM — 김지연 (김민준 확인)
 | 테이블 | 설명 | 주요 컬럼 (후보) | 관련 REQ |
 |---|---|---|---|
-| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, task_id(UUID, null 가능, 현재 Redis 작업 ID), content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, retry_count, weather(JSON, null 가능 — 생성 때 날씨·미세먼지 판정 스냅샷, api.md 11-7 초안) | LLM-001~005, NFR-002 |
+| `recommendations` | LLM 결과 저장. 하루 1번 생성하고 화면은 저장본을 보여줌 (대체 메뉴는 식단마다 1개, 요인 설명은 예측마다 1개) | user_id, rec_type(DAILY_ACTION/MEAL_ALTERNATIVE/WEATHER_TIP/RISK_EXPLANATION/WEEKLY_REPORT), target_on, status, task_id(UUID, null 가능, 현재 Redis 작업 ID), content, sources(JSON), risk_prediction_id(unique, null 가능), meal_id(unique, null 가능), model, prompt_version, guide_version(가이드 파일 버전, 11/27), retry_count, weather(JSON, null 가능 — 생성 때 날씨·미세먼지 판정 스냅샷, api.md 11-7 초안) | LLM-001~005, NFR-002 |
 | `llm_usage_logs` | 기능별 토큰 사용량 | user_id(null 가능), recommendation_id(null 가능), meal_id(null 가능), feature(rec_type 5종 + MEAL_VISION·RAG_EMBEDDING), model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, estimated_cost_usd, is_success | NFR-012 |
 | `recommendation_feedbacks` | 추천에 대한 사용자 반응 (도움 돼요 / 별로예요). 추천당 1행, 다시 누르면 덮어씀. 사용자 만족도이지 팀의 "적절함" 라벨이 아님 (api.md 11-9) | recommendation_id(유니크), user_id, is_helpful, reason(NOT_FIT/ALREADY_DOING/TOO_HARD/WRONG_CONTENT/OTHER, null 가능), created_at, updated_at | NFR-019 |
 
