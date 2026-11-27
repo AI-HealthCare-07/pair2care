@@ -20,6 +20,15 @@ export interface DailyRecommendation {
   sources: RecommendationSource[] | null
   retry_count: number // 3이면 다시 요청해도 429
   target_on: string
+  my_feedback?: MyFeedback | null // 11-9에 남긴 피드백, 없으면 null
+}
+
+/** 11-9 별로예요 이유 (선택) */
+export type FeedbackReason = 'NOT_FIT' | 'ALREADY_DOING' | 'TOO_HARD' | 'WRONG_CONTENT' | 'OTHER'
+
+export interface MyFeedback {
+  is_helpful: boolean
+  reason: FeedbackReason | null
 }
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true'

@@ -2,7 +2,9 @@ from datetime import date
 from uuid import UUID
 
 from tortoise import BaseDBAsyncClient
+from tortoise.exceptions import IntegrityError
 
+from app.models.recommendation_feedbacks import FeedbackReason, RecommendationFeedback
 from app.models.recommendations import GenerationStatus, Recommendation, RecommendationType
 from app.models.users import User
 
@@ -13,6 +15,10 @@ class RecommendationRepository:
         return await Recommendation.filter(
             user_id=user_id, rec_type=RecommendationType.DAILY_ACTION, target_on=target_on
         ).first()
+
+    @staticmethod
+    async def owned(user_id: int, recommendation_id: int) -> Recommendation | None:
+        return await Recommendation.filter(id=recommendation_id, user_id=user_id).first()
 
     @staticmethod
     async def meal(user_id: int, meal_id: int) -> Recommendation | None:
@@ -61,3 +67,26 @@ class RecommendationRepository:
         rec.prompt_version = None
         await rec.save(using_db=conn)
         return rec, True, "RETRY"
+
+
+class RecommendationFeedbackRepository:
+    @staticmethod
+    async def find(recommendation_id: int) -> RecommendationFeedback | None:
+        return await RecommendationFeedback.filter(recommendation_id=recommendation_id).first()
+
+    @staticmethod
+    async def upsert(
+        recommendation_id: int, user_id: int, is_helpful: bool, reason: FeedbackReason | None
+    ) -> RecommendationFeedback:
+        """추천당 1행. 있으면 덮어씀 (도움 돼요면 reason은 None으로 지움, api.md 11-9)"""
+        defaults = {"user_id": user_id, "is_helpful": is_helpful, "reason": reason}
+        try:
+            row, _ = await RecommendationFeedback.update_or_create(
+                defaults=defaults, recommendation_id=recommendation_id
+            )
+        except IntegrityError:
+            # 같은 추천에 두 번 연달아 눌러 동시에 만들려 한 경우: 먼저 만든 행을 덮어씀
+            row, _ = await RecommendationFeedback.update_or_create(
+                defaults=defaults, recommendation_id=recommendation_id
+            )
+        return row

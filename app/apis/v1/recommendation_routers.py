@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import ORJSONResponse
 
 from app.dependencies.security import get_request_user
+from app.dtos.recommendations import FeedbackRequest
 from app.models.users import User
 from app.services.challenge_recommendations import ChallengeRecommendation, recommend_challenge
 from app.services.recommendations import RecommendationService
@@ -26,6 +27,12 @@ async def get_daily(
 async def post_daily(user: Annotated[User, Depends(get_request_user)]) -> ORJSONResponse:
     code, data = await RecommendationService().post_daily(user.id)
     return ORJSONResponse(data, status_code=code)
+
+
+@recommendation_router.put("/recommendations/{id}/feedback")
+async def put_feedback(id: int, data: FeedbackRequest, user: Annotated[User, Depends(get_request_user)]) -> dict:
+    """11-9 추천 피드백. 추천당 1개, 다시 보내면 덮어씀."""
+    return await RecommendationService().put_feedback(user.id, id, data)
 
 
 @recommendation_router.get("/meals/{id}/recommendation")

@@ -13,8 +13,10 @@ import {
   requestDailyRecommendation,
   type DailyRecommendation,
 } from '../../api/recommendations'
+import { canGiveFeedback } from '../../api/recommendationFeedback'
 import { usedSources } from '../../home/homeView'
 import Button from '../common/Button'
+import DailyFeedback from './DailyFeedback'
 
 const POLL_MS = 3000
 const MAX_POLLS = 20 // 3초 × 20 = 1분
@@ -148,6 +150,9 @@ function DailyContent({ recommendation }: { recommendation: DailyRecommendation 
             </li>
           ))}
         </ul>
+      )}
+      {canGiveFeedback(recommendation) && (
+        <DailyFeedback recommendationId={recommendation.id} initial={recommendation.my_feedback ?? null} />
       )}
     </>
   )
