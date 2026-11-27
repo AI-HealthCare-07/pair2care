@@ -3,7 +3,7 @@
 새 테이블 없이 뽑는 순간에 기존 테이블에서 만듦:
   user_consents(MODEL_IMPROVEMENT 동의) + risk_predictions(MODEL 행 input_snapshot.inputs) + checkup_records
 규칙 (#148, 11/27 지연·성은):
-  - 동의: 가장 최근 동의 행이 "동의"일 때만, **그 시각 이후** 설문만 (철회 후 재동의면 마지막 동의 시각 이후)
+  - 동의: 가장 최근 동의 행이 "동의"일 때만, **그 시각 이후에 입력한** 설문·검진만 (철회 후 재동의면 마지막 동의 시각 이후)
   - 짝: 검진 1건마다 앞뒤 30일 안 가장 가까운 설문 1개 (같은 거리면 앞쪽). 같은 설문의 여러 MODEL 행은 첫 행만
   - 정답: 하나라도 기준 이상 → 1, 0은 수치가 둘 다 있고 둘 다 정상일 때만, 그 외는 쌍 안 만듦
   - 제외: @example.com 계정(데모·테스트), 탈퇴(비활성) 계정. 진단·임신·나이 밖은 원래 MODEL 행이 없음
@@ -189,7 +189,8 @@ async def consent_times_by_user() -> dict[int, datetime]:
 
 async def pairs_for_user(user_id: int, since: datetime) -> list[FeedbackPair]:
     rows = await RiskPrediction.filter(user_id=user_id, method=PredictionMethod.MODEL)
-    records = await CheckupRecord.filter(user_id=user_id).order_by("checked_on")
+    # 검진도 동의한 뒤에 입력한 것만 (검진일이 아니라 입력 시각 기준, #162 성은 리뷰)
+    records = await CheckupRecord.filter(user_id=user_id, created_at__gte=since).order_by("checked_on")
     checkups = [CheckupValues(r.checked_on, r.systolic_bp, r.diastolic_bp, r.fasting_glucose, r.hba1c) for r in records]
     return build_pairs(checkups, candidates_from_rows(rows, since))
 

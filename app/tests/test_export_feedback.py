@@ -141,6 +141,13 @@ class TestExportFeedback(TestCase):
         summary = await seed(now, "Demo1234!")
         assert await pairs_for_user(summary.user_id, since=now + timedelta(days=1)) == []
 
+    async def test_checkup_entered_before_consent_is_excluded(self) -> None:
+        # 검진 입력 → 동의 → 그 뒤 설문만 있어도, 동의 전에 입력한 검진은 쌍이 안 됨
+        now = datetime(2026, 11, 26, 10, 0, tzinfo=KST)
+        summary = await seed(now, "Demo1234!")
+        checkup = await CheckupRecord.get(user_id=summary.user_id)
+        assert await pairs_for_user(summary.user_id, since=checkup.created_at + timedelta(seconds=1)) == []
+
     async def test_export_without_consent_type_writes_header_only(self) -> None:
         # MODEL_IMPROVEMENT가 Agreement에 추가되기 전에는 뽑을 사용자가 없음 (지연님 작업 뒤 자동으로 동작)
         path = Path(self._testMethodName + ".csv")
