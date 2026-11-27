@@ -59,12 +59,12 @@
   },
   {
     "id": "prevention_walk",
-    "title": "WHO - Physical activity",
-    "url": "https://www.who.int/news-room/fact-sheets/detail/physical-activity",
+    "title": "질병관리청 국가건강정보포털 - 운동",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=5293",
     "topics": [
       "DAILY_ACTION"
     ],
-    "summary": "WHO는 신체활동을 전혀 하지 않는 것보다 조금이라도 하는 것이 낫다고 설명하며 걷기도 신체활동에 포함한다.",
+    "summary": "개인 상태에 맞춘 신체활동은 활동하지 않는 것보다 건강에 도움이 된다.",
     "action": "몸 상태가 허락한다면 오늘 안전한 곳에서 편한 속도로 잠깐 걸어 보는 건 어때요?",
     "signals": [
       "has_zero_walk_days"
@@ -72,15 +72,67 @@
   },
   {
     "id": "prevention_tobacco_support",
-    "title": "WHO - Quitting tobacco",
-    "url": "https://www.who.int/activities/quitting-tobacco",
+    "title": "금연길라잡이 - 금연상담전화",
+    "url": "https://www.nosmokeguide.go.kr/helpness/counsel",
     "topics": [
       "DAILY_ACTION"
     ],
-    "summary": "WHO는 금연을 돕는 방법으로 전문적인 상담을 권고한다.",
+    "summary": "전문 금연상담 서비스를 이용하여 금연 준비와 실천을 지원받을 수 있다.",
     "action": "금연을 생각하고 있다면 오늘 이용할 수 있는 금연 상담 방법을 한 가지 찾아보는 건 어때요?",
     "signals": [
       "is_current_smoker"
+    ]
+  },
+  {
+    "id": "prevention_keep_walking",
+    "title": "질병관리청 국가건강정보포털 - 운동",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=5293",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "규칙적인 신체활동을 개인의 상태에 맞추어 이어가는 것이 건강 유지에 도움이 된다.",
+    "action": "몸 상태가 허락한다면 평소 걷던 습관을 오늘도 편한 속도로 이어가 보는 건 어때요?",
+    "signals": [
+      "has_walk_days"
+    ]
+  },
+  {
+    "id": "prevention_strength_plan",
+    "title": "질병관리청 국가건강정보포털 - 운동",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=5293",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "성인은 근력 강화 활동을 주 2일 이상 실천하고 개인의 상태에 맞게 강도를 조절하는 것이 권장된다.",
+    "action": "몸 상태에 맞는 가벼운 근력 운동을 할 날을 한 번 정해 보는 건 어때요?",
+    "signals": [
+      "has_fewer_strength_days"
+    ]
+  },
+  {
+    "id": "prevention_sleep_routine",
+    "title": "국가정신건강정보포털 - 건강한 수면 습관",
+    "url": "https://www.mentalhealth.go.kr/portal/bbs/bbsDetail.do?bbsId=BBSINIT_2&nttId=244",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "규칙적인 기상 습관은 수면과 각성의 리듬을 유지하는 데 도움이 된다.",
+    "action": "오늘 내일 일정에 맞춰 충분히 잘 수 있는 기상 시간을 정해 보는 건 어때요?",
+    "signals": [
+      "has_sleep_record"
+    ]
+  },
+  {
+    "id": "prevention_alcohol_plan",
+    "title": "질병관리청 국가건강정보포털 - 위험음주",
+    "url": "https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=5355",
+    "topics": [
+      "DAILY_ACTION"
+    ],
+    "summary": "음주 상황과 습관을 돌아보고 술을 권하는 상황에 대비하는 것은 음주를 줄이는 실천 방법이다.",
+    "action": "다음에 술을 권유받는 상황에 대비해 나에게 맞는 대처 방법을 한 가지 생각해 보는 건 어때요?",
+    "signals": [
+      "has_reported_alcohol"
     ]
   }
 ]

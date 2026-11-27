@@ -88,7 +88,7 @@ class TestRecommendations(TruncationTestCase):
         saved = (await self.client.get(DAILY)).json()
         assert saved["status"] == "COMPLETED"
         assert saved["content"] != NO_EVIDENCE
-        assert saved["sources"][0]["url"] == "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+        assert saved["sources"][0]["url"].endswith("cntnts_sn=5293")
         selector.assert_awaited_once()
         prompt, _ = selector.await_args.args
         assert "private memo" not in prompt
@@ -118,7 +118,23 @@ class TestRecommendations(TruncationTestCase):
         )
         assert await gather_daily_action_facts(user.id, today) == {"has_zero_walk_days": True}
         await HealthLog.create(user_id=user.id, log_type=HealthLogType.WALK_DAYS, value=3, measured_at=current)
-        assert await gather_daily_action_facts(user.id, today) == {}
+        assert await gather_daily_action_facts(user.id, today) == {"has_walk_days": True}
+
+    async def test_daily_prevention_keeps_existing_walking_habit(self) -> None:
+        user = await User.get(email=EMAIL)
+        current = week_start(datetime.now(KST).date())
+        await HealthLog.create(user_id=user.id, log_type=HealthLogType.WALK_DAYS, value=3, measured_at=current)
+        selector = AsyncMock(return_value=("prevention_keep_walking", {"input_tokens": 7}))
+        self.enterContext(patch("ai_worker.tasks.llm_recommendation.AnthropicSelector.choose", selector))
+        response = await self.client.post(DAILY)
+        assert response.status_code == 202
+        message_id, fields = await read_task(self.redis)
+        await process_message(self.redis, message_id, fields)
+        saved = (await self.client.get(DAILY)).json()
+        assert saved["status"] == "COMPLETED"
+        assert saved["content"] != NO_EVIDENCE
+        assert saved["sources"][0]["url"].endswith("cntnts_sn=5293")
+        selector.assert_awaited_once()
 
     async def test_queue_error_does_not_count_as_model_failure(self) -> None:
         client = self.client

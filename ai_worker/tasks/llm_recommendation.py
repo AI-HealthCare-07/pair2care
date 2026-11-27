@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-5-5")
-PROMPT_VERSION = "llm_verified_actions_v3"
+PROMPT_VERSION = "llm_verified_actions_v4"
 NO_EVIDENCE = "지금은 근거가 충분하지 않아 추천하기 어려워요."
 GUIDES_PATH = Path(__file__).resolve().parent.parent / "resources" / "health_guides.json"
 # 동시 Claude 요청 상한 (프로세스별); 워커의 3회 재시도는 별도 처리한다.
@@ -26,6 +26,10 @@ _BOOLEAN_FACTS = {
     "is_broth_dish",
     "has_zero_walk_days",
     "is_current_smoker",
+    "has_walk_days",
+    "has_fewer_strength_days",
+    "has_sleep_record",
+    "has_reported_alcohol",
 }
 _NUMERIC_FACTS = {"sodium_mg", "sugar_g", "carbs_g", "portion"}
 SYSTEM_PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "recommendation.txt"
