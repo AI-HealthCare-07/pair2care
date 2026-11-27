@@ -142,7 +142,7 @@ export default function CheckupPage() {
           {saving ? '저장하고 있어요' : '위험도 보기'}
         </Button>
         <Button type="button" variant="ghost" fullWidth onClick={back}>
-          건너뛰기
+          취소
         </Button>
       </form>
     </div>
