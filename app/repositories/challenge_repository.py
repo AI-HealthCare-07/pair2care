@@ -8,7 +8,6 @@ from app.models.challenge_participants import (
 )
 from app.models.challenges import Challenge
 
-
 VISIBLE_STATUSES = (
     ParticipantStatus.INVITED,
     ParticipantStatus.JOINED,

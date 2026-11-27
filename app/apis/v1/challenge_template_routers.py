@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends
 
 from app.services.challenge_templates import ChallengeTemplateService
 
-
 challenge_template_router = APIRouter(
     prefix="/challenge-templates",
     tags=["challenge-templates"],

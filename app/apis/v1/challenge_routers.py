@@ -13,7 +13,6 @@ from app.models.challenges import ChallengeStatus
 from app.models.users import User
 from app.services.challenges import ChallengeService
 
-
 challenge_router = APIRouter(
     prefix="/challenges",
     tags=["challenges"],

@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
 from app.apis.v1.auth_routers import auth_router
-from app.apis.v1.checkup_record_routers import checkup_record_router
-from app.apis.v1.challenge_template_routers import challenge_template_router
 from app.apis.v1.challenge_routers import challenge_router
+from app.apis.v1.challenge_template_routers import challenge_template_router
+from app.apis.v1.checkup_record_routers import checkup_record_router
 from app.apis.v1.dashboard_routers import dashboard_router
 from app.apis.v1.health_log_routers import health_log_router
 from app.apis.v1.health_profile_routers import health_profile_router
