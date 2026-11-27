@@ -35,7 +35,7 @@
 | 숫자 | decimal 컬럼(체중·허리둘레·기록 값)은 JSON number로 주고받음 (소수 둘째 자리까지) |
 | 목록 | `?limit=20&cursor=<마지막 id>` 커서 방식, 최신순. 응답 `{ "items": [...], "next_cursor": 123 \| null }` |
 | 에러 | 기존 코드처럼 FastAPI 기본 형식 `{ "detail": "한국어 메시지" }`. 입력 검사 실패는 FastAPI 기본 422 (`detail`이 배열)<br>**프론트가 종류로 갈라 처리해야 하는 에러에만** `code`를 붙임: `{ "detail": "한국어 메시지", "code": "SURVEY_VERSION_MISMATCH" }` → 프론트는 문구 글자가 아니라 `code`로 분기 (문구는 바뀔 수 있음)<br>구현: `app/core/exceptions.py`의 `AppError` + 전용 핸들러 (`HTTPException(detail={...})`는 `detail`이 한 번 더 감싸져서 쓰지 않음). `code` 목록은 아래 표와 `ErrorCode`를 같이 고침 |
-| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) · `SIGNUP_UNDER_14` 400 (2-1, `field: birthday`) · `SIGNUP_TERMS_REQUIRED` 400 (2-1, `field: consents`) |
+| 에러 code 목록 | `SURVEY_VERSION_MISMATCH` 409 (3-1, 설문 버전 다름 → 3-6 다시 불러오기) · `ONBOARDING_REQUIRED` 409 (3-1·3-6, 가입 설문 없이 WEEKLY·EDIT → S-06) · `ONBOARDING_ALREADY_DONE` 409 (3-1, 가입 설문 두 번 → 홈) · `SURVEY_FIELD_INVALID` 400 (3-1 문항 규칙 위반, `field`에 문항 이름 → 그 문항으로 이동) · `SIGNUP_UNDER_14` 400 (2-1, `field: birthday`) · `SIGNUP_TERMS_REQUIRED` 400 (2-1, `field: consents`) |
 | 상태 코드 | 200 조회·수정 / 201 생성 / 204 삭제 / 400 규칙 위반 / 401 인증 / 404 없음 / 403 권한 없음(예: 호스트만 가능) / 409 중복·순서 충돌 / 410 만료(예: 초대 링크 7일) / 422 형식 오류 / 429 횟수 제한(예: 응원 하루 1번) |
 | 로그 | 요청·응답 본문의 건강 수치는 서버 로그에 남기지 않음 (REQ-NFR-006) |
 | 오래 걸리는 작업 | LLM·식단 사진·결과지 OCR은 `202 + task_id` (AI 워커 TaskMessage·SSE와 같은 이름) → Redis Stream 워커 → 공통 SSE(12-6)의 `event: task`로 결과 알림 → 프론트가 해당 조회 API로 다시 가져옴 (REQ-NFR-005). 결과 내용은 이벤트에 넣지 않음 |
@@ -199,7 +199,7 @@ S-27 · REQ-USER-003
 설문 한 번 = 한 행. 가입 설문(`ONBOARDING`)과 주간 재설문(`WEEKLY`)이 같은 API를 씀.
 
 ### 3-1. 설문 저장 `POST /api/v1/health-profiles` ⚕️
-S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
+S-06(가입 설문), S-11(주간 재설문 앞부분), `/survey/edit`(마이에서 고치기, 3-4) · REQ-PROF-001, PRED-004
 
 **요청**
 ```json
@@ -279,10 +279,10 @@ S-06(가입 설문), S-11(주간 재설문 앞부분) · REQ-PROF-001, PRED-004
 - `survey_version`이 서버의 현재 버전과 다르면 **409** `code: SURVEY_VERSION_MISMATCH` `"설문 문항이 바뀌었어요. 다시 불러올게요."` → 프론트가 3-6을 다시 받아 화면을 새로 그림 (11/23 7번 결정)
 - 409 세 가지는 프론트 처리가 달라서 문구가 아니라 `code`로 가름 (1장 에러 code 목록)
 
-**WEEKLY 추가 규칙**
+**WEEKLY·EDIT 추가 규칙**
 - ONBOARDING 행이 없으면 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` → S-06으로
-- ONBOARDING을 두 번 보내면 **409** `code: ONBOARDING_ALREADY_DONE` → 홈으로 `"가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."` (수정은 3-4 참고)
-- 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표)
+- ONBOARDING을 두 번 보내면 **409** `code: ONBOARDING_ALREADY_DONE` → 홈으로 `"가입 설문은 이미 했어요. 바뀐 내용은 마이에서 고쳐 주세요."` (고치기는 3-4)
+- (WEEKLY만) 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표). EDIT는 21문항을 다 받으므로 복사 없음
 
 **처리 순서 (한 트랜잭션)**
 1. 검사 → 건너뛰기 코드 채움 → (WEEKLY) 직전 값 복사 → `health_profiles` 저장
@@ -331,15 +331,21 @@ S-11 재설문 기본값 채우기, S-27 마이
 - 응답 시각 최신순, 같은 시각이면 나중에 넣은 것 먼저. `limit` 1~50(기본 20). 커서는 마지막 행의 id
 - 내 설문이 아니거나 없는 id를 커서로 보내면 처음부터가 아니라 **404** `"설문 기록을 찾을 수 없어요."` (4-2와 같음)
 
-### 3-4. 가입 설문 정보 수정 (S-27)
-- 행을 고치지 않고 **새 행을 쌓는 게 원칙**(예측 이력의 `health_profile_id`가 가리키는 값이 바뀌면 안 됨)
-- 그래서 마이에서 "설문 수정" = `POST /health-profiles` with `kind: "WEEKLY"` + 키·가족력까지 모두 받는 전체 모드 → **정할 것 1번**
+### 3-4. 마이에서 설문 고치기 `POST /api/v1/health-profiles` `kind: "EDIT"` ⚕️
+마이(M18·S-27) "고치기" → 화면 `/survey/edit` (S-06 설문 화면 재사용, 3-2로 답을 미리 채움) · **정할 것 1번 11/26 확정** (현영·현지·지연)
+- 행을 고치지 않고 **새 행을 쌓는 원칙** 그대로 (예측 이력의 `health_profile_id`가 가리키는 값이 바뀌면 안 됨)
+- 재설문(WEEKLY)에서 안 묻는 키·가족력·전자담배까지 **21문항 전부** 받음. 요청 모양·검사(건너뛰기·성별·범위)는 ONBOARDING과 같음 (숨겨지는 문항은 null → 서버가 8/888, 사용자가 고른 보기 8은 그대로)
+- 가입 설문 뒤에만: 없으면 **409** `ONBOARDING_REQUIRED`. `SURVEY_VERSION_MISMATCH`는 3-1과 같음. EDIT를 여러 번 해도 됨
+- 저장하면 예측도 다시 함 (키가 바뀌면 BMI·위험도가 바뀜) → 응답은 3-1과 같고, 화면은 가입 설문처럼 S-09로. 예측 실패면 S-09 다시 계산(5-5)
+- 다음 WEEKLY는 이 행 값을 복사함 (고친 키·가족력이 이어짐)
+- 재설문 주기(알림·주차 계산)에는 **안 셈**: 주기는 마지막 ONBOARDING·WEEKLY 기준 (지연 11/26). 대신 위험도 추이(7-1)에는 점으로 들어가고 `survey_kind: "EDIT"`로 "수정" 표시
+- 3-3 이력에서 `kind=WEEKLY`로 거르면 EDIT는 빠짐
 
 ### 3-5. 설문 한 건 `GET /api/v1/health-profiles/{id}`
 - 응답 200: `health_profile` 형태. 남의 것이거나 없으면 **404** `"설문 기록을 찾을 수 없어요."`
 
 ### 3-6. 설문 문항 정의 `GET /api/v1/health-profiles/questions?kind=ONBOARDING`
-S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
+S-06, S-11, `/survey/edit` · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 - 문항 문구·보기·저장값·건너뛰기 조건의 **기준은 서버 상수 한 곳**, 이 API가 그대로 내려줌 → 학습 코드(survey-mapping.md)와 어긋나지 않게
 - 프론트는 같은 JSON 모양 상수로 먼저 시작하고, **S-11(주간 재설문) 구현 전에 이 API fetch로 바꿈** (그전까지 규칙이 두 곳이라 오래 두지 않음)
 - 대응표 코드가 바뀌면 `survey-mapping.md` + 서버 상수를 **같은 PR**에서 고치고 `survey_version`을 올림 (형식은 ERD와 같은 `v1.0` → `v1.1`, 409 비교는 문자열 그대로)
@@ -360,7 +366,8 @@ S-06, S-11 · 로그인 필요 · **11/23 7번 결정으로 확정 (P2 아님)**
 - **사용자 성별은 `users.gender`** (`"MALE"` / `"FEMALE"`): 가입 응답(2-1)의 `user.gender` 또는 내 정보 `GET /api/v1/users/me`(2-5)의 `gender`로 받음. `only_for`·`text_by_gender`의 키와 같은 값
 - `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
 - `kind=ONBOARDING`은 설문 프로필이 없어도 **정상 200** (S-06 가입 설문이 바로 이 호출, `ask_when_applicable` 없음)
-- 가입 설문(ONBOARDING) 없이 `kind=WEEKLY`를 부르면 직전 행이 없어 `ask_when_applicable`을 못 채움 → 3-1과 같은 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` (프론트는 같은 code로 S-06 이동)
+- `kind=EDIT`는 ONBOARDING과 **같은 21문항·같은 `survey_version`** (`kind` 값만 `EDIT`), `ask_when_applicable` 없음. 가입 설문 전이면 아래 WEEKLY와 같은 409
+- 가입 설문(ONBOARDING) 없이 `kind=WEEKLY`·`kind=EDIT`를 부르면(WEEKLY는 직전 행이 없어 `ask_when_applicable`을 못 채우고, EDIT는 고칠 설문이 없음) → 3-1과 같은 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` (프론트는 같은 code로 S-06 이동)
 - WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음"). 응답이 사용자마다 달라서(`ask_when_applicable`) **캐시하지 않음**, ONBOARDING은 `survey_version`이 같으면 캐시해도 됨
 - `questions` 배열 순서 = 화면 순서, `options` 배열 순서 = 보기 순서
 - 필수 여부: 11·12·13·15·16번은 상위 답에 따라 묻는 조건부 문항이라 `skip`으로 정해짐 (`required`는 NUMBER에만)
@@ -737,7 +744,7 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
 {
   "series": [
     { "disease": "DIABETES", "managed": false,
-      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51, "criteria_level": "CAUTION" } ] },
+      "points": [ { "week_start": "2026-11-16", "score": 34, "level": "CAUTION", "prediction_id": 51, "criteria_level": "CAUTION", "survey_kind": "WEEKLY" } ] },
     { "disease": "HYPERTENSION", "managed": true, "points": [] }
   ]
 }
@@ -746,6 +753,7 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
 - 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음). 두 질환은 항상 내려줌 (설문 전이면 둘 다 빈 `points`)
 - 주는 KST 월요일 기준, 이번 주 포함 N주. `weeks`는 1~52 (밖이면 422)
 - `criteria_level`: 그 주 마지막 기준표 판정 단계, 없으면 null. 그 주 마지막 MODEL 행보다 오래된 기준표(최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측)는 지난 판정이라 null (5-2와 같은 규칙)
+- `survey_kind`: 그 점을 계산한 설문의 종류 `ONBOARDING` / `WEEKLY` / `EDIT`. `EDIT`면 화면이 "수정"으로 표시 (3-4). 검진 저장으로 다시 예측한 점은 그때의 최근 설문 종류. 연결된 설문이 없는 점(설문이 지워진 경우 등)은 `null`
 - 추이는 `method = MODEL`인 점만 이어 그림. 기준표 판정(`CHECKUP_CRITERIA`, score 없음)은 그 주에 표시만 따로 (`criteria_level`) → 정할 것 9번
 - "위험도가 낮아졌어요"는 **직전 점보다 실제로 내려갔을 때만**, 바뀐 입력값과 같이 보여줌 (REQ-NFR-003) → 바뀐 입력값은 예측 상세(5장)의 `input_snapshot` 비교로
 
@@ -1427,6 +1435,7 @@ S-25 · REQ-NOTI-001
 - 스케줄러가 **10분마다** 이번 10분 안에 보낼 `CHALLENGE_REMINDER`·`WEEKLY_REPORT`·`CUSTOM_REMINDER`를 찾아 `notifications` 생성 → SSE·웹 푸시
 - 실행 위치(FastAPI 안 / AI 워커 / 별도 프로세스)는 구현 때 결정 → 정할 것 28번
 - 같은 알림이 두 번 가지 않게 (사용자, 종류, 대상, 날짜·시각)로 중복 확인
+- 재설문 주기를 셀 때 `kind=EDIT`(3-4 마이에서 고치기)는 빼고 마지막 ONBOARDING·WEEKLY 기준
 
 ### 12-4. 직접 만든 리마인더 `/api/v1/custom-reminders`
 S-26 · REQ-NOTI-009
@@ -1476,7 +1485,7 @@ data: {"task_id": "8f1c...", "task_type": "MEAL_CLASSIFY", "target_id": 101, "st
 ## 9. 정할 것
 | # | 내용 | 제안 | 누구랑 |
 |---|---|---|---|
-| 1 | 마이(S-27)에서 키·가족력 등 "안 묻는 문항" 수정 방법 | 새 kind `EDIT` 추가 없이, WEEKLY 전체 모드(모든 문항 받음)로 새 행 저장. 또는 enum에 `EDIT` 추가 | ERD(김지연·이지희) |
+| 1 | 마이(S-27)에서 키·가족력 등 "안 묻는 문항" 수정 방법 | ✅ 11/26 확정: 새 kind `EDIT` (21문항 전부, 새 행, 예측 다시, 재설문 주기엔 안 셈, 7-1 "수정" 표시) → 3-4. 화면 `/survey/edit` | — |
 | 2 | 검진 기록 삭제 시 예측 행 처리 | ✅ 11/19 ERD 확정(#37): `risk_predictions.checkup_record_id` FK `ON DELETE SET NULL`, 당시 값은 `input_snapshot`에 남음 | — |
 | 3 | 일일 기록 값 규칙(6-0 위쪽 7종) | ✅ 11/23 확정: 혈압 60~260, 혈당 40~600, 음주 소주잔·맥주잔, 운동 분 단위, 걸음 수 ~10만 보(하루 1행 덮어씀), 컨디션 6-0 그대로, 체중 ~300kg. 음주 소주잔·맥주잔 저장 방식(따로 받을지·환산할지)은 미정 | ERD·프론트 |
 | 4 | 건강 기록 수정 허용 여부 | ✅ 11/23 확정: 허용, `health_logs.updated_at` 추가 (6-3) | — |

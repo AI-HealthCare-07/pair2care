@@ -45,7 +45,10 @@ class DashboardService:
         start_monday = monday_of(today_kst()) - timedelta(weeks=weeks - 1)
         rows = await self.prediction_repo.list_since(user.id, at_midnight(start_monday))
         managed = managed_diseases(await self.profile_repo.get_latest(user.id))
-        return {"series": build_risk_trend(rows, managed)}
+        kinds = await self.profile_repo.kinds_by_id(
+            user.id, {row.health_profile_id for row in rows if row.health_profile_id}
+        )
+        return {"series": build_risk_trend(rows, managed, kinds)}
 
     async def logs(self, user: User, raw_type: str, start_on: date, end_on: date, bucket: str) -> dict[str, Any]:
         """7-2. 집에서 잰 값(health_logs)만, 검진 수치는 섞지 않음. bucket raw·day·week."""

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 class SurveyKind(StrEnum):
     ONBOARDING = "ONBOARDING"  # 가입 때 첫 설문
     WEEKLY = "WEEKLY"  # 주 1회 재설문
+    EDIT = "EDIT"  # 마이(S-27)에서 고치기: 21문항 전부, 새 행으로 (정할 것 1번, 11/26). 재설문 주기에는 안 셈
 
 
 class HealthProfile(models.Model):

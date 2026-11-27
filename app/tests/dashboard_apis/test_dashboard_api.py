@@ -64,9 +64,22 @@ class TestDashboardAPI(TestCase):
                 "level": "CAUTION",
                 "prediction_id": survey.json()["predictions"][0]["id"],
                 "criteria_level": None,
+                "survey_kind": "ONBOARDING",
             }
         ]
         assert hypertension["points"][0]["score"] == 21
+
+    async def test_risk_trend_edit_point_has_survey_kind_edit(self) -> None:
+        async with new_client() as client:
+            await self.login(client, "db-trend-edit@example.com")
+            await client.post(SURVEY_URL, json=onboarding_body())
+            edited = await client.post(SURVEY_URL, json={**onboarding_body(height_cm=180.0), "kind": "EDIT"})
+            response = await client.get(f"{URL}/risk-trend")
+
+        # 같은 주에 고치면 그 주의 점은 마지막(EDIT) 예측 → 화면이 "수정"으로 표시 (3-4)
+        point = response.json()["series"][0]["points"][0]
+        assert point["prediction_id"] == edited.json()["predictions"][0]["id"]
+        assert point["survey_kind"] == "EDIT"
 
     async def test_risk_trend_managed_and_empty(self) -> None:
         async with new_client() as client:

@@ -35,6 +35,13 @@ class HealthProfileRepository:
             )
         return await query.order_by("-created_at", "-id").limit(limit)
 
+    async def kinds_by_id(self, user_id: int, profile_ids: set[int]) -> dict[int, SurveyKind]:
+        """7-1 점마다 어떤 설문으로 계산했는지 (EDIT면 화면이 "수정" 표시)."""
+        if not profile_ids:
+            return {}
+        rows = await self._model.filter(user_id=user_id, id__in=profile_ids).values_list("id", "kind")
+        return {profile_id: SurveyKind(kind) for profile_id, kind in rows}
+
     async def create(
         self,
         *,

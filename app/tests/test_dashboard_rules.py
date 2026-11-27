@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.models.health_logs import HealthLog, HealthLogType
+from app.models.health_profiles import SurveyKind
 from app.models.risk_predictions import Disease, PredictionMethod, RiskLevel, RiskPrediction
 from app.services.dashboard_rules import (
     bucket_logs,
@@ -72,7 +73,14 @@ def test_trend_last_model_row_per_week_with_criteria_level() -> None:
         "disease": "HYPERTENSION",
         "managed": False,
         "points": [
-            {"week_start": "2026-11-23", "score": 21, "level": "LOW", "prediction_id": 5, "criteria_level": None}
+            {
+                "week_start": "2026-11-23",
+                "score": 21,
+                "level": "LOW",
+                "prediction_id": 5,
+                "criteria_level": None,
+                "survey_kind": None,
+            }
         ],
     }
 
@@ -175,3 +183,15 @@ def test_week_summary_per_type() -> None:
         "ALCOHOL": {"count": 2, "avg_value": 2.8, "total_value": 5.5, "last_measured_at": "2026-11-26T22:00:00+09:00"},
         "STEPS": {"days_logged": 2, "avg_value": 6120.0},
     }
+
+
+def test_trend_point_carries_survey_kind_for_edit_label() -> None:
+    # 마이에서 고친 설문(EDIT)으로 다시 계산한 점은 화면이 "수정"으로 표시 (정할 것 1번)
+    row = prediction(1, Disease.DIABETES, kst(17))
+    row.health_profile_id = 7
+
+    diabetes, _ = build_risk_trend([row], managed_diseases=[], kind_by_profile_id={7: SurveyKind.EDIT})
+    unknown, _ = build_risk_trend([row], managed_diseases=[])
+
+    assert diabetes["points"][0]["survey_kind"] == "EDIT"
+    assert unknown["points"][0]["survey_kind"] is None
