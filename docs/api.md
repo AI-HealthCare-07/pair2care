@@ -282,7 +282,7 @@ S-06(가입 설문), S-11(주간 재설문 앞부분), `/survey/edit`(마이에�
 **WEEKLY·EDIT 추가 규칙**
 - ONBOARDING 행이 없으면 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` → S-06으로
 - ONBOARDING을 두 번 보내면 **409** `code: ONBOARDING_ALREADY_DONE` → 홈으로 `"가입 설문은 이미 했어요. 바뀐 내용은 마이에서 고쳐 주세요."` (고치기는 3-4)
-- 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표)
+- (WEEKLY만) 안 묻는 문항은 클라이언트가 보내도 무시하고 직전 행에서 복사 (위 표). EDIT는 21문항을 다 받으므로 복사 없음
 
 **처리 순서 (한 트랜잭션)**
 1. 검사 → 건너뛰기 코드 채움 → (WEEKLY) 직전 값 복사 → `health_profiles` 저장
@@ -367,7 +367,7 @@ S-06, S-11, `/survey/edit` · 로그인 필요 · **11/23 7번 결정으로 확�
 - `ask_when_applicable` (**`kind=WEEKLY`에서만**): 서버가 사용자의 직전 행을 보고 채움. `true`면 직전에 비해당(8 / 888)이었다는 뜻 → 이번 답으로 해당되면 물음. `false`면 해당돼도 묻지 않음(서버가 직전 값 복사). 13·16번에만 붙음 → 직전 프로필 조회 API는 따로 만들지 않음
 - `kind=ONBOARDING`은 설문 프로필이 없어도 **정상 200** (S-06 가입 설문이 바로 이 호출, `ask_when_applicable` 없음)
 - `kind=EDIT`는 ONBOARDING과 **같은 21문항·같은 `survey_version`** (`kind` 값만 `EDIT`), `ask_when_applicable` 없음. 가입 설문 전이면 아래 WEEKLY와 같은 409
-- 가입 설문(ONBOARDING) 없이 `kind=WEEKLY`를 부르면 직전 행이 없어 `ask_when_applicable`을 못 채움 → 3-1과 같은 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` (프론트는 같은 code로 S-06 이동)
+- 가입 설문(ONBOARDING) 없이 `kind=WEEKLY`·`kind=EDIT`를 부르면(WEEKLY는 직전 행이 없어 `ask_when_applicable`을 못 채우고, EDIT는 고칠 설문이 없음) → 3-1과 같은 **409** `code: ONBOARDING_REQUIRED` `"가입 설문을 먼저 해 주세요."` (프론트는 같은 code로 S-06 이동)
 - WEEKLY는 재설문에서 묻는 문항만 내려줌 (survey-mapping.md "재설문: 물음"). 응답이 사용자마다 달라서(`ask_when_applicable`) **캐시하지 않음**, ONBOARDING은 `survey_version`이 같으면 캐시해도 됨
 - `questions` 배열 순서 = 화면 순서, `options` 배열 순서 = 보기 순서
 - 필수 여부: 11·12·13·15·16번은 상위 답에 따라 묻는 조건부 문항이라 `skip`으로 정해짐 (`required`는 NUMBER에만)
@@ -748,7 +748,7 @@ S-18, S-12 일부 · REQ-DASH-002·003·004
 - 예측이 없는 주는 점을 빼고 보냄(0으로 채우지 않음). 두 질환은 항상 내려줌 (설문 전이면 둘 다 빈 `points`)
 - 주는 KST 월요일 기준, 이번 주 포함 N주. `weeks`는 1~52 (밖이면 422)
 - `criteria_level`: 그 주 마지막 기준표 판정 단계, 없으면 null. 그 주 마지막 MODEL 행보다 오래된 기준표(최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측)는 지난 판정이라 null (5-2와 같은 규칙)
-- `survey_kind`: 그 점을 계산한 설문의 종류 `ONBOARDING` / `WEEKLY` / `EDIT`. `EDIT`면 화면이 "수정"으로 표시 (3-4). 검진 저장으로 다시 예측한 점은 그때의 최근 설문 종류
+- `survey_kind`: 그 점을 계산한 설문의 종류 `ONBOARDING` / `WEEKLY` / `EDIT`. `EDIT`면 화면이 "수정"으로 표시 (3-4). 검진 저장으로 다시 예측한 점은 그때의 최근 설문 종류. 연결된 설문이 없는 점(설문이 지워진 경우 등)은 `null`
 - 추이는 `method = MODEL`인 점만 이어 그림. 기준표 판정(`CHECKUP_CRITERIA`, score 없음)은 그 주에 표시만 따로 (`criteria_level`) → 정할 것 9번
 - "위험도가 낮아졌어요"는 **직전 점보다 실제로 내려갔을 때만**, 바뀐 입력값과 같이 보여줌 (REQ-NFR-003) → 바뀐 입력값은 예측 상세(5장)의 `input_snapshot` 비교로
 
@@ -1430,6 +1430,7 @@ S-25 · REQ-NOTI-001
 - 스케줄러가 **10분마다** 이번 10분 안에 보낼 `CHALLENGE_REMINDER`·`WEEKLY_REPORT`·`CUSTOM_REMINDER`를 찾아 `notifications` 생성 → SSE·웹 푸시
 - 실행 위치(FastAPI 안 / AI 워커 / 별도 프로세스)는 구현 때 결정 → 정할 것 28번
 - 같은 알림이 두 번 가지 않게 (사용자, 종류, 대상, 날짜·시각)로 중복 확인
+- 재설문 주기를 셀 때 `kind=EDIT`(3-4 마이에서 고치기)는 빼고 마지막 ONBOARDING·WEEKLY 기준
 
 ### 12-4. 직접 만든 리마인더 `/api/v1/custom-reminders`
 S-26 · REQ-NOTI-009

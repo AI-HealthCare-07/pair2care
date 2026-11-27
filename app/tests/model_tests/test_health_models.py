@@ -38,5 +38,5 @@ def test_checkup_defaults_and_hba1c_precision() -> None:
 
 
 def test_enum_values_match_erd() -> None:
-    assert {k.value for k in SurveyKind} == {"ONBOARDING", "WEEKLY"}
+    assert {k.value for k in SurveyKind} == {"ONBOARDING", "WEEKLY", "EDIT"}
     assert {s.value for s in CheckupSource} == {"MANUAL", "OCR"}
