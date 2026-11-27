@@ -1,0 +1,68 @@
+{
+  "model_version": "diabetes_risk:v1",
+  "mlflow_run_id": "81a8c243b3c54042870722ab99798974",
+  "disease": "DIABETES",
+  "features": [
+    "sex",
+    "age",
+    "bmi",
+    "father_diabetes_history",
+    "mother_diabetes_history",
+    "sibling_diabetes_history",
+    "father_hypertension_history",
+    "mother_hypertension_history",
+    "sibling_hypertension_history",
+    "alcohol_frequency",
+    "alcohol_amount",
+    "smoking_current"
+  ],
+  "intercept": -7.222187933758231,
+  "coefficients": {
+    "sex": -0.2851460187607392,
+    "age": 0.06109619872317033,
+    "bmi": 0.15748072293417148,
+    "father_diabetes_history": 0.3448463467734631,
+    "mother_diabetes_history": 0.3639397227679963,
+    "sibling_diabetes_history": 0.48015840324319004,
+    "father_hypertension_history": -0.07027060774939163,
+    "mother_hypertension_history": -0.12510872957461455,
+    "sibling_hypertension_history": -0.04933246303589366,
+    "alcohol_frequency": 0.06759640955847417,
+    "alcohol_amount": 0.014283387007577003,
+    "smoking_current": 0.2852812375156384
+  },
+  "means": {
+    "sex": 1.589779602420052,
+    "age": 51.05704407951599,
+    "bmi": 24.06813958513397,
+    "father_diabetes_history": 0.13342696629213482,
+    "mother_diabetes_history": 0.14649956784788246,
+    "sibling_diabetes_history": 0.07649092480553155,
+    "father_hypertension_history": 0.25432152117545376,
+    "mother_hypertension_history": 0.3052074330164218,
+    "sibling_hypertension_history": 0.13569576490924806,
+    "alcohol_frequency": 3.072925669835782,
+    "alcohol_amount": 1.8958513396715644,
+    "smoking_current": 0.15654710458081245
+  },
+  "means_by_sex": {
+    "MALE": {
+      "bmi": 24.995838820121197,
+      "father_diabetes_history": 0.1290492494074269,
+      "mother_diabetes_history": 0.13062944429813012,
+      "sibling_diabetes_history": 0.05240979720832236,
+      "alcohol_frequency": 3.652883855675533,
+      "alcohol_amount": 2.7221490650513562,
+      "smoking_current": 0.31656570977087173
+    },
+    "FEMALE": {
+      "bmi": 23.422879648287307,
+      "father_diabetes_history": 0.13647188129694082,
+      "mother_diabetes_history": 0.15753801062465653,
+      "sibling_diabetes_history": 0.09324052024180253,
+      "alcohol_frequency": 2.66953654515479,
+      "alcohol_amount": 1.321121084447701,
+      "smoking_current": 0.04524638212126763
+    }
+  }
+}

@@ -1,7 +1,8 @@
 // frontend/src/pages/MyPage.tsx
-// S-27 마이 (Figma M18). 지금은 계정 묶음(내 정보 + 로그아웃)만. 건강 정보·짝꿍/알림 묶음은 화면이 생기면 붙임
+// S-27 마이 (Figma M18). 건강 정보(검진 수치 입력)·계정(내 정보 + 로그아웃). 설문 고치기·짝꿍/알림 묶음은 화면이 생기면 붙임
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { useAuth } from '../auth/useAuth'
 import Button from '../components/common/Button'
@@ -28,6 +29,15 @@ export default function MyPage() {
       <h1 id="my-title" className="home-header__title">
         마이
       </h1>
+      <section className="home-card" aria-labelledby="my-health-title">
+        <h2 id="my-health-title" className="home-section-title">
+          건강 정보
+        </h2>
+        <p className="home-muted">검진 결과를 넣으면 위험도가 더 정확해져요.</p>
+        <Link className="ui-btn ui-btn--secondary" to="/checkup">
+          검진 수치 입력하기
+        </Link>
+      </section>
       <section className="home-card" aria-labelledby="my-account-title">
         <h2 id="my-account-title" className="home-section-title">
           계정

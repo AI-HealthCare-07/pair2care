@@ -15,6 +15,7 @@
   border-radius: 14px;
   font: inherit;
   font-weight: 700;
+  text-decoration: none; /* <Link className="ui-btn">도 버튼처럼 */
   cursor: pointer;
 }
 

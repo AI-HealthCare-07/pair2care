@@ -1,12 +1,13 @@
 """7장 대시보드 계산 (api.md 7-1~7-3). DB 없이 쓰는 순수 함수."""
 
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Final
 
 from app.models.health_logs import HealthLog, HealthLogType
+from app.models.health_profiles import SurveyKind
 from app.models.risk_predictions import Disease, PredictionMethod, RiskLevel, RiskPrediction
 from app.services.health_log_rules import KST, RULES
 
@@ -42,13 +43,18 @@ def is_newer(row: RiskPrediction, other: RiskPrediction) -> bool:
 # ---------- 7-1 위험도 추이 ----------
 
 
-def build_risk_trend(rows: Iterable[RiskPrediction], managed_diseases: Sequence[Disease]) -> list[dict[str, Any]]:
+def build_risk_trend(
+    rows: Iterable[RiskPrediction],
+    managed_diseases: Sequence[Disease],
+    kind_by_profile_id: Mapping[int, SurveyKind] | None = None,
+) -> list[dict[str, Any]]:
     """질환별 주(월~일, KST)마다 마지막 MODEL 예측 1개. 그 주 마지막 기준표 판정은 criteria_level로.
 
     기준표 행이 그 주 마지막 MODEL 행보다 오래됐으면 지난 판정이라 null (5-2 pick_latest_rows와 같은 규칙,
     가장 최근 검진을 지웠거나 1년이 지나 기준표 없이 다시 예측한 경우).
 
     관리 중(최근 설문에서 진단 "예")이면 points는 비움 → 화면은 "관리 중" 카드. 예측이 없는 주는 점을 뺌.
+    survey_kind: 그 점을 계산한 설문의 종류 (EDIT면 화면이 "수정"으로 표시, 정할 것 1번).
     """
     last_model: dict[tuple[Disease, date], RiskPrediction] = {}
     last_criteria: dict[tuple[Disease, date], RiskPrediction] = {}
@@ -77,6 +83,7 @@ def build_risk_trend(rows: Iterable[RiskPrediction], managed_diseases: Sequence[
                         "level": model_row.level.value,
                         "prediction_id": model_row.id,
                         "criteria_level": criteria_row.level.value if criteria_row else None,
+                        "survey_kind": survey_kind_of(model_row, kind_by_profile_id or {}),
                     }
                 )
         series.append({"disease": disease.value, "managed": is_managed, "points": points})
@@ -162,3 +169,9 @@ def summarize_week_logs(rows: Sequence[HealthLog]) -> dict[str, Any]:
         item["last_measured_at"] = max(row.measured_at for row in group).astimezone(KST).isoformat()
         summary[log_type.value] = item
     return summary
+
+
+def survey_kind_of(row: RiskPrediction, kind_by_profile_id: Mapping[int, SurveyKind]) -> str | None:
+    # 모델 초기화 없이 만든 행(순수 테스트)엔 FK id 속성이 없을 수 있어서 getattr
+    kind = kind_by_profile_id.get(getattr(row, "health_profile_id", None) or 0)
+    return kind.value if kind else None

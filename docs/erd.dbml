@@ -49,6 +49,7 @@ Table user_consents {
 Enum survey_kind {
   ONBOARDING    // 가입 때 첫 설문
   WEEKLY        // 주 1회 재설문
+  EDIT          // 마이에서 고치기 (21문항 전부, 새 행, 재설문 주기엔 안 셈, api.md 3-4)
 }
 
 Table health_profiles {

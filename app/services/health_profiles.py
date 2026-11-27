@@ -24,7 +24,7 @@ KST = ZoneInfo("Asia/Seoul")
 
 SURVEY_VERSION_MISMATCH_DETAIL = "설문 문항이 바뀌었어요. 다시 불러올게요."
 ONBOARDING_REQUIRED_DETAIL = "가입 설문을 먼저 해 주세요."
-ONBOARDING_ALREADY_DONE_DETAIL = "가입 설문은 이미 했어요. 바뀐 내용은 주간 설문에서 알려 주세요."
+ONBOARDING_ALREADY_DONE_DETAIL = "가입 설문은 이미 했어요. 바뀐 내용은 마이에서 고쳐 주세요."
 
 
 NOT_FOUND_DETAIL: Final = "설문 기록을 찾을 수 없어요."
@@ -39,7 +39,7 @@ class HealthProfileService:
         self.prediction_service = PredictionService()
 
     async def get_questions(self, user_id: int, kind: SurveyKind) -> dict[str, Any]:
-        """3-6. ONBOARDING은 설문이 없어도 200, WEEKLY는 직전 행으로 ask_when_applicable을 채움."""
+        """3-6. ONBOARDING은 설문이 없어도 200. WEEKLY·EDIT는 가입 설문 뒤에만 (WEEKLY는 직전 행으로 ask_when_applicable)."""
         if kind == SurveyKind.ONBOARDING:
             return build_questions(kind)
 
@@ -142,14 +142,17 @@ def onboarding_required() -> AppError:
 
 
 def check_survey_order(kind: SurveyKind, latest: HealthProfile | None) -> None:
-    """가입 설문이 먼저, 한 번만. 행이 하나라도 있으면 가입 설문은 이미 한 것 (첫 행은 항상 ONBOARDING)."""
+    """가입 설문이 먼저, 한 번만. 행이 하나라도 있으면 가입 설문은 이미 한 것 (첫 행은 항상 ONBOARDING).
+
+    WEEKLY·EDIT는 가입 설문 뒤에만 (EDIT는 21문항을 다 받지만 고치기라서 가입 설문을 대신하지 않음).
+    """
     if kind == SurveyKind.ONBOARDING and latest is not None:
         raise AppError(
             status_code=status.HTTP_409_CONFLICT,
             detail=ONBOARDING_ALREADY_DONE_DETAIL,
             code=ErrorCode.ONBOARDING_ALREADY_DONE,
         )
-    if kind == SurveyKind.WEEKLY and latest is None:
+    if kind != SurveyKind.ONBOARDING and latest is None:
         raise onboarding_required()
 
 

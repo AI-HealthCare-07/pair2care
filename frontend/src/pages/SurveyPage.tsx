@@ -161,9 +161,6 @@ function SurveyFlow({ gender }: { gender: Gender }) {
         await reload() // 이미 설문함(409) → 내 정보를 다시 받아야 홈에서 안 튕김
         navigate('/home')
         return
-      case 'RELOGIN':
-        navigate('/login')
-        return
       case 'FOCUS_FIELD':
         // field가 이 화면의 문항이면 그 문항으로 이동, 모르는 값이면 문구만 보여 줌
         if (err.field && def.questions.some((q) => q.field === err.field)) setCurrentField(err.field)

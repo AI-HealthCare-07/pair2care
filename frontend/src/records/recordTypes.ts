@@ -3,6 +3,7 @@
 // 값 범위·소수점 검사는 서버가 함 (api.md 6-0, 400 문구를 그대로 보여 줌) → 여기선 입력칸 모양만 정함
 
 import type { DailyLogType } from '../api/healthLogs'
+import type { Disease } from '../api/predictions'
 
 export interface RecordField {
   key: 'value' | 'value2'
@@ -19,6 +20,7 @@ export interface RecordType {
   unit: string // 목록에 붙이는 단위
   fields: RecordField[]
   hint?: string // 입력 화면 제목 아래 안내
+  trendDisease?: Disease // 이 탭 아래 위험도 추이 카드 (혈압 → 고혈압, 혈당 → 당뇨)
 }
 
 const num = (key: RecordField['key'], label: string, placeholder: string, decimal = false): RecordField => ({
@@ -38,6 +40,7 @@ export const RECORD_TYPES: RecordType[] = [
     unit: 'mmHg',
     fields: [num('value', '수축기 혈압 (mmHg)', '예: 128'), num('value2', '이완기 혈압 (mmHg)', '예: 82')],
     hint: '집에서 잰 값만 그래프에 보여요. 검진 수치와 섞지 않아요.',
+    trendDisease: 'HYPERTENSION',
   },
   {
     kind: 'blood-glucose',
@@ -46,6 +49,7 @@ export const RECORD_TYPES: RecordType[] = [
     title: '혈당',
     unit: 'mg/dL',
     fields: [num('value', '혈당 (mg/dL)', '예: 105')],
+    trendDisease: 'DIABETES',
   },
   { kind: 'weight', logType: 'WEIGHT', tab: '체중', title: '체중', unit: 'kg', fields: [num('value', '체중 (kg)', '예: 68.5', true)] },
   {

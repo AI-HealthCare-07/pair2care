@@ -1,5 +1,6 @@
 """모델 JSON 추론·점수·단계·factors (api.md 5-0, DB 없이 도는 순수 테스트)."""
 
+import json
 import math
 from typing import Any
 
@@ -7,8 +8,17 @@ import pytest
 
 from app.models.risk_predictions import Disease, RiskLevel
 from app.services.prediction.features import FEATURE_NAMES
-from app.services.prediction.health_age import parse_means_by_sex
-from app.services.prediction.model import LogisticModel, load_model, read_model_file, to_level, to_score
+from app.services.prediction.health_age import load_archived_sex_means, parse_means_by_sex
+from app.services.prediction.model import (
+    ARCHIVE_DIR,
+    LogisticModel,
+    archive_path,
+    load_archived_model,
+    load_model,
+    read_model_file,
+    to_level,
+    to_score,
+)
 
 
 def make_model_dict(**overrides: Any) -> dict[str, Any]:
@@ -106,3 +116,21 @@ def test_model_file_means_by_sex_are_valid() -> None:
         data = read_model_file(disease)
         if "means_by_sex" in data:
             parse_means_by_sex(data["model_version"], disease, data["means_by_sex"])
+
+
+def test_archived_model_files_are_valid() -> None:
+    # 예전 버전 보관 파일: 이름 = 버전, 계수·평균·means_by_sex 형식이 맞아야 그 버전 행을 설명할 수 있음
+    paths = sorted(ARCHIVE_DIR.glob("*.json"))
+    assert paths, "보관 폴더가 비어 있음 (v1 파일이 있어야 함)"
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert archive_path(data["model_version"]) == path
+        disease = Disease(data["disease"])
+        model = load_archived_model(data["model_version"], disease)
+        assert model is not None and model.model_version != load_model(disease).model_version
+        assert load_archived_sex_means(data["model_version"], disease) is not None
+
+
+def test_archived_model_missing_version_is_none() -> None:
+    assert load_archived_model("diabetes_risk:v0", Disease.DIABETES) is None
+    assert load_archived_sex_means("diabetes_risk:v0", Disease.DIABETES) is None
